@@ -12,8 +12,9 @@ import { PeachAlert } from '@/components/ui/PeachAlert';
 import { SearchField } from '@/components/ui/SearchField';
 import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { SyncFooter } from '@/components/ui/SyncFooter';
+import { useCatalog } from '@/context/CatalogContext';
 import { useDemoState } from '@/context/DemoStateContext';
-import { orders, summary } from '@/data/mock';
+import { summary } from '@/data/mock';
 import { formatCount } from '@/lib/money';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
@@ -26,12 +27,15 @@ const TABS = [
 
 export default function SiparislerScreen() {
   const { state, setState } = useDemoState();
+  const catalog = useCatalog();
   const [tab, setTab] = useState('hazirlanacak');
+  const orders = catalog.orders;
+  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'yerel örnek';
 
   const visible = useMemo(() => {
     if (tab === 'all') return orders;
     return orders.filter((order) => order.status === tab);
-  }, [tab]);
+  }, [tab, orders]);
 
   return (
     <View style={styles.root}>
@@ -40,7 +44,7 @@ export default function SiparislerScreen() {
         <View style={styles.heroPad}>
           <View style={styles.titleRow}>
             <Text style={styles.title}>Siparişler</Text>
-            <Text style={styles.count}>{formatCount(state === 'empty' ? 0 : summary.orderCount)}</Text>
+            <Text style={styles.count}>{formatCount(state === 'empty' ? 0 : orders.length)}</Text>
           </View>
           <View style={styles.searchRow}>
             <SearchField placeholder="Sipariş no veya müşteri ara" />
@@ -69,7 +73,10 @@ export default function SiparislerScreen() {
             <ErrorState
               title="Siparişler yüklenemedi"
               body="Sunucudan yanıt alınamadı. Biraz sonra yeniden deneyebilirsin. Bu durum sipariş olmadığı anlamına gelmez."
-              onRetry={() => setState('sample')}
+            onRetry={() => {
+              setState('sample');
+              catalog.refresh();
+            }}
             />
             <Text style={styles.hint}>Son deneme 14:36</Text>
           </ScrollView>
@@ -80,9 +87,12 @@ export default function SiparislerScreen() {
               body="Seçili tarih ve mağazada sipariş bulunamadı. Yeni sipariş geldiğinde burada görünür."
               primary="Siparişleri yenile"
               secondary="Tarih aralığı değiştir"
-              onPrimary={() => setState('sample')}
+              onPrimary={() => {
+                setState('sample');
+                catalog.refresh();
+              }}
             />
-            <SyncFooter stores={summary.connectedStores} time={summary.lastSync} />
+            <SyncFooter stores={summary.connectedStores} time={summary.lastSync} source={sourceLabel} />
           </ScrollView>
         ) : (
           <ScrollView contentContainerStyle={styles.sheet} showsVerticalScrollIndicator={false}>
@@ -94,7 +104,7 @@ export default function SiparislerScreen() {
             {visible.map((order) => (
               <OrderCard key={order.id} order={order} />
             ))}
-            <SyncFooter time={summary.lastSync} />
+            <SyncFooter time={summary.lastSync} source={sourceLabel} />
           </ScrollView>
         )}
       </PorcelainSheet>

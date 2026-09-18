@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
 import { colors, fonts, radii } from '@/theme/tokens';
 
@@ -8,36 +8,41 @@ export function Button({
   onPress,
   variant = 'graphite',
   icon,
+  trailing,
+  disabled,
+  loading,
 }: {
   label: string;
   onPress: () => void;
   variant?: 'graphite' | 'lime' | 'ghost';
   icon?: keyof typeof Ionicons.glyphMap;
+  trailing?: keyof typeof Ionicons.glyphMap;
+  disabled?: boolean;
+  loading?: boolean;
 }) {
+  const fg = variant === 'lime' || variant === 'ghost' ? colors.graphite : colors.white;
+  const ghostFg = variant === 'ghost' ? colors.ink : fg;
+
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled || loading}
       style={[
         styles.base,
         variant === 'graphite' && styles.graphite,
         variant === 'lime' && styles.lime,
         variant === 'ghost' && styles.ghost,
+        (disabled || loading) && styles.disabled,
       ]}>
-      {icon ? (
-        <Ionicons
-          name={icon}
-          size={16}
-          color={variant === 'lime' ? colors.graphite : variant === 'ghost' ? colors.ink : colors.white}
-        />
-      ) : null}
-      <Text
-        style={[
-          styles.label,
-          variant === 'lime' && { color: colors.graphite },
-          variant === 'ghost' && { color: colors.ink },
-        ]}>
-        {label}
-      </Text>
+      {loading ? (
+        <ActivityIndicator color={ghostFg} />
+      ) : (
+        <>
+          {icon ? <Ionicons name={icon} size={16} color={ghostFg} /> : null}
+          <Text style={[styles.label, { color: ghostFg }]}>{label}</Text>
+          {trailing ? <Ionicons name={trailing} size={16} color={ghostFg} /> : null}
+        </>
+      )}
     </Pressable>
   );
 }
@@ -60,9 +65,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.4,
     borderColor: colors.ink,
   },
+  disabled: { opacity: 0.45 },
   label: {
     fontFamily: fonts.semibold,
     fontSize: 15,
-    color: colors.white,
   },
 });

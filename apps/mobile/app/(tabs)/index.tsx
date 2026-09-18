@@ -13,13 +13,17 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { StatusDot } from '@/components/ui/StatusBadge';
 import { SyncFooter } from '@/components/ui/SyncFooter';
+import { useCatalog } from '@/context/CatalogContext';
 import { useDemoState } from '@/context/DemoStateContext';
-import { recentOrders, sparkline, summary } from '@/data/mock';
+import { sparkline, summary } from '@/data/mock';
 import { formatCount } from '@/lib/money';
 import { colors, fonts, space } from '@/theme/tokens';
 
 export default function OzetScreen() {
   const { state, setState } = useDemoState();
+  const catalog = useCatalog();
+  const recentOrders = catalog.orders.slice(0, 2);
+  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'yerel örnek';
 
   return (
     <View style={styles.root}>
@@ -48,7 +52,8 @@ export default function OzetScreen() {
           </View>
           <View style={styles.actions}>
             <QuickAction label="Barkod okut" icon="barcode-outline" lime />
-            <QuickAction label="Etiket" icon="pricetag-outline" />
+            <QuickAction label="Stok ekle" icon="add" />
+            <QuickAction label="Fiyat düzenle" icon="pricetag-outline" />
           </View>
         </View>
       </SafeAreaView>
@@ -65,7 +70,10 @@ export default function OzetScreen() {
           <ErrorState
             title="Özet yüklenemedi"
             body="Sunucudan yanıt alınamadı. Biraz sonra yeniden deneyebilirsin."
-            onRetry={() => setState('sample')}
+            onRetry={() => {
+              setState('sample');
+              catalog.refresh();
+            }}
           />
         ) : (
           <ScrollView contentContainerStyle={styles.sheetPad} showsVerticalScrollIndicator={false}>
@@ -95,7 +103,7 @@ export default function OzetScreen() {
                 {recentOrders.map((order) => (
                   <OrderCard key={order.id} order={order} compact />
                 ))}
-                <SyncFooter stores={summary.connectedStores} time={summary.lastSync} />
+                <SyncFooter stores={summary.connectedStores} time={summary.lastSync} source={sourceLabel} />
               </>
             )}
           </ScrollView>

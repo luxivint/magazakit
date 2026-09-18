@@ -12,8 +12,9 @@ import { ProductRow } from '@/components/ui/ProductRow';
 import { SearchField } from '@/components/ui/SearchField';
 import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { SyncFooter } from '@/components/ui/SyncFooter';
+import { useCatalog } from '@/context/CatalogContext';
 import { useDemoState } from '@/context/DemoStateContext';
-import { products, summary } from '@/data/mock';
+import { summary } from '@/data/mock';
 import { formatCount } from '@/lib/money';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
@@ -24,12 +25,15 @@ const TABS = [
 
 export default function UrunlerScreen() {
   const { state, setState } = useDemoState();
+  const catalog = useCatalog();
   const [tab, setTab] = useState('all');
+  const products = catalog.products;
+  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'yerel örnek';
 
   const visible = useMemo(() => {
     if (tab === 'critical') return products.filter((p) => p.critical);
     return products;
-  }, [tab]);
+  }, [tab, products]);
 
   const criticalCount = products.filter((p) => p.critical).length;
 
@@ -69,14 +73,20 @@ export default function UrunlerScreen() {
           <ErrorState
             title="Ürünler yüklenemedi"
             body="Katalog okunamadı. Bu ekran boş katalog anlamına gelmez; yeniden dene."
-            onRetry={() => setState('sample')}
+            onRetry={() => {
+              setState('sample');
+              catalog.refresh();
+            }}
           />
         ) : state === 'empty' ? (
           <EmptyState
             title="Henüz ürün yok"
             body="Trendyol kataloğu içeri alınınca ürünler burada listelenir. Yeni ürün ekleme F4’e kadar kapalı."
             primary="Yenile"
-            onPrimary={() => setState('sample')}
+            onPrimary={() => {
+              setState('sample');
+              catalog.refresh();
+            }}
           />
         ) : (
           <ScrollView contentContainerStyle={styles.sheet} showsVerticalScrollIndicator={false}>
@@ -91,8 +101,8 @@ export default function UrunlerScreen() {
               <ProductRow key={product.id} product={product} />
             ))}
             <View style={styles.footerRow}>
-              <SyncFooter time={summary.lastSync} />
-              <Pressable style={styles.refresh}>
+              <SyncFooter time={summary.lastSync} source={sourceLabel} />
+              <Pressable style={styles.refresh} onPress={() => catalog.refresh()}>
                 <Ionicons name="refresh" size={14} color={colors.muted} />
                 <Text style={styles.refreshText}>Yenile</Text>
               </Pressable>

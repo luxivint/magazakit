@@ -14,16 +14,31 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { AuthProvider } from '@/context/AuthContext';
+import { CatalogProvider } from '@/context/CatalogContext';
 import { DemoStateProvider } from '@/context/DemoStateContext';
 import { colors } from '@/theme/tokens';
+import * as Notifications from 'expo-notifications';
 
 export { ErrorBoundary } from 'expo-router';
 
 export const unstable_settings = {
-  initialRouteName: '(tabs)',
+  initialRouteName: 'index',
 };
 
 SplashScreen.preventAutoHideAsync();
+
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: false,
+      shouldShowBanner: false,
+      shouldShowList: false,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -47,13 +62,19 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <DemoStateProvider>
-          <View style={styles.frame}>
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.graphite } }}>
-              <Stack.Screen name="(tabs)" />
-            </Stack>
-          </View>
-        </DemoStateProvider>
+        <AuthProvider>
+          <CatalogProvider>
+            <DemoStateProvider>
+              <View style={styles.frame}>
+                <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.graphite } }}>
+                  <Stack.Screen name="index" />
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="(tabs)" />
+                </Stack>
+              </View>
+            </DemoStateProvider>
+          </CatalogProvider>
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

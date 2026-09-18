@@ -1,9 +1,14 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { MagazamTabBar } from '@/components/shell/TabBar';
+import { useAuth } from '@/context/AuthContext';
 
 export default function TabLayout() {
+  const { ready, user, orgName } = useAuth();
+  if (!ready) return null;
+  if (!user) return <Redirect href="/(auth)/giris" />;
+  if (!orgName) return <Redirect href="/(auth)/isletme" />;
   return (
     <>
       <StatusBar style="light" />

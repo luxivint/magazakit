@@ -1,24 +1,29 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, fonts, radii, space } from '@/theme/tokens';
+import { initials, useAuth } from '@/context/AuthContext';
+import { colors, fonts, space } from '@/theme/tokens';
 
 export function StoreBar() {
+  const { user, orgName } = useAuth();
+  const label = orgName || 'Mağazam';
+  const mark = initials(user?.name || 'AY');
+
   return (
     <View style={styles.row}>
       <Pressable style={styles.store} accessibilityRole="button" accessibilityLabel="Mağaza seç">
         <View style={styles.logoMark}>
           <Ionicons name="storefront" size={14} color={colors.graphite} />
         </View>
-        <Text style={styles.storeName}>Mağazam</Text>
+        <Text style={styles.storeName}>{label}</Text>
         <Ionicons name="chevron-down" size={14} color={colors.mutedOnDark} />
       </Pressable>
       <View style={styles.actions}>
-        <Pressable style={styles.bell} accessibilityLabel="Bildirimler — F3 sonrası">
+        <Pressable style={styles.bell} accessibilityLabel="Bildirimler">
           <Ionicons name="notifications-outline" size={20} color={colors.white} />
         </Pressable>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>AY</Text>
+          <Text style={styles.avatarText}>{mark}</Text>
         </View>
       </View>
     </View>

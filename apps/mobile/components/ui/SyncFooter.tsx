@@ -5,9 +5,11 @@ import { colors, fonts } from '@/theme/tokens';
 export function SyncFooter({
   stores,
   time,
+  source,
 }: {
   stores?: number;
   time: string;
+  source?: string;
 }) {
   return (
     <View style={styles.row}>
@@ -15,6 +17,7 @@ export function SyncFooter({
         <View style={styles.dot} />
         <Text style={styles.text}>
           {stores != null ? `${stores} mağaza bağlı · ` : ''}Son eşitleme {time}
+          {source ? ` · ${source}` : ''}
         </Text>
       </View>
     </View>

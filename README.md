@@ -1,44 +1,33 @@
 # Mağazam
 
-Trendyol satıcısı için stok, sipariş ve paketleme. **Birincil istemci Expo / React Native** (`apps/mobile`). Next.js web yok.
+Trendyol satıcısı için stok, sipariş ve paketleme. **Birincil istemci Expo / React Native** (`apps/mobile`). Next.js yok.
 
-F0 dilimi: uygulama kabuğu + **E-01 Özet**, **E-02 Siparişler**, **E-04 Ürünler**. Örnek / boş / yükleniyor / hata. Hepsiburada, tahmini kazanç ve “+ ürün” gizli.
+Kimlik: **Firebase Auth** (e-posta/şifre + Google). Push: **Expo Notifications / FCM jetonu** — bildirim spam’i yok. Nest `Authorization: Bearer <idToken>` ile doğrulayacak; bu PR `apps/api` yazmaz.
 
 ## Çalıştırma
 
 ```bash
 cd apps/mobile
+cp .env.example .env   # Firebase anahtarlarını doldur
 npm install
 npx expo start
 ```
 
-QR kodu **Expo Go** ile tarayın (Android veya iOS). Geliştirme sunucusu Metro’yu açar.
+Web: `npx expo start --web`  
+Windows: Expo Go veya EAS. iOS Simulator yok.
 
-Web önizleme (tasarım kontrolü):
+Anahtar yoksa ekranlar açılır; giriş **Firebase yapılandırılmadı** gösterir. Nest’e şifre gitmez.
 
-```bash
-cd apps/mobile
-npx expo start --web
-```
+## Firebase
 
-Kök dizinden:
+1. Console’da Email/Password ve Google’ı aç.
+2. `.env` içine `EXPO_PUBLIC_FIREBASE_*` ve `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
+3. Android EAS: `google-services.json` (`google-services.json.example` kopyası). iOS: `GoogleService-Info.plist`. Gerçek dosyalar git’te yok.
 
-```bash
-npm start
-```
+## Nest katalog (PR 2)
 
-## Windows
+`EXPO_PUBLIC_API_URL` varsayılan `http://127.0.0.1:43140`. `GET /health`, `/v1/products`, `/v1/orders`. Ulaşılamazsa yerel örnek + “yerel örnek” etiketi.
 
-Bu makinede iOS Simulator yok. Windows’ta:
+## Ekranlar
 
-- **Expo Go:** `npx expo start` → aynı Wi‑Fi’deki telefon.
-- **EAS Build:** `npx eas-cli login` sonra `npx eas build --platform android` (veya `ios` Apple hesabıyla). Development build için `expo-dev-client` sonraki dilimde.
-- Yerel Android emülatör: Android Studio + `npx expo start --android`.
-
-## Önizleme durumları
-
-Alt sekme **Hesap** → Örnek veri / Boş / Yükleniyor / Hata. Seçim Özet, Siparişler ve Ürünler’e yansır.
-
-## Ne yok (bilinçli)
-
-Nest API bu pakette değil. F4–F6: HB, kâr, yayın sihirbazı, ekip, abonelik.
+E-13 Giriş · E-22 Hesap oluştur · E-14 İşletme (ad + Trendyol) · E-11 Hesap (profil, mağazalar, çıkış). HB, kâr, +ürün, ekip, fatura, destek talebi gizli.
