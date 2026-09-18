@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Product } from '@/data/mock';
@@ -10,14 +11,19 @@ import { ProductThumb } from './ProductThumb';
 
 export function ProductRow({ product }: { product: Product }) {
   return (
-    <Pressable style={styles.row}>
+    <Pressable style={styles.row} onPress={() => router.push(`/urun/${product.id}`)}>
       <ProductThumb kind={product.thumb} />
       <View style={styles.mid}>
         <Text style={styles.name}>{product.name}</Text>
-        <Text style={styles.sku}>SKU: {product.sku}</Text>
+        <Text style={styles.sku}>Ana SKU: {product.sku}</Text>
+        {product.sku !== product.listingSku ? (
+          <Text style={styles.sku}>İlan: {product.listingSku}</Text>
+        ) : null}
         <View style={styles.meta}>
           <ChannelBadge />
-          <Text style={styles.stock}>Stok {product.stock}</Text>
+          <Text style={styles.stock}>
+            Fiz {product.physical} · Rez {product.reserved} · Sat {product.sellable}
+          </Text>
         </View>
       </View>
       <View style={styles.right}>

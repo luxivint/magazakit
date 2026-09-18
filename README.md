@@ -21,7 +21,8 @@ npx expo start --web --port 43131
 - `GET /v1/organizations/current`
 - `GET /v1/shops`
 - `POST /v1/shops/trendyol/connect` — K01 mock; apiKey/apiSecret gönderilmez
+- `GET /v1/products` · `GET /v1/orders` — Bearer; içeri al upsert (T06)
 
 ## Ekranlar
 
-E-13 Giriş · E-22 Hesap oluştur · E-14 İşletme (ad + sahip) · E-11 Hesap lite · E-08 Mağazalarım · E-15 Trendyol bağla.
+E-13 Giriş · E-22 Hesap oluştur · E-14 İşletme · E-11 Hesap lite · E-08 Mağazalarım · E-15 Trendyol bağla · E-16 İçeri al · E-18 Eşleştirme (manuel SKU) · E-04 Ürünler · E-02 Siparişler · E-05 ürün salt okunur.

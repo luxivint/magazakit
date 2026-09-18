@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -14,18 +15,19 @@ import { Sparkline } from '@/components/ui/Sparkline';
 import { StatusDot } from '@/components/ui/StatusBadge';
 import { SyncFooter } from '@/components/ui/SyncFooter';
 import { useCatalog } from '@/context/CatalogContext';
-import { useDemoState } from '@/context/DemoStateContext';
-import { sparkline, summary } from '@/data/mock';
 import { formatCount } from '@/lib/money';
 import { colors, fonts, space } from '@/theme/tokens';
 
 export default function OzetScreen() {
-  const { state, setState } = useDemoState();
   const catalog = useCatalog();
   const recentOrders = catalog.orders.slice(0, 2);
   const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'Nest yok';
-  const blocked = state === 'sample' && !!catalog.error;
-  const loading = state === 'loading' || (state === 'sample' && catalog.loading);
+  const sales = catalog.orders.reduce((sum, o) => sum + o.amount, 0);
+  const toPrepare = catalog.orders.filter((o) => o.status === 'hazirlanacak').length;
+  const inTransit = catalog.orders.filter((o) => o.status === 'kargoda').length;
+  const returns = catalog.orders.filter((o) => o.status === 'iade').length;
+  const due = catalog.orders.filter((o) => o.dueTone === 'warn').length;
+  const spark = catalog.orders.length ? catalog.orders.map((o) => Math.max(8, o.amount / 40)) : [8, 8, 8, 8, 8];
 
   return (
     <View style={styles.root}>
@@ -42,72 +44,67 @@ export default function OzetScreen() {
           </View>
           <Text style={styles.kicker}>Toplam satış</Text>
           <View style={styles.metricRow}>
-            <MoneyText value={state === 'empty' || blocked ? 0 : summary.sales} size="display" onDark digits={0} />
-            <Sparkline points={state === 'empty' ? [8, 8, 8, 8, 8] : sparkline} />
+            <MoneyText value={sales} size="display" onDark digits={0} />
+            <Sparkline points={spark} />
           </View>
           <Text style={styles.delta}>
-            {state === 'empty' ? 'Bugün henüz satış yok' : `+%${summary.salesDelta.toString().replace('.', ',')} düne göre`}
+            {catalog.orders.length === 0 ? 'İçeri alınan sipariş yok' : 'Nest listesi · tahmini kazanç yok'}
           </Text>
           <View style={styles.subMetric}>
-            <Text style={styles.subValue}>{formatCount(state === 'empty' ? 0 : summary.orderCount)}</Text>
+            <Text style={styles.subValue}>{formatCount(catalog.orders.length)}</Text>
             <Text style={styles.subLabel}>Sipariş</Text>
           </View>
           <View style={styles.actions}>
-            <QuickAction label="Barkod okut" icon="barcode-outline" lime />
-            <QuickAction label="Stok ekle" icon="add" />
-            <QuickAction label="Fiyat düzenle" icon="pricetag-outline" />
+            <QuickAction label="İçeri al" icon="download-outline" lime onPress={() => router.push('/(tabs)/icerik-al')} />
+            <QuickAction label="Eşleştir" icon="swap-horizontal-outline" onPress={() => router.push('/(tabs)/esleme')} />
+            <QuickAction label="Ürünler" icon="grid-outline" onPress={() => router.push('/(tabs)/urunler')} />
           </View>
         </View>
       </SafeAreaView>
 
       <PorcelainSheet>
-        {loading ? (
+        {catalog.loading ? (
           <View style={styles.sheetPad}>
             <Skeleton width="40%" height={16} />
             <Skeleton width="100%" height={44} radius={22} />
             <Skeleton width="100%" height={64} radius={16} />
             <Skeleton width="100%" height={72} radius={16} />
           </View>
-        ) : state === 'error' || blocked ? (
-          <ErrorState
-            title="Özet yüklenemedi"
-            body={catalog.error ?? 'Sunucudan yanıt alınamadı. Yerel örnek başarı sayılmaz.'}
-            onRetry={() => {
-              setState('sample');
-              catalog.refresh();
-            }}
-          />
+        ) : catalog.error ? (
+          <ErrorState title="Özet yüklenemedi" body={catalog.error} onRetry={() => catalog.refresh()} />
+        ) : catalog.needsShop || recentOrders.length === 0 ? (
+          <ScrollView contentContainerStyle={styles.sheetPad} showsVerticalScrollIndicator={false}>
+            <EmptyState
+              title={catalog.needsShop ? 'Mağaza bağlı değil' : 'Bugün işlem yok'}
+              body={
+                catalog.needsShop
+                  ? 'Trendyol bağla, sonra içeri al. Örnek satış gösterilmez.'
+                  : 'GET /v1/orders henüz sipariş döndürmedi.'
+              }
+              primary={catalog.needsShop ? 'Mağaza bağla' : 'İçeri al'}
+              onPrimary={() => router.push(catalog.needsShop ? '/(tabs)/magaza-bagla' : '/(tabs)/icerik-al')}
+            />
+          </ScrollView>
         ) : (
           <ScrollView contentContainerStyle={styles.sheetPad} showsVerticalScrollIndicator={false}>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>Operasyon</Text>
-              <Text style={styles.sectionMeta}>Bugün</Text>
+              <Text style={styles.sectionMeta}>Nest</Text>
             </View>
-            {state === 'empty' || recentOrders.length === 0 ? (
-              <EmptyState
-                title="Bugün işlem yok"
-                body="Bağlı Trendyol mağazasında henüz sipariş veya uyarı görünmüyor."
-                primary="Yenile"
-                onPrimary={() => setState('sample')}
-              />
-            ) : (
-              <>
-                <PeachAlert text={`${summary.shippingDue} siparişin kargo süresi doluyor`} />
-                <View style={styles.ops}>
-                  <OpStat value={summary.toPrepare} label="Hazırlanacak" tone="warn" />
-                  <OpStat value={summary.inTransit} label="Kargoda" tone="idle" />
-                  <OpStat value={summary.returns} label="İade" tone="idle" />
-                </View>
-                <View style={styles.sectionHead}>
-                  <Text style={styles.sectionTitle}>Son siparişler</Text>
-                  <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-                </View>
-                {recentOrders.map((order) => (
-                  <OrderCard key={order.id} order={order} compact />
-                ))}
-                <SyncFooter stores={summary.connectedStores} time={summary.lastSync} source={sourceLabel} />
-              </>
-            )}
+            {due > 0 ? <PeachAlert text={`${due} siparişin kargo süresi doluyor`} /> : null}
+            <View style={styles.ops}>
+              <OpStat value={toPrepare} label="Hazırlanacak" tone="warn" />
+              <OpStat value={inTransit} label="Kargoda" tone="idle" />
+              <OpStat value={returns} label="İade" tone="idle" />
+            </View>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>Son siparişler</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </View>
+            {recentOrders.map((order) => (
+              <OrderCard key={order.id} order={order} compact />
+            ))}
+            <SyncFooter time={catalog.lastSync ?? '—'} source={sourceLabel} />
           </ScrollView>
         )}
       </PorcelainSheet>

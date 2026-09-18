@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,8 +14,6 @@ import { SearchField } from '@/components/ui/SearchField';
 import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { SyncFooter } from '@/components/ui/SyncFooter';
 import { useCatalog } from '@/context/CatalogContext';
-import { useDemoState } from '@/context/DemoStateContext';
-import { summary } from '@/data/mock';
 import { formatCount } from '@/lib/money';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
@@ -26,13 +25,11 @@ const TABS = [
 ];
 
 export default function SiparislerScreen() {
-  const { state, setState } = useDemoState();
   const catalog = useCatalog();
-  const [tab, setTab] = useState('hazirlanacak');
+  const [tab, setTab] = useState('all');
   const orders = catalog.orders;
   const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'Nest yok';
-  const blocked = state === 'sample' && !!catalog.error;
-  const loading = state === 'loading' || (state === 'sample' && catalog.loading);
+  const due = orders.filter((o) => o.dueTone === 'warn').length;
 
   const visible = useMemo(() => {
     if (tab === 'all') return orders;
@@ -46,7 +43,10 @@ export default function SiparislerScreen() {
         <View style={styles.heroPad}>
           <View style={styles.titleRow}>
             <Text style={styles.title}>Siparişler</Text>
-            <Text style={styles.count}>{formatCount(state === 'empty' ? 0 : orders.length)}</Text>
+            <Text style={styles.count}>{formatCount(catalog.loading ? 0 : orders.length)}</Text>
+            <Pressable style={styles.ingestBtn} onPress={() => router.push('/(tabs)/icerik-al')}>
+              <Text style={styles.ingestText}>İçeri al</Text>
+            </Pressable>
           </View>
           <View style={styles.searchRow}>
             <SearchField placeholder="Sipariş no veya müşteri ara" />
@@ -63,50 +63,45 @@ export default function SiparislerScreen() {
       </SafeAreaView>
 
       <PorcelainSheet>
-        {loading ? (
+        {catalog.loading ? (
           <View style={styles.sheet}>
             <Text style={styles.loadingLabel}>Siparişler yükleniyor…</Text>
             <OrderSkeleton />
             <OrderSkeleton />
             <OrderSkeleton />
           </View>
-        ) : state === 'error' || blocked ? (
+        ) : catalog.error ? (
           <ScrollView contentContainerStyle={styles.sheet}>
-            <ErrorState
-              title="Siparişler yüklenemedi"
-              body={catalog.error ?? 'Sunucudan yanıt alınamadı. Bu durum sipariş olmadığı anlamına gelmez.'}
-            onRetry={() => {
-              setState('sample');
-              catalog.refresh();
-            }}
-            />
-            <Text style={styles.hint}>Son deneme 14:36</Text>
+            <ErrorState title="Siparişler yüklenemedi" body={catalog.error} onRetry={() => catalog.refresh()} />
           </ScrollView>
-        ) : state === 'empty' || visible.length === 0 ? (
+        ) : catalog.needsShop ? (
+          <EmptyState
+            title="Önce mağaza bağla"
+            body="Trendyol bağlanmadan sipariş okunmaz."
+            primary="Mağaza bağla"
+            onPrimary={() => router.push('/(tabs)/magaza-bagla')}
+          />
+        ) : visible.length === 0 ? (
           <ScrollView contentContainerStyle={styles.sheet}>
             <EmptyState
               title="Henüz sipariş yok"
-              body="Seçili tarih ve mağazada sipariş bulunamadı. Yeni sipariş geldiğinde burada görünür."
-              primary="Siparişleri yenile"
-              secondary="Tarih aralığı değiştir"
-              onPrimary={() => {
-                setState('sample');
-                catalog.refresh();
-              }}
+              body="GET /v1/orders boş döndü. Bu bir bağlantı hatası değil."
+              primary="İçeri al"
+              onPrimary={() => router.push('/(tabs)/icerik-al')}
             />
-            <SyncFooter stores={summary.connectedStores} time={summary.lastSync} source={sourceLabel} />
+            <SyncFooter time={catalog.lastSync ?? '—'} source={sourceLabel} />
           </ScrollView>
         ) : (
           <ScrollView contentContainerStyle={styles.sheet} showsVerticalScrollIndicator={false}>
-            <PeachAlert text={`${summary.shippingDue} sipariş bugün kargolanmalı`} />
+            {due > 0 ? <PeachAlert text={`${due} siparişin kargo süresi doluyor`} /> : null}
             <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>Hazırlanacak</Text>
+              <Text style={styles.sectionTitle}>{tab === 'all' ? 'Siparişler' : TABS.find((t) => t.key === tab)?.label}</Text>
               <Text style={styles.sectionMeta}>{visible.length} sipariş</Text>
             </View>
             {visible.map((order) => (
               <OrderCard key={order.id} order={order} />
             ))}
-            <SyncFooter time={summary.lastSync} source={sourceLabel} />
+            <SyncFooter time={catalog.lastSync ?? '—'} source={sourceLabel} />
           </ScrollView>
         )}
       </PorcelainSheet>
@@ -129,7 +124,14 @@ const styles = StyleSheet.create({
   heroPad: { paddingHorizontal: space.xl, paddingBottom: 22, gap: 12 },
   titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   title: { fontFamily: fonts.bold, fontSize: 32, color: colors.white, letterSpacing: -0.8 },
-  count: { fontFamily: fonts.medium, fontSize: 18, color: colors.mutedOnDark },
+  count: { fontFamily: fonts.medium, fontSize: 18, color: colors.mutedOnDark, flex: 1 },
+  ingestBtn: {
+    backgroundColor: colors.lime,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+  },
+  ingestText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.graphite },
   searchRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   filterBtn: {
     width: 42,
@@ -161,5 +163,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
-  hint: { textAlign: 'center', fontFamily: fonts.medium, fontSize: 12, color: colors.muted, marginTop: 8 },
 });

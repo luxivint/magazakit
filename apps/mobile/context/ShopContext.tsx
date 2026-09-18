@@ -16,7 +16,7 @@ const ShopContext = createContext<ShopContextValue | null>(null);
 export function ShopProvider({ children }: { children: ReactNode }) {
   const { idToken, org } = useAuth();
   const [shops, setShops] = useState<ShopStatus[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 

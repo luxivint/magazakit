@@ -86,6 +86,9 @@ export default function MagazaBaglaScreen() {
             secureTextEntry
           />
           {result ? <ConfigBanner text={result} /> : null}
+          {result && !result.includes('sayılmaz') ? (
+            <Button label="Ürünleri içeri al" variant="ghost" onPress={() => router.push('/(tabs)/icerik-al')} />
+          ) : null}
           <Button
             label="Bağlantıyı test et"
             icon="link-outline"

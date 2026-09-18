@@ -75,6 +75,13 @@ export default function MagazalarScreen() {
               trailing="add"
               onPress={() => router.push('/(tabs)/magaza-bagla')}
             />
+            {shops.length > 0 ? (
+              <Button
+                label="Ürünleri içeri al"
+                variant="ghost"
+                onPress={() => router.push('/(tabs)/icerik-al')}
+              />
+            ) : null}
           </ScrollView>
         )}
       </PorcelainSheet>

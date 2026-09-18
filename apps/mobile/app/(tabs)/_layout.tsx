@@ -29,6 +29,8 @@ export default function TabLayout() {
         <Tabs.Screen name="hesap" options={{ title: 'Hesap' }} />
         <Tabs.Screen name="magazalar" options={{ href: null, title: 'Mağazalarım' }} />
         <Tabs.Screen name="magaza-bagla" options={{ href: null, title: 'Mağaza bağla' }} />
+        <Tabs.Screen name="icerik-al" options={{ href: null, title: 'İçeri al' }} />
+        <Tabs.Screen name="esleme" options={{ href: null, title: 'Eşleştirme' }} />
       </Tabs>
     </>
   );

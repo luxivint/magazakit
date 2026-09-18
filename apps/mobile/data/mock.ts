@@ -23,9 +23,14 @@ export type Product = {
   id: string;
   name: string;
   sku: string;
+  listingSku: string;
+  barcode: string;
   price: number;
+  physical: number;
+  reserved: number;
+  sellable: number;
   stock: number;
-  listing: 'Bekleyen fiyat' | 'Yayında';
+  listing: string;
   channels: { trendyol: boolean };
   thumb: ProductThumbKind;
   critical: boolean;
@@ -106,7 +111,12 @@ export const products: Product[] = [
     id: 'kupa',
     name: 'Seramik kupa seti',
     sku: 'KUPA-224',
+    listingSku: 'KUPA-224',
+    barcode: '',
     price: 899.9,
+    physical: 24,
+    reserved: 0,
+    sellable: 24,
     stock: 24,
     listing: 'Bekleyen fiyat',
     channels: { trendyol: true },
@@ -117,7 +127,12 @@ export const products: Product[] = [
     id: 'havlu',
     name: 'Pamuklu havlu',
     sku: 'HVL-012',
+    listingSku: 'HVL-012',
+    barcode: '',
     price: 449.9,
+    physical: 3,
+    reserved: 0,
+    sellable: 3,
     stock: 3,
     listing: 'Bekleyen fiyat',
     channels: { trendyol: true },
@@ -128,7 +143,12 @@ export const products: Product[] = [
     id: 'termos',
     name: 'Çelik termos',
     sku: 'TRM-008',
+    listingSku: 'TRM-008',
+    barcode: '',
     price: 649,
+    physical: 18,
+    reserved: 0,
+    sellable: 18,
     stock: 18,
     listing: 'Bekleyen fiyat',
     channels: { trendyol: true },
@@ -139,7 +159,12 @@ export const products: Product[] = [
     id: 'lamba',
     name: 'Masa lambası',
     sku: 'LMB-016',
+    listingSku: 'LMB-016',
+    barcode: '',
     price: 1290,
+    physical: 12,
+    reserved: 0,
+    sellable: 12,
     stock: 12,
     listing: 'Bekleyen fiyat',
     channels: { trendyol: true },

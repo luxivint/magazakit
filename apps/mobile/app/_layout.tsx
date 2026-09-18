@@ -16,7 +16,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from '@/context/AuthContext';
 import { CatalogProvider } from '@/context/CatalogContext';
-import { DemoStateProvider } from '@/context/DemoStateContext';
+import { MappingProvider } from '@/context/MappingContext';
 import { ShopProvider } from '@/context/ShopContext';
 import { colors } from '@/theme/tokens';
 import * as Notifications from 'expo-notifications';
@@ -65,17 +65,18 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <ShopProvider>
-            <CatalogProvider>
-              <DemoStateProvider>
+            <MappingProvider>
+              <CatalogProvider>
                 <View style={styles.frame}>
                   <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.graphite } }}>
                     <Stack.Screen name="index" />
                     <Stack.Screen name="(auth)" />
                     <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="urun/[id]" />
                   </Stack>
                 </View>
-              </DemoStateProvider>
-            </CatalogProvider>
+              </CatalogProvider>
+            </MappingProvider>
           </ShopProvider>
         </AuthProvider>
       </SafeAreaProvider>

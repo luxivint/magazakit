@@ -7,13 +7,15 @@ export function QuickAction({
   label,
   icon,
   lime = false,
+  onPress,
 }: {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   lime?: boolean;
+  onPress?: () => void;
 }) {
   return (
-    <Pressable style={styles.wrap}>
+    <Pressable style={styles.wrap} onPress={onPress}>
       <View style={[styles.circle, lime ? styles.lime : styles.dark]}>
         <Ionicons name={icon} size={20} color={lime ? colors.graphite : colors.white} />
       </View>

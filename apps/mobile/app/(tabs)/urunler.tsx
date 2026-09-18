@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,8 +14,6 @@ import { SearchField } from '@/components/ui/SearchField';
 import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { SyncFooter } from '@/components/ui/SyncFooter';
 import { useCatalog } from '@/context/CatalogContext';
-import { useDemoState } from '@/context/DemoStateContext';
-import { summary } from '@/data/mock';
 import { formatCount } from '@/lib/money';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
@@ -24,13 +23,10 @@ const TABS = [
 ];
 
 export default function UrunlerScreen() {
-  const { state, setState } = useDemoState();
   const catalog = useCatalog();
   const [tab, setTab] = useState('all');
   const products = catalog.products;
   const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'Nest yok';
-  const blocked = state === 'sample' && !!catalog.error;
-  const loading = state === 'loading' || (state === 'sample' && catalog.loading);
 
   const visible = useMemo(() => {
     if (tab === 'critical') return products.filter((p) => p.critical);
@@ -47,10 +43,12 @@ export default function UrunlerScreen() {
           <View style={styles.titleRow}>
             <View>
               <Text style={styles.title}>Ürünler</Text>
-              <Text style={styles.count}>
-                {formatCount(state === 'empty' || blocked ? 0 : products.length)} ürün
-              </Text>
+              <Text style={styles.count}>{formatCount(catalog.loading ? 0 : products.length)} ürün</Text>
             </View>
+            <Pressable style={styles.ingestBtn} onPress={() => router.push('/(tabs)/icerik-al')}>
+              <Ionicons name="download-outline" size={16} color={colors.graphite} />
+              <Text style={styles.ingestText}>İçeri al</Text>
+            </Pressable>
           </View>
           <View style={styles.searchRow}>
             <SearchField placeholder="Ürün adı, barkod veya SKU" />
@@ -61,51 +59,58 @@ export default function UrunlerScreen() {
           <ChipTabs items={TABS} value={tab} onChange={setTab} />
           <View style={styles.filters}>
             <FilterPill label="Tüm mağazalar" />
-            <FilterPill label="Kategori" />
+            <Pressable onPress={() => router.push('/(tabs)/esleme')}>
+              <FilterPill label="Eşleştirme" />
+            </Pressable>
           </View>
         </View>
       </SafeAreaView>
 
       <PorcelainSheet>
-        {loading ? (
+        {catalog.loading ? (
           <View style={styles.sheet}>
             <OrderSkeleton />
             <OrderSkeleton />
             <OrderSkeleton />
           </View>
-        ) : state === 'error' || blocked ? (
+        ) : catalog.error ? (
           <ErrorState
             title="Ürünler yüklenemedi"
-            body={catalog.error ?? 'Katalog okunamadı. Bu ekran boş katalog anlamına gelmez; yerel örnek başarı sayılmaz.'}
-            onRetry={() => {
-              setState('sample');
-              catalog.refresh();
-            }}
+            body={catalog.error}
+            onRetry={() => catalog.refresh()}
           />
-        ) : state === 'empty' ? (
+        ) : catalog.needsShop ? (
+          <EmptyState
+            title="Önce mağaza bağla"
+            body="Trendyol bağlanmadan katalog okunmaz. Yerel örnek gösterilmez."
+            primary="Mağaza bağla"
+            onPrimary={() => router.push('/(tabs)/magaza-bagla')}
+          />
+        ) : products.length === 0 ? (
           <EmptyState
             title="Henüz ürün yok"
-            body="Trendyol kataloğu içeri alınınca ürünler burada listelenir. Yeni ürün ekleme F4’e kadar kapalı."
-            primary="Yenile"
-            onPrimary={() => {
-              setState('sample');
-              catalog.refresh();
-            }}
+            body="İçeri al, Nest GET /v1/products çağırır. Boş liste bağlantı hatası değildir."
+            primary="İçeri al"
+            secondary="Eşleştir"
+            onPrimary={() => router.push('/(tabs)/icerik-al')}
+            onSecondary={() => router.push('/(tabs)/esleme')}
           />
         ) : (
           <ScrollView contentContainerStyle={styles.sheet} showsVerticalScrollIndicator={false}>
             {criticalCount > 0 ? (
-              <PeachAlert text={`${criticalCount} ürünün stoğu kritik seviyede`} />
+              <PeachAlert text={`${criticalCount} ürünün satılabilir stoğu kritik`} />
             ) : null}
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>Ürün kataloğu</Text>
-              <Ionicons name="swap-vertical-outline" size={16} color={colors.muted} />
+              <Pressable onPress={() => router.push('/(tabs)/esleme')}>
+                <Text style={styles.link}>Eşleştir</Text>
+              </Pressable>
             </View>
             {visible.map((product) => (
               <ProductRow key={product.id} product={product} />
             ))}
             <View style={styles.footerRow}>
-              <SyncFooter time={summary.lastSync} source={sourceLabel} />
+              <SyncFooter time={catalog.lastSync ?? '—'} source={sourceLabel} />
               <Pressable style={styles.refresh} onPress={() => catalog.refresh()}>
                 <Ionicons name="refresh" size={14} color={colors.muted} />
                 <Text style={styles.refreshText}>Yenile</Text>
@@ -134,6 +139,16 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   title: { fontFamily: fonts.bold, fontSize: 32, color: colors.white, letterSpacing: -0.8 },
   count: { fontFamily: fonts.medium, fontSize: 14, color: colors.mutedOnDark, marginTop: 2 },
+  ingestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.lime,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+  },
+  ingestText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.graphite },
   searchRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   filterBtn: {
     width: 42,
@@ -157,6 +172,7 @@ const styles = StyleSheet.create({
   sheet: { padding: space.xl, paddingBottom: 36, gap: 4 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   sectionTitle: { fontFamily: fonts.bold, fontSize: 18, color: colors.ink },
+  link: { fontFamily: fonts.semibold, fontSize: 13, color: colors.muted },
   footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   refresh: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   refreshText: { fontFamily: fonts.medium, fontSize: 12, color: colors.muted },
