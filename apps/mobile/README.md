@@ -2,10 +2,12 @@
 
 Bundle `com.luxivint.magazam`. Firebase proje `magazam-app`. Nest Bearer.
 
+Repo kökünden `pnpm install` (bu klasörde ayrıca `npm install` gerekmez):
+
 ```bash
 cp .env.example .env
-npm install
-npx expo start --web --port 43131
+npx expo start
+# web: npx expo start --web --port 43131
 ```
 
 `EXPO_PUBLIC_API_URL` varsayılan `http://127.0.0.1:43140`. LAN IP commit etme.
@@ -18,4 +20,4 @@ npx eas-cli@latest init
 npx eas-cli@latest build --profile development --platform android
 ```
 
-Native config yenileme: `npm run firebase:sdkconfig` (`npx firebase-tools login` gerekir). SHA uydurma.
+Native config yenileme: `pnpm firebase:sdkconfig` (`npx firebase-tools login` gerekir). SHA uydurma.
