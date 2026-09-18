@@ -85,7 +85,10 @@ export function order(input: {
   };
 }
 
-export function pageItems(payload: unknown, keys = ['content', 'items', 'data', 'products', 'orders']): unknown[] {
+export function pageItems(
+  payload: unknown,
+  keys = ['content', 'items', 'data', 'products', 'orders', 'listings', 'supplierOrderListWithBranch', 'Orders'],
+): unknown[] {
   const obj = rec(payload);
   if (Array.isArray(payload)) return payload;
   for (const key of keys) {

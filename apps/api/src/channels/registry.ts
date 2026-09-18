@@ -36,16 +36,16 @@ class TrendyolBridge implements ChannelReadAdapter {
 }
 
 const BLOCKED: Record<Exclude<Channel, 'trendyol'>, string> = {
-  hepsiburada: 'Hepsiburada merchantId + Basic key/secret (listing-external + oms-external) Nest .env’de yok.',
+  hepsiburada: 'Hepsiburada merchantId + Basic key/secret (listing-external + oms-external) Nest .env’de yok. User-Agent yalın integrator adı.',
   n11: 'n11 appKey/appSecret yok. developer.n11.com REST: product-query + shipmentPackages.',
   shopify: 'SHOPIFY_SHOP + SHOPIFY_ACCESS_TOKEN yok. Admin GraphQL.',
   woocommerce: 'WOOCOMMERCE_HOST + consumer key/secret yok.',
-  ciceksepeti: 'CICEKSEPETI_API_KEY yok. POST /Order/GetOrders.',
+  ciceksepeti: 'CICEKSEPETI_API_KEY yok. GET /Products + POST /Order/GetOrders.',
   ikas: 'IKAS_ACCESS_TOKEN yok. V2 GraphQL listProduct.',
-  amazon: 'Amazon LWA client/secret/refresh yok. SP-API EU orders, marketplace A33AVAJ2PDY3EV.',
-  pazarama: 'Pazarama partner OpenAPI yok (isortagim). Path uydurulmadı; bağlı sayılmaz.',
-  ticimax: 'Ticimax güncel REST/WSDL yok. SOAP XML feed değil; sözleşme gelmeden canlı adapter yok.',
-  ideasoft: 'IdeaSoft ürün/sipariş şeması DOĞRULA. OAuth var; /products türetilmedi.',
+  amazon: 'Amazon LWA client/secret/refresh yok. SP-API EU searchOrders 2026-01-01, marketplace A33AVAJ2PDY3EV.',
+  pazarama: 'Pazarama partner OpenAPI yok (isortagimapi.pazarama.com/docs 404). Path uydurulmadı; bağlı sayılmaz.',
+  ticimax: 'Ticimax resmi SOAP/WSDL (UrunServis/SiparisServis). REST yok; SOAP bu dilimde yok.',
+  ideasoft: 'IdeaSoft Admin OAuth (apidoc.ideasoft.dev) var; ürün/sipariş şeması doğrulanmadan path yok.',
 };
 
 export function createChannelAdapters(trendyol: TrendyolReadAdapter): ChannelAdapterMap {

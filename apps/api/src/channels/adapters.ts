@@ -68,7 +68,11 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
     const auth = Buffer.from(`${this.cred.key}:${this.cred.secret}`, 'utf8').toString('base64');
     const headers = {
       Authorization: `Basic ${auth}`,
-      'User-Agent': process.env.HEPSIBURADA_USER_AGENT?.trim() || `${this.cred.id} - SelfIntegration`,
+      /* Lonca SIT: yalın integrator adı. `{merchantId} - SelfIntegration` (TY kopyası) 401/403. */
+      'User-Agent':
+        process.env.HEPSIBURADA_USER_AGENT?.trim() ||
+        process.env.HEPSIBURADA_INTEGRATOR_NAME?.trim() ||
+        'Magazam',
       Accept: 'application/json',
     };
     return { merchantId: this.cred.id, listingHost, omsHost, headers };
@@ -171,7 +175,13 @@ export class N11ReadAdapter implements ChannelReadAdapter {
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    return { appKey: this.cred.key, appSecret: this.cred.secret, Accept: 'application/json' };
+    return {
+      appKey: this.cred.key,
+      appSecret: this.cred.secret,
+      appkey: this.cred.key,
+      appsecret: this.cred.secret,
+      Accept: 'application/json',
+    };
   }
 
   async probe(): Promise<void> {
@@ -250,6 +260,11 @@ function arrFirst(value: unknown): unknown {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function graphQlFailed(payload: unknown): boolean {
+  const errors = rec(payload)?.errors;
+  return Array.isArray(errors) && errors.length > 0;
+}
+
 export class ShopifyReadAdapter implements ChannelReadAdapter {
   readonly channel = 'shopify' as const;
   readonly mock = false;
@@ -264,7 +279,7 @@ export class ShopifyReadAdapter implements ChannelReadAdapter {
       );
     }
     const host = domain.includes('.') ? domain : `${domain}.myshopify.com`;
-    const version = process.env.SHOPIFY_API_VERSION?.trim() || '2025-10';
+    const version = process.env.SHOPIFY_API_VERSION?.trim() || '2026-07';
     const url = assertPublicHttps(`https://${host}/admin/api/${version}/graphql.json`, 'Shopify');
     return { url, token };
   }
@@ -287,7 +302,7 @@ export class ShopifyReadAdapter implements ChannelReadAdapter {
 
   async probe(): Promise<void> {
     const data = rec(await this.gql('{ shop { name } }'));
-    if (Array.isArray(data?.errors) && data.errors.length) {
+    if (graphQlFailed(data)) {
       throw new HttpException(
         { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'Shopify GraphQL errors (token loglanmaz).' },
         HttpStatus.SERVICE_UNAVAILABLE,
@@ -466,7 +481,10 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
       base,
       headers: {
         'x-api-key': key,
-        'User-Agent': process.env.CICEKSEPETI_USER_AGENT?.trim() || 'Magazam - SelfIntegration',
+        'User-Agent':
+          process.env.CICEKSEPETI_USER_AGENT?.trim() ||
+          process.env.CICEKSEPETI_SELLER_ID?.trim() ||
+          'Magazam',
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
@@ -475,26 +493,29 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
 
   async probe(): Promise<void> {
     const c = this.cfg();
-    const end = new Date();
-    const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
-    await channelFetchJson(
-      `${c.base}/Order/GetOrders`,
-      {
-        method: 'POST',
-        headers: c.headers,
-        body: JSON.stringify({
-          startDate: start.toISOString().slice(0, 10),
-          endDate: end.toISOString().slice(0, 10),
-          page: 0,
-          pageSize: 1,
-        }),
-      },
-      'Çiçeksepeti orders',
-    );
+    await channelFetchJson(`${c.base}/Products?Page=1&PageSize=1`, { headers: c.headers }, 'Çiçeksepeti products');
   }
 
   async pullFeed() {
     const c = this.cfg();
+    const productsRaw = await channelFetchJson(
+      `${c.base}/Products?Page=1&PageSize=50`,
+      { headers: c.headers },
+      'Çiçeksepeti products',
+    );
+    const listings = pageItems(productsRaw, ['products', 'items', 'data']).map((row) => {
+      const r = rec(row) ?? {};
+      const sku = str(r.stockCode ?? r.productCode);
+      return listing({
+        channel: 'ciceksepeti',
+        id: `cs-${sku || str(r.id)}`,
+        sku: sku || str(r.id),
+        title: str(r.productName ?? r.name) || sku,
+        priceTry: num(r.salesPrice ?? r.salePrice),
+        marketplaceStock: num(r.stockQuantity ?? r.quantity),
+        imageUrl: httpImage(rec(arrFirst(r.images))?.url ?? rec(arrFirst(r.images))?.imageUrl),
+      });
+    });
     const end = new Date();
     const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
     const payload = await channelFetchJson(
@@ -511,7 +532,7 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
       },
       'Çiçeksepeti orders',
     );
-    const orders = pageItems(payload).map((row) => {
+    const orders = pageItems(payload, ['supplierOrderListWithBranch', 'orders', 'items', 'data']).map((row) => {
       const r = rec(row) ?? {};
       const items = pageItems(r.orderItems ?? r.items);
       const id = str(r.orderId ?? r.orderNo);
@@ -528,17 +549,6 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
         }),
       });
     });
-    /* Product list schema not in BELGE — listings come from order lines only. */
-    const listings = orders.flatMap((o) =>
-      o.lines.map((l) =>
-        listing({
-          channel: 'ciceksepeti',
-          id: l.listingId,
-          sku: l.listingId.replace(/^cs-/, ''),
-          title: l.listingId,
-        }),
-      ),
-    );
     return { listings, orders, returns: [] };
   }
 
@@ -590,7 +600,13 @@ export class IkasReadAdapter implements ChannelReadAdapter {
   }
 
   async probe(): Promise<void> {
-    await this.gql('query { listProduct(pagination: { page: 1, limit: 1 }) { count } }');
+    const data = rec(await this.gql('query { listProduct(pagination: { page: 1, limit: 1 }) { count } }'));
+    if (graphQlFailed(data)) {
+      throw new HttpException(
+        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'ikas GraphQL errors (token loglanmaz).' },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
   }
 
   async pullFeed() {
@@ -689,30 +705,41 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
     return token;
   }
 
+  private spHeaders(token: string): Record<string, string> {
+    return {
+      'x-amz-access-token': token,
+      Accept: 'application/json',
+      'User-Agent': process.env.AMAZON_USER_AGENT?.trim() || 'Magazam/1.0 (Language=JavaScript)',
+    };
+  }
+
+  private ordersUrl(limit: number): string {
+    const marketplace = process.env.AMAZON_MARKETPLACE_ID?.trim() || 'A33AVAJ2PDY3EV';
+    const host = process.env.AMAZON_SP_HOST?.trim() || 'https://sellingpartnerapi-eu.amazon.com';
+    const after = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    return `${host}/orders/2026-01-01/orders?marketplaceIds=${encodeURIComponent(marketplace)}&createdAfter=${encodeURIComponent(after)}&maxResultsPerPage=${limit}`;
+  }
+
   async probe(): Promise<void> {
-    await this.accessToken();
+    const token = await this.accessToken();
+    await channelFetchJson(this.ordersUrl(1), { headers: this.spHeaders(token) }, 'Amazon orders');
   }
 
   async pullFeed() {
     const token = await this.accessToken();
-    const marketplace = process.env.AMAZON_MARKETPLACE_ID?.trim() || 'A33AVAJ2PDY3EV';
-    const host = process.env.AMAZON_SP_HOST?.trim() || 'https://sellingpartnerapi-eu.amazon.com';
-    const after = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const payload = await channelFetchJson(
-      `${host}/orders/v0/orders?MarketplaceIds=${encodeURIComponent(marketplace)}&CreatedAfter=${encodeURIComponent(after)}`,
-      { headers: { 'x-amz-access-token': token, Accept: 'application/json' } },
-      'Amazon orders',
-    );
-    const orders = pageItems(rec(rec(payload)?.payload)?.Orders, ['Orders', 'orders', 'items']).map((row) => {
+    const payload = await channelFetchJson(this.ordersUrl(50), { headers: this.spHeaders(token) }, 'Amazon orders');
+    const root = rec(payload) ?? {};
+    const rows = pageItems(root.orders ?? rec(root.payload)?.Orders ?? payload, ['orders', 'Orders', 'items']);
+    const orders = rows.map((row) => {
       const r = rec(row) ?? {};
-      const id = str(r.AmazonOrderId);
+      const id = str(r.orderId ?? r.AmazonOrderId);
       return order({
         channel: 'amazon',
         id: `amz-${id}`,
         orderNumber: id,
-        statusRaw: str(r.OrderStatus),
-        totalTry: num(rec(r.OrderTotal)?.Amount),
-        createdAt: str(r.PurchaseDate) || undefined,
+        statusRaw: str(r.orderStatus ?? r.OrderStatus),
+        totalTry: num(rec(r.orderTotal)?.amount ?? rec(r.OrderTotal)?.Amount),
+        createdAt: str(r.createdTime ?? r.PurchaseDate) || undefined,
       });
     });
     return { listings: [], orders, returns: [] };
