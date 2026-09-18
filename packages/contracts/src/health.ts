@@ -8,6 +8,7 @@ export type HealthResponse = {
     configured: boolean;
     credential: 'adc' | 'project-id-only' | 'none';
   };
+  persistence: 'memory' | 'postgres';
   trendyol?: {
     mode: 'mock' | 'unconfigured';
     k01: string;

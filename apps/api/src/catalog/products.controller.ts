@@ -20,13 +20,13 @@ export class ProductsController {
   ) {}
 
   @Get(['v1/products', 'api/preview/products'])
-  list(
+  async list(
     @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('organizationId') organizationId?: string,
   ): Promise<PreviewList<ProductListItem>> {
-    this.identity.assertOrgAccess(user.uid, organizationId);
+    await this.identity.assertOrgAccess(user.uid, organizationId);
     return this.trendyol.listProducts(parsePageQuery({ page, pageSize }));
   }
 }

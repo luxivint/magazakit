@@ -16,13 +16,13 @@ export class OrdersController {
   ) {}
 
   @Get(['v1/orders', 'api/preview/orders'])
-  list(
+  async list(
     @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('organizationId') organizationId?: string,
   ): Promise<PreviewList<OrderListItem>> {
-    this.identity.assertOrgAccess(user.uid, organizationId);
+    await this.identity.assertOrgAccess(user.uid, organizationId);
     return this.trendyol.listOrders(parsePageQuery({ page, pageSize }));
   }
 }

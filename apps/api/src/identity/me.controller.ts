@@ -8,19 +8,19 @@ export class MeController {
   constructor(private readonly identity: IdentityStore) {}
 
   @Get('me')
-  me(@CurrentUser() user: AuthUser): CurrentUserResponse {
+  async me(@CurrentUser() user: AuthUser): Promise<CurrentUserResponse> {
     return {
       uid: user.uid,
       email: user.email,
-      organization: this.identity.getOrgForUid(user.uid),
+      organization: await this.identity.getOrgForUid(user.uid),
     };
   }
 
   @Post('organizations')
-  createOrg(
+  async createOrg(
     @CurrentUser() user: AuthUser,
     @Body() body: { name?: string },
-  ): OrganizationSummary {
+  ): Promise<OrganizationSummary> {
     const name = body?.name?.trim();
     if (!name) {
       throw new HttpException(
@@ -32,7 +32,9 @@ export class MeController {
   }
 
   @Get('organizations/current')
-  currentOrg(@CurrentUser() user: AuthUser): { organization: OrganizationSummary | null } {
-    return { organization: this.identity.getOrgForUid(user.uid) };
+  async currentOrg(
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ organization: OrganizationSummary | null }> {
+    return { organization: await this.identity.getOrgForUid(user.uid) };
   }
 }

@@ -1,33 +1,48 @@
 # Mağazam API
 
-NestJS for **Mağazam**. Client is **Expo**. This PR does not own web/mobile UI.
+NestJS for Expo. Firebase project **magazam-app**. No homemade login. No `apps/web` / `apps/mobile` UI in this PR.
 
-Auth is **Firebase project `magazam-app`**. Nest verifies `Authorization: Bearer <Firebase ID token>` with the Admin SDK (`aud` must be `magazam-app`) and stores that `uid` on org/device records. There is **no** email/password register or login route.
+## Expo how to call
 
-## Expo
+In `apps/mobile` (Expo):
 
 ```
-EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:43140
-EXPO_PUBLIC_FIREBASE_PROJECT_ID=magazam-app
-Authorization: Bearer <Firebase ID token issued for magazam-app>
+EXPO_PUBLIC_API_URL=http://127.0.0.1:43140
 ```
+
+On a physical device use your LAN IP (`http://192.168.x.x:43140`), not 127.0.0.1.
+
+```ts
+const token = await user.getIdToken(); // Firebase Auth, project magazam-app
+await fetch(`${process.env.EXPO_PUBLIC_API_URL}/v1/me`, {
+  headers: {
+    Accept: 'application/json',
+    Authorization: `Bearer ${token}`,
+  },
+});
+```
+
+| Step | Call |
+| --- | --- |
+| Session | `GET /v1/me` |
+| Create business (E-14) | `POST /v1/organizations` `{ "name": "..." }` |
+| Current org | `GET /v1/organizations/current` |
+| E-08 shops | `GET /v1/shops` |
+| Connect Trendyol (K01 mock) | `POST /v1/shops/trendyol/connect` `{}` — do **not** send real API keys |
+| Catalog | `GET /v1/products`, `GET /v1/orders` |
+
+`GET /health` is public. Missing Bearer → `401 UNAUTHENTICATED`. Foreign `organizationId` → `403`.
+
+CORS allows Expo web (`localhost` / `127.0.0.1` / LAN / `*.expo.dev`). Extra origins: `CORS_ORIGINS`.
 
 ## Firebase Admin
 
-- `FIREBASE_PROJECT_ID=magazam-app` (default if the env var is omitted).
-- **Do not commit a service account.** Local `verifyIdToken` works with project ID only (Google public certs).
-- If Application Default Credentials are present (`GOOGLE_APPLICATION_CREDENTIALS` or the runtime ADC), the Admin SDK uses them.
-- Cloud / production: set `GOOGLE_APPLICATION_CREDENTIALS` to a key file **outside the repo** when the platform does not already inject ADC.
+- Default `FIREBASE_PROJECT_ID=magazam-app`
+- No service account in git. ADC if `GOOGLE_APPLICATION_CREDENTIALS` is set; otherwise project-id-only `verifyIdToken`.
 
-Blank `FIREBASE_PROJECT_ID=` disables auth (`401 AUTH_NOT_CONFIGURED`). Missing Bearer → `401 UNAUTHENTICATED`. `GET /health` stays public.
+## Persistence
 
-## Endpoints
-
-Public: `GET /health`, `GET /v1/docs`
-
-Authenticated: `GET /v1/me`, `POST /v1/organizations`, `GET /v1/organizations/current`, `POST /v1/devices`, `GET /v1/products`, `GET /v1/orders`, `/api/preview/products`, `/api/preview/orders`.
-
-Foreign `organizationId` → `403`. Catalog remains K01 mock.
+Orgs are keyed by Firebase `uid`. **In-memory** unless `DATABASE_URL` is set (optional Postgres via `docker compose up -d postgres`). TODO(F2): require Postgres.
 
 ## Run
 

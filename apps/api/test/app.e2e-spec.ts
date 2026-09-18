@@ -12,6 +12,7 @@ describe('public API (e2e)', () => {
   beforeEach(async () => {
     process.env.TRENDYOL_USE_MOCK = 'true';
     delete process.env.FIREBASE_PROJECT_ID;
+    delete process.env.DATABASE_URL;
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -30,6 +31,7 @@ describe('public API (e2e)', () => {
     expect(res.body.auth.provider).toBe('firebase');
     expect(res.body.auth.projectId).toBe('magazam-app');
     expect(res.body.auth.configured).toBe(true);
+    expect(res.body.persistence).toBe('memory');
     expect(res.headers['x-request-id']).toBeDefined();
   });
 
@@ -63,6 +65,7 @@ describe('authenticated mock Firebase (e2e)', () => {
   beforeEach(async () => {
     process.env.TRENDYOL_USE_MOCK = 'true';
     process.env.FIREBASE_PROJECT_ID = 'magazam-app';
+    delete process.env.DATABASE_URL;
     const firebaseAuth: Pick<
       FirebaseAuthService,
       'isConfigured' | 'verifyBearer' | 'projectId' | 'usesAdc'
@@ -137,6 +140,31 @@ describe('authenticated mock Firebase (e2e)', () => {
       .set(auth)
       .send({ fcmToken: 'fcm-test' })
       .expect(201);
+
+    const connectFail = await request(app.getHttpServer())
+      .post('/v1/shops/trendyol/connect')
+      .set({ Authorization: 'Bearer other' })
+      .send({})
+      .expect(400);
+    expect(connectFail.body.error.code).toBe('VALIDATION');
+
+    await request(app.getHttpServer())
+      .post('/v1/organizations')
+      .set({ Authorization: 'Bearer other' })
+      .send({ name: 'Diğer' })
+      .expect(201);
+
+    const shop = await request(app.getHttpServer())
+      .post('/v1/shops/trendyol/connect')
+      .set(auth)
+      .send({ sellerId: '123', apiKey: 'should-not-be-stored', apiSecret: 'nope' })
+      .expect(201);
+    expect(shop.body.channel).toBe('trendyol');
+    expect(shop.body.mock).toBe(true);
+    expect(JSON.stringify(shop.body)).not.toContain('should-not-be-stored');
+
+    const shops = await request(app.getHttpServer()).get('/v1/shops').set(auth).expect(200);
+    expect(shops.body.items).toHaveLength(1);
 
     await request(app.getHttpServer())
       .get(`/v1/products?organizationId=${org.body.id}`)

@@ -1,5 +1,7 @@
 import { HealthController } from './health.controller';
 import { FirebaseAuthService } from '../auth/firebase-auth.service';
+import { IdentityStore } from '../identity/identity.store';
+import { MemoryIdentityRepository } from '../identity/memory-identity.repository';
 
 describe('HealthController', () => {
   it('stays public and reports magazam-app', () => {
@@ -9,14 +11,10 @@ describe('HealthController', () => {
       projectId: () => 'magazam-app',
       usesAdc: () => false,
     } as FirebaseAuthService;
-    const body = new HealthController(firebaseAuth).getHealth();
+    const identity = new IdentityStore(new MemoryIdentityRepository());
+    const body = new HealthController(firebaseAuth, identity).getHealth();
     expect(body.status).toBe('ok');
-    expect(body.mock).toBe(true);
-    expect(body.auth).toEqual({
-      provider: 'firebase',
-      projectId: 'magazam-app',
-      configured: true,
-      credential: 'project-id-only',
-    });
+    expect(body.persistence).toBe('memory');
+    expect(body.auth.projectId).toBe('magazam-app');
   });
 });

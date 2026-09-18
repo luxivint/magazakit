@@ -8,10 +8,10 @@ export class DevicesController {
   constructor(private readonly identity: IdentityStore) {}
 
   @Post()
-  register(
+  async register(
     @CurrentUser() user: AuthUser,
     @Body() body: { fcmToken?: string },
-  ): DeviceRegistration {
+  ): Promise<DeviceRegistration> {
     const fcmToken = body?.fcmToken?.trim();
     if (!fcmToken) {
       throw new HttpException(
@@ -19,7 +19,7 @@ export class DevicesController {
         HttpStatus.BAD_REQUEST,
       );
     }
-    this.identity.saveDevice(user.uid, fcmToken);
+    await this.identity.saveDevice(user.uid, fcmToken);
     return { uid: user.uid, stored: true };
   }
 }

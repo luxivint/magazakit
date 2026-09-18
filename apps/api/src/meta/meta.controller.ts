@@ -20,6 +20,12 @@ export class MetaController {
         { method: 'POST', path: '/v1/organizations', body: { name: 'string' } },
         { method: 'GET', path: '/v1/organizations/current' },
         { method: 'POST', path: '/v1/devices', body: { fcmToken: 'string' } },
+        { method: 'GET', path: '/v1/shops' },
+        {
+          method: 'POST',
+          path: '/v1/shops/trendyol/connect',
+          body: { sellerId: 'optional; apiKey/apiSecret ignored and never stored' },
+        },
         { method: 'GET', path: '/v1/products' },
         { method: 'GET', path: '/v1/orders' },
         { method: 'GET', path: '/api/preview/products' },

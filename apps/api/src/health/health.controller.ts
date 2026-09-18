@@ -3,10 +3,14 @@ import type { HealthResponse } from '@magazakit/contracts';
 import { FirebaseAuthService } from '../auth/firebase-auth.service';
 import { Public } from '../auth/public.decorator';
 import { K01_NOTE, trendyolMode } from '../config/trendyol-env';
+import { IdentityStore } from '../identity/identity.store';
 
 @Controller()
 export class HealthController {
-  constructor(private readonly firebaseAuth: FirebaseAuthService) {}
+  constructor(
+    private readonly firebaseAuth: FirebaseAuthService,
+    private readonly identity: IdentityStore,
+  ) {}
 
   @Public()
   @Get('health')
@@ -18,6 +22,7 @@ export class HealthController {
       status: 'ok',
       service: 'api',
       mock: mode === 'mock',
+      persistence: this.identity.backend,
       auth: {
         provider: 'firebase',
         projectId,
