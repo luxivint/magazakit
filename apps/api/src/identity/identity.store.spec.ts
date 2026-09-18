@@ -82,9 +82,9 @@ describe('IdentityStore F3 fulfillment', () => {
     expect(first.outbox.status).toBe('pending');
     expect(await s.countPendingOutbox()).toBeGreaterThan(0);
     const drained = await s.drainOutbox();
-    expect(drained.sent).toBeGreaterThan(0);
+    expect(drained.unknown).toBeGreaterThan(0);
     expect(await s.countPendingOutbox()).toBe(0);
-    expect((await s.listOutbox('uid-a')).items.some((e) => e.status === 'sent')).toBe(true);
+    expect((await s.listOutbox('uid-a')).items.some((e) => e.status === 'unknown')).toBe(true);
 
     const replay = await s.adjustStock('uid-a', {
       sku: 'MASTER-TSHIRT',
@@ -294,5 +294,25 @@ describe('IdentityStore multi-channel', () => {
       expect((err as HttpException).getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
     }
     expect(await s.listShops('uid-a')).toEqual([]);
+  });
+
+  it('does not expose server marketplace credentials to another Firebase user', async () => {
+    const previous = process.env.MARKETPLACE_OWNER_UID;
+    const previousShop = process.env.SHOPIFY_SHOP;
+    const previousToken = process.env.SHOPIFY_ACCESS_TOKEN;
+    process.env.MARKETPLACE_OWNER_UID = 'uid-owner';
+    process.env.SHOPIFY_SHOP = 'owner-store.myshopify.com';
+    process.env.SHOPIFY_ACCESS_TOKEN = 'server-secret';
+    const s = testIdentityStore();
+    await s.createOrg('uid-other', 'Diğer');
+    await expect(s.connectChannel('uid-other', 'shopify')).rejects.toMatchObject({
+      status: HttpStatus.FORBIDDEN,
+    });
+    if (previous === undefined) delete process.env.MARKETPLACE_OWNER_UID;
+    else process.env.MARKETPLACE_OWNER_UID = previous;
+    if (previousShop === undefined) delete process.env.SHOPIFY_SHOP;
+    else process.env.SHOPIFY_SHOP = previousShop;
+    if (previousToken === undefined) delete process.env.SHOPIFY_ACCESS_TOKEN;
+    else process.env.SHOPIFY_ACCESS_TOKEN = previousToken;
   });
 });

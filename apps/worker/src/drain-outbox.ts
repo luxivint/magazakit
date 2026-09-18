@@ -10,11 +10,12 @@ export async function countPendingOutbox(pg: Pg): Promise<number> {
   return Number(res.rows[0]?.n ?? 0);
 }
 
-export async function drainPendingOutbox(pg: Pg): Promise<{ sent: number; failed: number }> {
+export async function drainPendingOutbox(pg: Pg): Promise<{ sent: number; unknown: number; failed: number }> {
   const pending = await pg.query(
     `SELECT id, organization_id, sku, intended_qty FROM stock_outbox WHERE status = 'pending' ORDER BY created_at ASC`,
   );
   let sent = 0;
+  let unknown = 0;
   let failed = 0;
   for (const row of pending.rows) {
     const id = String(row.id);
@@ -27,14 +28,14 @@ export async function drainPendingOutbox(pg: Pg): Promise<{ sent: number; failed
     if ((upd.rowCount ?? 0) === 0) {
       continue;
     }
-    if (status === 'sent') {
-      sent += 1;
+    if (status === 'unknown') {
+      unknown += 1;
     } else {
       failed += 1;
     }
     const title =
-      status === 'sent'
-        ? `Mock TY stok yazıldı ${String(row.sku)} → ${qty} (K01, sır yok)`
+      status === 'unknown'
+        ? `Mock TY stok niyeti kaydedildi ${String(row.sku)} → ${qty} (pazaryeri teyidi yok)`
         : `Mock TY stok yazımı başarısız ${String(row.sku)}`;
     await pg.query(
       `INSERT INTO operations (id, organization_id, type, title, status, ref_id, created_at)
@@ -43,10 +44,10 @@ export async function drainPendingOutbox(pg: Pg): Promise<{ sent: number; failed
         `op_${randomUUID()}`,
         String(row.organization_id),
         title,
-        status === 'sent' ? 'ok' : 'error',
+        status === 'unknown' ? 'unknown' : 'error',
         id,
       ],
     );
   }
-  return { sent, failed };
+  return { sent, unknown, failed };
 }

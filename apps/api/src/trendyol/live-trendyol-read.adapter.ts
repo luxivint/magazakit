@@ -1,13 +1,24 @@
-import { asPreviewList, paginate, type OrderListItem, type PageQuery, type PreviewList, type ProductListItem } from '@magazakit/contracts';
+import {
+  asPreviewList,
+  paginate,
+  type OrderListItem,
+  type PageQuery,
+  type PreviewList,
+  type ProductListItem,
+} from '@magazakit/contracts';
 import type { TrendyolLiveConfig } from '../config/trendyol-env';
 import type { MockListingSeed } from './mock-feed';
 import type { TrendyolReadAdapter } from './trendyol-read.adapter';
 import { trendyolGetJson } from './trendyol-http';
-import { mapApprovedProducts, mapShipmentPackages, trendyolPageMeta } from './trendyol-parse';
+import {
+  mapApprovedProducts,
+  mapShipmentPackages,
+  trendyolPageMeta,
+} from './trendyol-parse';
 
 type GetJson = typeof trendyolGetJson;
 
-const PRODUCT_SIZE = 50;
+const PRODUCT_SIZE = 100;
 const ORDER_SIZE = 50;
 const MAX_OFFSET = 10_000;
 
@@ -30,7 +41,7 @@ export class LiveTrendyolReadAdapter implements TrendyolReadAdapter {
   }
 
   async listProducts(query: PageQuery): Promise<PreviewList<ProductListItem>> {
-    const { listings } = await this.pullFeed();
+    const listings = await this.collectProducts();
     const items: ProductListItem[] = listings.map((p) => ({
       ...p,
       listingId: p.id,
@@ -43,7 +54,10 @@ export class LiveTrendyolReadAdapter implements TrendyolReadAdapter {
 
   async listOrders(query: PageQuery): Promise<PreviewList<OrderListItem>> {
     const orders = await this.collectOrders();
-    const items: OrderListItem[] = orders.map((o) => ({ ...o, organizationId: '' }));
+    const items: OrderListItem[] = orders.map((o) => ({
+      ...o,
+      organizationId: '',
+    }));
     return asPreviewList(paginate(items, query), false);
   }
 
@@ -59,7 +73,7 @@ export class LiveTrendyolReadAdapter implements TrendyolReadAdapter {
     const all: MockListingSeed[] = [];
     let page = 0;
     let nextPageToken: string | undefined;
-    while (page * PRODUCT_SIZE < MAX_OFFSET) {
+    for (let requestCount = 0; requestCount < 10_000; requestCount += 1) {
       const payload = await this.getJson(this.config, this.productsPath(), {
         page: nextPageToken ? undefined : page,
         size: PRODUCT_SIZE,
@@ -69,25 +83,30 @@ export class LiveTrendyolReadAdapter implements TrendyolReadAdapter {
       all.push(...batch);
       const meta = trendyolPageMeta(payload);
       if (batch.length === 0) break;
-      if (meta.nextPageToken && (page + 1) * PRODUCT_SIZE >= MAX_OFFSET) {
+      if (meta.nextPageToken) {
         nextPageToken = meta.nextPageToken;
-        page += 1;
         continue;
       }
       if (batch.length < PRODUCT_SIZE) break;
+      if (nextPageToken) break;
       page += 1;
-      nextPageToken = undefined;
+      if (page * PRODUCT_SIZE >= MAX_OFFSET) break;
     }
     return all;
   }
 
-  private async collectOrders(): Promise<Omit<OrderListItem, 'organizationId'>[]> {
+  private async collectOrders(): Promise<
+    Omit<OrderListItem, 'organizationId'>[]
+  > {
     const all: Omit<OrderListItem, 'organizationId'>[] = [];
     let page = 0;
     while (page * ORDER_SIZE < MAX_OFFSET) {
+      const endDate = Date.now();
       const payload = await this.getJson(this.config, this.ordersPath(), {
         page,
         size: ORDER_SIZE,
+        startDate: endDate - 7 * 24 * 60 * 60 * 1000,
+        endDate,
         orderByField: 'PackageLastModifiedDate',
         orderByDirection: 'DESC',
       });

@@ -41,7 +41,7 @@ const BLOCKED: Record<Exclude<Channel, 'trendyol'>, string> = {
   shopify: 'SHOPIFY_SHOP + SHOPIFY_ACCESS_TOKEN yok. Admin GraphQL.',
   woocommerce: 'WOOCOMMERCE_HOST + consumer key/secret yok.',
   ciceksepeti: 'CICEKSEPETI_API_KEY yok. GET /Products + POST /Order/GetOrders.',
-  ikas: 'IKAS_ACCESS_TOKEN yok. V2 GraphQL listProduct.',
+  ikas: 'IKAS_CLIENT_ID/IKAS_CLIENT_SECRET yok. V2 GraphQL listProduct.',
   amazon: 'Amazon LWA client/secret/refresh yok. SP-API EU searchOrders 2026-01-01, marketplace A33AVAJ2PDY3EV.',
   pazarama: 'Pazarama partner OpenAPI yok (isortagimapi.pazarama.com/docs 404). Path uydurulmadı; bağlı sayılmaz.',
   ticimax: 'Ticimax resmi SOAP/WSDL (UrunServis/SiparisServis). REST yok; SOAP bu dilimde yok.',
@@ -68,7 +68,9 @@ export function createChannelAdapters(trendyol: TrendyolReadAdapter): ChannelAda
     ciceksepeti: process.env.CICEKSEPETI_API_KEY?.trim()
       ? new CiceksepetiReadAdapter()
       : new BlockedChannelAdapter('ciceksepeti', BLOCKED.ciceksepeti),
-    ikas: process.env.IKAS_ACCESS_TOKEN?.trim()
+    ikas:
+      (process.env.IKAS_CLIENT_ID?.trim() && process.env.IKAS_CLIENT_SECRET?.trim()) ||
+      process.env.IKAS_ACCESS_TOKEN?.trim()
       ? new IkasReadAdapter()
       : new BlockedChannelAdapter('ikas', BLOCKED.ikas),
     amazon:

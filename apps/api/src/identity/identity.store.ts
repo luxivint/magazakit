@@ -81,6 +81,19 @@ export class IdentityStore {
     return this.adapters.trendyol;
   }
 
+  private assertMarketplaceOwner(uid: string): void {
+    const ownerUid = process.env.MARKETPLACE_OWNER_UID?.trim();
+    if (!ownerUid || ownerUid !== uid) {
+      boom(
+        ErrorCodes.FORBIDDEN,
+        ownerUid
+          ? 'Bu hesap sunucudaki pazaryeri kimlik bilgilerini kullanamaz.'
+          : 'Canlı pazaryeri kimlik bilgileri için MARKETPLACE_OWNER_UID yapılandırılmalı.',
+        ownerUid ? HttpStatus.FORBIDDEN : HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
   get backend(): PersistenceBackend {
     return this.repo.backend;
   }
@@ -139,6 +152,7 @@ export class IdentityStore {
       boom(ErrorCodes.K01_TRENDYOL_UNAVAILABLE, K01_NOTE, HttpStatus.SERVICE_UNAVAILABLE);
     }
     if (mode === 'live') {
+      this.assertMarketplaceOwner(uid);
       const live = readTrendyolLiveConfig();
       if (!live) {
         boom(ErrorCodes.K01_TRENDYOL_UNAVAILABLE, K01_NOTE, HttpStatus.SERVICE_UNAVAILABLE);
@@ -174,6 +188,11 @@ export class IdentityStore {
     }
     const org = await this.requireOrg(uid);
     const adapter = this.adapters[ch];
+    const catalogEntry = channelCatalog(this.adapters).find((entry) => entry.channel === ch);
+    if (catalogEntry?.mode === 'blocked') {
+      await adapter.probe?.();
+    }
+    this.assertMarketplaceOwner(uid);
     await adapter.probe?.();
     return this.repo.upsertShop(org, ch, {
       status: 'live_connected',
@@ -198,6 +217,9 @@ export class IdentityStore {
       );
     }
     const adapter = this.adapters[shop.channel];
+    if (!adapter.mock) {
+      this.assertMarketplaceOwner(uid);
+    }
     const feed = await adapter.pullFeed();
     const productsUpserted = await this.repo.upsertListings(org.id, shop.id, feed.listings);
     const ordersUpserted = await this.repo.upsertOrders(org.id, feed.orders);
@@ -294,11 +316,12 @@ export class IdentityStore {
   }
 
   /**
-   * K01 mock drain: pending → sent|failed. Never reads marketplace secrets.
+   * K01 mock drain: pending → unknown|failed. A mock must never claim marketplace delivery.
    */
-  async drainOutbox(): Promise<{ sent: number; failed: number }> {
+  async drainOutbox(): Promise<{ sent: number; unknown: number; failed: number }> {
     const pending = await this.repo.listPendingOutbox();
     let sent = 0;
+    let unknown = 0;
     let failed = 0;
     for (const entry of pending) {
       const status = mockTrendyolOutboxStatus(entry.intendedQty);
@@ -306,22 +329,22 @@ export class IdentityStore {
       if (!claimed) {
         continue;
       }
-      if (status === 'sent') {
-        sent += 1;
+      if (status === 'unknown') {
+        unknown += 1;
       } else {
         failed += 1;
       }
       await this.op(
         entry.organizationId,
         'channel_stock_write',
-        status === 'sent'
-          ? `Mock TY stok yazıldı ${entry.sku} → ${entry.intendedQty} (K01, sır yok)`
+        status === 'unknown'
+          ? `Mock TY stok niyeti kaydedildi ${entry.sku} → ${entry.intendedQty} (pazaryeri teyidi yok)`
           : `Mock TY stok yazımı başarısız ${entry.sku}`,
-        status === 'sent' ? 'ok' : 'error',
+        status === 'unknown' ? 'unknown' : 'error',
         entry.id,
       );
     }
-    return { sent, failed };
+    return { sent, unknown, failed };
   }
 
   async getSkuStock(uid: string, sku: string): Promise<StockBalance> {

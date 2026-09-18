@@ -37,7 +37,10 @@ import {
 import { applySqlMigrations } from './run-migrations';
 
 type Pool = {
-  query: (text: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
+  query: (
+    text: string,
+    params?: unknown[],
+  ) => Promise<{ rows: Record<string, unknown>[] }>;
   end?: () => Promise<void>;
 };
 
@@ -65,7 +68,9 @@ function parseChannel(raw: unknown): Channel {
 }
 
 function rowToShop(row: Record<string, unknown>): ShopStatus {
-  const status = (String(row.status ?? 'mock_connected') as ShopStatusCode) || 'mock_connected';
+  const status =
+    (String(row.status ?? 'mock_connected') as ShopStatusCode) ||
+    'mock_connected';
   const live = status === 'live_connected';
   const channel = parseChannel(row.channel);
   return {
@@ -73,7 +78,9 @@ function rowToShop(row: Record<string, unknown>): ShopStatus {
     organizationId: String(row.organization_id),
     channel,
     status,
-    statusLabel: String(row.status_label ?? (live ? 'Bağlı (okuma)' : 'Bağlı (mock — K01)')),
+    statusLabel: String(
+      row.status_label ?? (live ? 'Bağlı (okuma)' : 'Bağlı (mock — K01)'),
+    ),
     sellerLabel: String(row.seller_label ?? channel),
     connectedAt: asIso(row.connected_at),
     lastSyncAt: row.last_sync_at ? asIso(row.last_sync_at) : null,
@@ -88,7 +95,9 @@ export class PostgresIdentityRepository implements IdentityRepository {
 
   private constructor(private readonly pool: Pool) {}
 
-  static async connect(databaseUrl: string): Promise<PostgresIdentityRepository> {
+  static async connect(
+    databaseUrl: string,
+  ): Promise<PostgresIdentityRepository> {
     const { Pool } = await import('pg');
     const pool = new Pool({ connectionString: databaseUrl, max: 4 });
     try {
@@ -105,15 +114,19 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async getOrgForUid(uid: string): Promise<OrganizationSummary | null> {
-    const res = await this.pool.query('SELECT id, name, owner_uid FROM organizations WHERE owner_uid = $1', [
-      uid,
-    ]);
+    const res = await this.pool.query(
+      'SELECT id, name, owner_uid FROM organizations WHERE owner_uid = $1',
+      [uid],
+    );
     const row = res.rows[0];
     return row ? rowToOrg(row) : null;
   }
 
   async getOrgById(id: string): Promise<OrganizationSummary | null> {
-    const res = await this.pool.query('SELECT id, name, owner_uid FROM organizations WHERE id = $1', [id]);
+    const res = await this.pool.query(
+      'SELECT id, name, owner_uid FROM organizations WHERE id = $1',
+      [id],
+    );
     const row = res.rows[0];
     return row ? rowToOrg(row) : null;
   }
@@ -147,7 +160,10 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async getDeviceToken(uid: string): Promise<string | null> {
-    const res = await this.pool.query('SELECT fcm_token FROM devices WHERE uid = $1', [uid]);
+    const res = await this.pool.query(
+      'SELECT fcm_token FROM devices WHERE uid = $1',
+      [uid],
+    );
     const row = res.rows[0];
     return row ? String(row.fcm_token) : null;
   }
@@ -155,12 +171,20 @@ export class PostgresIdentityRepository implements IdentityRepository {
   async upsertShop(
     org: OrganizationSummary,
     channel: ShopStatus['channel'],
-    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'>>,
+    overlay?: Partial<
+      Pick<
+        ShopStatus,
+        'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'
+      >
+    >,
   ): Promise<ShopStatus> {
     const id = shopRecordId(org.id, channel);
-    const live = overlay?.status === 'live_connected' || overlay?.mock === false;
-    const status = overlay?.status ?? (live ? 'live_connected' : 'mock_connected');
-    const statusLabel = overlay?.statusLabel ?? (live ? 'Bağlı (okuma)' : 'Bağlı (mock — K01)');
+    const live =
+      overlay?.status === 'live_connected' || overlay?.mock === false;
+    const status =
+      overlay?.status ?? (live ? 'live_connected' : 'mock_connected');
+    const statusLabel =
+      overlay?.statusLabel ?? (live ? 'Bağlı (okuma)' : 'Bağlı (mock — K01)');
     const sellerLabel = overlay?.sellerLabel ?? channel;
     const res = await this.pool.query(
       `INSERT INTO shops (id, organization_id, channel, status, status_label, seller_label)
@@ -178,7 +202,9 @@ export class PostgresIdentityRepository implements IdentityRepository {
 
   async upsertTrendyolMockShop(
     org: OrganizationSummary,
-    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>>,
+    overlay?: Partial<
+      Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>
+    >,
   ): Promise<ShopStatus> {
     return this.upsertShop(org, 'trendyol', overlay);
   }
@@ -206,7 +232,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return row ? rowToShop(row) : null;
   }
 
-  async markShopSynced(shopId: string, checkpoint: string, lastSyncAt: string): Promise<ShopStatus> {
+  async markShopSynced(
+    shopId: string,
+    checkpoint: string,
+    lastSyncAt: string,
+  ): Promise<ShopStatus> {
     const res = await this.pool.query(
       `UPDATE shops SET last_sync_at = $2::timestamptz, checkpoint = $3
        WHERE id = $1
@@ -217,7 +247,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return rowToShop(res.rows[0]);
   }
 
-  async upsertListings(orgId: string, shopId: string, listings: MockListingSeed[]): Promise<number> {
+  async upsertListings(
+    orgId: string,
+    shopId: string,
+    listings: MockListingSeed[],
+  ): Promise<number> {
     for (const listing of listings) {
       await this.pool.query(
         `INSERT INTO listings (organization_id, listing_id, shop_id, payload)
@@ -225,6 +259,26 @@ export class PostgresIdentityRepository implements IdentityRepository {
          ON CONFLICT (organization_id, listing_id)
          DO UPDATE SET shop_id = EXCLUDED.shop_id, payload = EXCLUDED.payload`,
         [orgId, listing.id, shopId, JSON.stringify(listing)],
+      );
+    }
+    // Treat an empty feed as ambiguous: some marketplace APIs return HTTP 200
+    // with an error-shaped payload. Avoid deleting the last known catalog then.
+    if (listings.length > 0) {
+      const ids = listings.map((listing) => listing.id);
+      await this.pool.query(
+        `DELETE FROM listings
+         WHERE organization_id = $1 AND shop_id = $2
+           AND NOT (listing_id = ANY($3::text[]))`,
+        [orgId, shopId, ids],
+      );
+      await this.pool.query(
+        `DELETE FROM listing_mappings m
+         WHERE m.organization_id = $1
+           AND NOT EXISTS (
+             SELECT 1 FROM listings l
+             WHERE l.organization_id = m.organization_id AND l.listing_id = m.listing_id
+           )`,
+        [orgId],
       );
     }
     return listings.length;
@@ -260,14 +314,20 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async listOrgOrders(orgId: string): Promise<OrderListItem[]> {
-    const res = await this.pool.query('SELECT payload FROM org_orders WHERE organization_id = $1', [orgId]);
+    const res = await this.pool.query(
+      'SELECT payload FROM org_orders WHERE organization_id = $1',
+      [orgId],
+    );
     return res.rows.map((row) => ({
       ...(row.payload as Omit<OrderListItem, 'organizationId'>),
       organizationId: orgId,
     }));
   }
 
-  async getListing(orgId: string, listingId: string): Promise<StoredListing | null> {
+  async getListing(
+    orgId: string,
+    listingId: string,
+  ): Promise<StoredListing | null> {
     const res = await this.pool.query(
       'SELECT shop_id, payload FROM listings WHERE organization_id = $1 AND listing_id = $2',
       [orgId, listingId],
@@ -279,7 +339,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return { ...(row.payload as MockListingSeed), shopId: String(row.shop_id) };
   }
 
-  async upsertMapping(orgId: string, listingId: string, sku: string): Promise<ListingMapping> {
+  async upsertMapping(
+    orgId: string,
+    listingId: string,
+    sku: string,
+  ): Promise<ListingMapping> {
     await this.pool.query(
       `INSERT INTO listing_mappings (organization_id, listing_id, sku)
        VALUES ($1, $2, $3)
@@ -302,7 +366,10 @@ export class PostgresIdentityRepository implements IdentityRepository {
     }));
   }
 
-  async getOrder(orgId: string, orderId: string): Promise<OrderListItem | null> {
+  async getOrder(
+    orgId: string,
+    orderId: string,
+  ): Promise<OrderListItem | null> {
     const res = await this.pool.query(
       'SELECT payload FROM org_orders WHERE organization_id = $1 AND order_id = $2',
       [orgId, orderId],
@@ -351,12 +418,23 @@ export class PostgresIdentityRepository implements IdentityRepository {
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (organization_id, sku)
        DO UPDATE SET physical = EXCLUDED.physical, reserved = EXCLUDED.reserved`,
-      [balance.organizationId, balance.sku, balance.physicalStock, balance.reservedStock],
+      [
+        balance.organizationId,
+        balance.sku,
+        balance.physicalStock,
+        balance.reservedStock,
+      ],
     );
-    return { ...balance, sellableStock: sellableOf(balance.physicalStock, balance.reservedStock) };
+    return {
+      ...balance,
+      sellableStock: sellableOf(balance.physicalStock, balance.reservedStock),
+    };
   }
 
-  async findMovementByKey(orgId: string, idempotencyKey: string): Promise<StockMovement | null> {
+  async findMovementByKey(
+    orgId: string,
+    idempotencyKey: string,
+  ): Promise<StockMovement | null> {
     const res = await this.pool.query(
       `SELECT id, organization_id, sku, delta_physical, delta_reserved, reason, idempotency_key, created_at
        FROM stock_movements WHERE organization_id = $1 AND idempotency_key = $2`,
@@ -383,7 +461,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
         movement.createdAt,
       ],
     );
-    return (await this.findMovementByKey(movement.organizationId, movement.idempotencyKey)) ?? movement;
+    return (
+      (await this.findMovementByKey(
+        movement.organizationId,
+        movement.idempotencyKey,
+      )) ?? movement
+    );
   }
 
   async listMovements(orgId: string): Promise<StockMovement[]> {
@@ -399,7 +482,14 @@ export class PostgresIdentityRepository implements IdentityRepository {
     await this.pool.query(
       `INSERT INTO stock_outbox (id, organization_id, sku, intended_qty, status, created_at)
        VALUES ($1, $2, $3, $4, $5, $6::timestamptz)`,
-      [entry.id, entry.organizationId, entry.sku, entry.intendedQty, entry.status, entry.createdAt],
+      [
+        entry.id,
+        entry.organizationId,
+        entry.sku,
+        entry.intendedQty,
+        entry.status,
+        entry.createdAt,
+      ],
     );
     return entry;
   }
@@ -440,11 +530,16 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async countPendingOutbox(): Promise<number> {
-    const res = await this.pool.query(`SELECT count(*)::int AS n FROM stock_outbox WHERE status = 'pending'`);
+    const res = await this.pool.query(
+      `SELECT count(*)::int AS n FROM stock_outbox WHERE status = 'pending'`,
+    );
     return Number(res.rows[0]?.n ?? 0);
   }
 
-  async updateOutboxStatus(id: string, status: OutboxEntry['status']): Promise<boolean> {
+  async updateOutboxStatus(
+    id: string,
+    status: OutboxEntry['status'],
+  ): Promise<boolean> {
     const res = await this.pool.query(
       `UPDATE stock_outbox SET status = $2 WHERE id = $1 AND status = 'pending'`,
       [id, status],
@@ -456,7 +551,15 @@ export class PostgresIdentityRepository implements IdentityRepository {
     await this.pool.query(
       `INSERT INTO operations (id, organization_id, type, title, status, ref_id, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz)`,
-      [event.id, event.organizationId, event.type, event.title, event.status, event.refId, event.createdAt],
+      [
+        event.id,
+        event.organizationId,
+        event.type,
+        event.title,
+        event.status,
+        event.refId,
+        event.createdAt,
+      ],
     );
     return event;
   }
@@ -497,7 +600,10 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async listReturns(orgId: string): Promise<ReturnListItem[]> {
-    const res = await this.pool.query('SELECT payload FROM org_returns WHERE organization_id = $1', [orgId]);
+    const res = await this.pool.query(
+      'SELECT payload FROM org_returns WHERE organization_id = $1',
+      [orgId],
+    );
     return res.rows.map((row) => ({
       ...(row.payload as ReturnListItem),
       organizationId: orgId,
@@ -505,7 +611,10 @@ export class PostgresIdentityRepository implements IdentityRepository {
     }));
   }
 
-  async getReturn(orgId: string, returnId: string): Promise<ReturnListItem | null> {
+  async getReturn(
+    orgId: string,
+    returnId: string,
+  ): Promise<ReturnListItem | null> {
     const res = await this.pool.query(
       'SELECT payload FROM org_returns WHERE organization_id = $1 AND return_id = $2',
       [orgId, returnId],
@@ -514,7 +623,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
     if (!row) {
       return null;
     }
-    return { ...(row.payload as ReturnListItem), organizationId: orgId, tyWrite: false };
+    return {
+      ...(row.payload as ReturnListItem),
+      organizationId: orgId,
+      tyWrite: false,
+    };
   }
 
   async saveReturn(item: ReturnListItem): Promise<ReturnListItem> {
@@ -572,7 +685,10 @@ export class PostgresIdentityRepository implements IdentityRepository {
     }));
   }
 
-  async findInviteByEmail(orgId: string, email: string): Promise<OrgInvite | null> {
+  async findInviteByEmail(
+    orgId: string,
+    email: string,
+  ): Promise<OrgInvite | null> {
     const res = await this.pool.query(
       `SELECT id, organization_id, email, role, status, created_at
        FROM org_invites WHERE organization_id = $1 AND lower(email) = lower($2)`,
@@ -599,12 +715,22 @@ export class PostgresIdentityRepository implements IdentityRepository {
        VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
        ON CONFLICT (organization_id, email)
        DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`,
-      [invite.id, invite.organizationId, invite.email, invite.role, invite.status, invite.createdAt],
+      [
+        invite.id,
+        invite.organizationId,
+        invite.email,
+        invite.role,
+        invite.status,
+        invite.createdAt,
+      ],
     );
     return { ...invite, emailSent: false };
   }
 
-  async getListingDraft(orgId: string, listingId: string): Promise<ListingDraft | null> {
+  async getListingDraft(
+    orgId: string,
+    listingId: string,
+  ): Promise<ListingDraft | null> {
     const res = await this.pool.query(
       'SELECT payload FROM listing_drafts WHERE organization_id = $1 AND listing_id = $2',
       [orgId, listingId],
@@ -613,7 +739,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
     if (!row) {
       return null;
     }
-    return { ...(row.payload as ListingDraft), organizationId: orgId, liveTyWrite: false };
+    return {
+      ...(row.payload as ListingDraft),
+      organizationId: orgId,
+      liveTyWrite: false,
+    };
   }
 
   async saveListingDraft(draft: ListingDraft): Promise<ListingDraft> {
@@ -632,12 +762,26 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return this.listJson<Supplier>('org_suppliers', 'supplier_id', orgId);
   }
 
-  async getSupplier(orgId: string, supplierId: string): Promise<Supplier | null> {
-    return this.getJson<Supplier>('org_suppliers', 'supplier_id', orgId, supplierId);
+  async getSupplier(
+    orgId: string,
+    supplierId: string,
+  ): Promise<Supplier | null> {
+    return this.getJson<Supplier>(
+      'org_suppliers',
+      'supplier_id',
+      orgId,
+      supplierId,
+    );
   }
 
   async saveSupplier(supplier: Supplier): Promise<Supplier> {
-    return this.saveJson('org_suppliers', 'supplier_id', supplier.organizationId, supplier.id, supplier);
+    return this.saveJson(
+      'org_suppliers',
+      'supplier_id',
+      supplier.organizationId,
+      supplier.id,
+      supplier,
+    );
   }
 
   async listPurchaseOrders(orgId: string): Promise<PurchaseOrderStub[]> {
@@ -645,7 +789,13 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async savePurchaseOrder(po: PurchaseOrderStub): Promise<PurchaseOrderStub> {
-    return this.saveJson('purchase_orders', 'po_id', po.organizationId, po.id, po);
+    return this.saveJson(
+      'purchase_orders',
+      'po_id',
+      po.organizationId,
+      po.id,
+      po,
+    );
   }
 
   async listWarehouses(orgId: string): Promise<Warehouse[]> {
@@ -653,7 +803,13 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async saveWarehouse(warehouse: Warehouse): Promise<Warehouse> {
-    return this.saveJson('warehouses', 'warehouse_id', warehouse.organizationId, warehouse.id, warehouse);
+    return this.saveJson(
+      'warehouses',
+      'warehouse_id',
+      warehouse.organizationId,
+      warehouse.id,
+      warehouse,
+    );
   }
 
   async listTransfers(orgId: string): Promise<WarehouseTransfer[]> {
@@ -661,31 +817,49 @@ export class PostgresIdentityRepository implements IdentityRepository {
       'SELECT payload FROM warehouse_transfers WHERE organization_id = $1 ORDER BY id DESC',
       [orgId],
     );
-    return res.rows.map((row) => ({ ...(row.payload as WarehouseTransfer), stub: true as const }));
+    return res.rows.map((row) => ({
+      ...(row.payload as WarehouseTransfer),
+      stub: true as const,
+    }));
   }
 
   async saveTransfer(transfer: WarehouseTransfer): Promise<WarehouseTransfer> {
     await this.pool.query(
       'INSERT INTO warehouse_transfers (id, organization_id, payload) VALUES ($1, $2, $3::jsonb)',
-      [transfer.id, transfer.organizationId, JSON.stringify({ ...transfer, stub: true })],
+      [
+        transfer.id,
+        transfer.organizationId,
+        JSON.stringify({ ...transfer, stub: true }),
+      ],
     );
     return { ...transfer, stub: true };
   }
 
   async listEinvoices(orgId: string): Promise<EinvoiceDraft[]> {
-    const items = await this.listJson<EinvoiceDraft>('einvoice_drafts', 'invoice_id', orgId);
+    const items = await this.listJson<EinvoiceDraft>(
+      'einvoice_drafts',
+      'invoice_id',
+      orgId,
+    );
     return items.map((i) => ({ ...i, gibLive: false as const }));
   }
 
   async saveEinvoice(draft: EinvoiceDraft): Promise<EinvoiceDraft> {
     const stored = { ...draft, gibLive: false as const };
-    return this.saveJson('einvoice_drafts', 'invoice_id', draft.organizationId, draft.id, stored);
+    return this.saveJson(
+      'einvoice_drafts',
+      'invoice_id',
+      draft.organizationId,
+      draft.id,
+      stored,
+    );
   }
 
   async getPrinter(orgId: string): Promise<PrinterSettings | null> {
-    const res = await this.pool.query('SELECT payload FROM printer_settings WHERE organization_id = $1', [
-      orgId,
-    ]);
+    const res = await this.pool.query(
+      'SELECT payload FROM printer_settings WHERE organization_id = $1',
+      [orgId],
+    );
     const row = res.rows[0];
     return row ? (row.payload as PrinterSettings) : null;
   }
@@ -700,7 +874,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return settings;
   }
 
-  private async listJson<T>(table: string, idCol: string, orgId: string): Promise<T[]> {
+  private async listJson<T>(
+    table: string,
+    idCol: string,
+    orgId: string,
+  ): Promise<T[]> {
     const res = await this.pool.query(
       `SELECT payload FROM ${table} WHERE organization_id = $1`,
       [orgId],
@@ -709,7 +887,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return res.rows.map((row) => row.payload as T);
   }
 
-  private async getJson<T>(table: string, idCol: string, orgId: string, id: string): Promise<T | null> {
+  private async getJson<T>(
+    table: string,
+    idCol: string,
+    orgId: string,
+    id: string,
+  ): Promise<T | null> {
     const res = await this.pool.query(
       `SELECT payload FROM ${table} WHERE organization_id = $1 AND ${idCol} = $2`,
       [orgId, id],
@@ -755,7 +938,9 @@ export async function tryPostgresRepository(
   const log = new Logger('PostgresIdentityRepository');
   try {
     const repo = await PostgresIdentityRepository.connect(databaseUrl);
-    log.log('persistence: postgres (migrations applied; connection string not logged)');
+    log.log(
+      'persistence: postgres (migrations applied; connection string not logged)',
+    );
     return repo;
   } catch {
     log.warn(

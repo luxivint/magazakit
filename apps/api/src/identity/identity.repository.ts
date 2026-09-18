@@ -124,6 +124,7 @@ export function toProductListItem(
     title: listing.title,
     channel: listing.channel,
     priceTry: listing.priceTry,
+    priceCurrency: listing.priceCurrency,
     marketplaceStock: listing.marketplaceStock,
     physicalStock,
     reservedStock,
@@ -162,12 +163,23 @@ export function withOrderDefaults(
   }
   return {
     ...existing,
+    channel: incoming.channel,
+    status: incoming.status,
+    statusLabel: incoming.statusLabel,
     customerName: incoming.customerName,
     itemCount: incoming.itemCount,
     totalTry: incoming.totalTry,
+    totalCurrency: incoming.totalCurrency,
     cargoDeadlineAt: incoming.cargoDeadlineAt,
     cargoWarning: incoming.cargoWarning,
     orderNumber: incoming.orderNumber,
+    createdAt: incoming.createdAt,
+    lines: seedLines.map((line) => ({
+      ...line,
+      scannedQty: existing.lines.find((old) => old.listingId === line.listingId)?.scannedQty ?? 0,
+    })),
+    packed: existing.packed || incoming.packed,
+    shipped: existing.shipped || incoming.shipped,
   };
 }
 

@@ -42,7 +42,8 @@ function mockShop(
     organizationId: org.id,
     channel,
     status: extra?.status ?? (live ? 'live_connected' : 'mock_connected'),
-    statusLabel: extra?.statusLabel ?? (live ? 'Bağlı (okuma)' : 'Bağlı (mock — K01)'),
+    statusLabel:
+      extra?.statusLabel ?? (live ? 'Bağlı (okuma)' : 'Bağlı (mock — K01)'),
     sellerLabel: extra?.sellerLabel ?? channel,
     connectedAt: extra?.connectedAt ?? new Date().toISOString(),
     lastSyncAt: extra?.lastSyncAt ?? null,
@@ -131,7 +132,12 @@ export class MemoryIdentityRepository implements IdentityRepository {
   async upsertShop(
     org: OrganizationSummary,
     channel: ShopChannel,
-    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'>>,
+    overlay?: Partial<
+      Pick<
+        ShopStatus,
+        'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'
+      >
+    >,
   ): Promise<ShopStatus> {
     const mapKey = `${org.id}:${channel}`;
     const existingId = this.shopsByOrgChannel.get(mapKey);
@@ -149,7 +155,9 @@ export class MemoryIdentityRepository implements IdentityRepository {
 
   async upsertTrendyolMockShop(
     org: OrganizationSummary,
-    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>>,
+    overlay?: Partial<
+      Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>
+    >,
   ): Promise<ShopStatus> {
     return this.upsertShop(org, 'trendyol', overlay);
   }
@@ -159,14 +167,20 @@ export class MemoryIdentityRepository implements IdentityRepository {
     if (!org) {
       return [];
     }
-    return [...this.shopsById.values()].filter((s) => s.organizationId === org.id);
+    return [...this.shopsById.values()].filter(
+      (s) => s.organizationId === org.id,
+    );
   }
 
   async getShopById(shopId: string): Promise<ShopStatus | null> {
     return this.shopsById.get(shopId) ?? null;
   }
 
-  async markShopSynced(shopId: string, checkpoint: string, lastSyncAt: string): Promise<ShopStatus> {
+  async markShopSynced(
+    shopId: string,
+    checkpoint: string,
+    lastSyncAt: string,
+  ): Promise<ShopStatus> {
     const shop = this.shopsById.get(shopId);
     if (!shop) {
       throw new Error('shop not found');
@@ -176,9 +190,28 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return next;
   }
 
-  async upsertListings(orgId: string, shopId: string, listings: MockListingSeed[]): Promise<number> {
+  async upsertListings(
+    orgId: string,
+    shopId: string,
+    listings: MockListingSeed[],
+  ): Promise<number> {
+    const incoming = new Set(listings.map((listing) => listing.id));
+    // An empty feed can also mean that a marketplace returned a malformed or
+    // temporarily incomplete 200 response. Keep the last known catalog in that
+    // ambiguous case instead of erasing it.
+    if (listings.length > 0) {
+      for (const [key, stored] of this.listings) {
+        if (stored.shopId === shopId && !incoming.has(stored.id)) {
+          this.listings.delete(key);
+          this.mappings.delete(this.listingKey(orgId, stored.id));
+        }
+      }
+    }
     for (const listing of listings) {
-      this.listings.set(this.listingKey(orgId, listing.id), { ...listing, shopId });
+      this.listings.set(this.listingKey(orgId, listing.id), {
+        ...listing,
+        shopId,
+      });
     }
     return listings.length;
   }
@@ -205,11 +238,18 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return [...this.orders.values()].filter((o) => o.organizationId === orgId);
   }
 
-  async getListing(orgId: string, listingId: string): Promise<StoredListing | null> {
+  async getListing(
+    orgId: string,
+    listingId: string,
+  ): Promise<StoredListing | null> {
     return this.listings.get(this.listingKey(orgId, listingId)) ?? null;
   }
 
-  async upsertMapping(orgId: string, listingId: string, sku: string): Promise<ListingMapping> {
+  async upsertMapping(
+    orgId: string,
+    listingId: string,
+    sku: string,
+  ): Promise<ListingMapping> {
     const mapping: ListingMapping = {
       organizationId: orgId,
       listingId,
@@ -221,10 +261,15 @@ export class MemoryIdentityRepository implements IdentityRepository {
   }
 
   async listMappings(orgId: string): Promise<ListingMapping[]> {
-    return [...this.mappings.values()].filter((m) => m.organizationId === orgId);
+    return [...this.mappings.values()].filter(
+      (m) => m.organizationId === orgId,
+    );
   }
 
-  async getOrder(orgId: string, orderId: string): Promise<OrderListItem | null> {
+  async getOrder(
+    orgId: string,
+    orderId: string,
+  ): Promise<OrderListItem | null> {
     return this.orders.get(this.orderKey(orgId, orderId)) ?? null;
   }
 
@@ -250,10 +295,14 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return next;
   }
 
-  async findMovementByKey(orgId: string, idempotencyKey: string): Promise<StockMovement | null> {
+  async findMovementByKey(
+    orgId: string,
+    idempotencyKey: string,
+  ): Promise<StockMovement | null> {
     return (
       [...this.movements.values()].find(
-        (m) => m.organizationId === orgId && m.idempotencyKey === idempotencyKey,
+        (m) =>
+          m.organizationId === orgId && m.idempotencyKey === idempotencyKey,
       ) ?? null
     );
   }
@@ -286,7 +335,10 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return this.outbox.filter((e) => e.status === 'pending').length;
   }
 
-  async updateOutboxStatus(id: string, status: OutboxEntry['status']): Promise<boolean> {
+  async updateOutboxStatus(
+    id: string,
+    status: OutboxEntry['status'],
+  ): Promise<boolean> {
     const entry = this.outbox.find((e) => e.id === id);
     if (!entry || entry.status !== 'pending') {
       return false;
@@ -301,7 +353,10 @@ export class MemoryIdentityRepository implements IdentityRepository {
   }
 
   async listOperations(orgId: string): Promise<OperationEvent[]> {
-    return this.operations.filter((e) => e.organizationId === orgId).slice().reverse();
+    return this.operations
+      .filter((e) => e.organizationId === orgId)
+      .slice()
+      .reverse();
   }
 
   async upsertReturns(
@@ -320,12 +375,18 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return [...this.returns.values()].filter((r) => r.organizationId === orgId);
   }
 
-  async getReturn(orgId: string, returnId: string): Promise<ReturnListItem | null> {
+  async getReturn(
+    orgId: string,
+    returnId: string,
+  ): Promise<ReturnListItem | null> {
     return this.returns.get(this.orderKey(orgId, returnId)) ?? null;
   }
 
   async saveReturn(item: ReturnListItem): Promise<ReturnListItem> {
-    this.returns.set(this.orderKey(item.organizationId, item.id), { ...item, tyWrite: false });
+    this.returns.set(this.orderKey(item.organizationId, item.id), {
+      ...item,
+      tyWrite: false,
+    });
     return item;
   }
 
@@ -343,7 +404,10 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return [...this.invites.values()].filter((i) => i.organizationId === orgId);
   }
 
-  async findInviteByEmail(orgId: string, email: string): Promise<OrgInvite | null> {
+  async findInviteByEmail(
+    orgId: string,
+    email: string,
+  ): Promise<OrgInvite | null> {
     const needle = email.trim().toLowerCase();
     return (
       [...this.invites.values()].find(
@@ -357,7 +421,10 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return invite;
   }
 
-  async getListingDraft(orgId: string, listingId: string): Promise<ListingDraft | null> {
+  async getListingDraft(
+    orgId: string,
+    listingId: string,
+  ): Promise<ListingDraft | null> {
     return this.drafts.get(this.listingKey(orgId, listingId)) ?? null;
   }
 
@@ -370,15 +437,23 @@ export class MemoryIdentityRepository implements IdentityRepository {
   }
 
   async listSuppliers(orgId: string): Promise<Supplier[]> {
-    return [...this.suppliers.values()].filter((s) => s.organizationId === orgId);
+    return [...this.suppliers.values()].filter(
+      (s) => s.organizationId === orgId,
+    );
   }
 
-  async getSupplier(orgId: string, supplierId: string): Promise<Supplier | null> {
+  async getSupplier(
+    orgId: string,
+    supplierId: string,
+  ): Promise<Supplier | null> {
     return this.suppliers.get(this.orderKey(orgId, supplierId)) ?? null;
   }
 
   async saveSupplier(supplier: Supplier): Promise<Supplier> {
-    this.suppliers.set(this.orderKey(supplier.organizationId, supplier.id), supplier);
+    this.suppliers.set(
+      this.orderKey(supplier.organizationId, supplier.id),
+      supplier,
+    );
     return supplier;
   }
 
@@ -392,16 +467,24 @@ export class MemoryIdentityRepository implements IdentityRepository {
   }
 
   async listWarehouses(orgId: string): Promise<Warehouse[]> {
-    return [...this.warehouses.values()].filter((w) => w.organizationId === orgId);
+    return [...this.warehouses.values()].filter(
+      (w) => w.organizationId === orgId,
+    );
   }
 
   async saveWarehouse(warehouse: Warehouse): Promise<Warehouse> {
-    this.warehouses.set(this.orderKey(warehouse.organizationId, warehouse.id), warehouse);
+    this.warehouses.set(
+      this.orderKey(warehouse.organizationId, warehouse.id),
+      warehouse,
+    );
     return warehouse;
   }
 
   async listTransfers(orgId: string): Promise<WarehouseTransfer[]> {
-    return this.transfers.filter((t) => t.organizationId === orgId).slice().reverse();
+    return this.transfers
+      .filter((t) => t.organizationId === orgId)
+      .slice()
+      .reverse();
   }
 
   async saveTransfer(transfer: WarehouseTransfer): Promise<WarehouseTransfer> {
@@ -410,7 +493,10 @@ export class MemoryIdentityRepository implements IdentityRepository {
   }
 
   async listEinvoices(orgId: string): Promise<EinvoiceDraft[]> {
-    return this.einvoices.filter((e) => e.organizationId === orgId).slice().reverse();
+    return this.einvoices
+      .filter((e) => e.organizationId === orgId)
+      .slice()
+      .reverse();
   }
 
   async saveEinvoice(draft: EinvoiceDraft): Promise<EinvoiceDraft> {

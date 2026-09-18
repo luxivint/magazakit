@@ -1,5 +1,6 @@
 import { LiveTrendyolReadAdapter } from './live-trendyol-read.adapter';
 import type { TrendyolLiveConfig } from '../config/trendyol-env';
+import type { TrendyolQuery } from './trendyol-http';
 
 const cfg: TrendyolLiveConfig = {
   baseUrl: 'https://apigw.trendyol.com',
@@ -56,5 +57,30 @@ describe('LiveTrendyolReadAdapter', () => {
     expect(calls[0]).toContain('/products/approved');
     expect(calls[1]).toContain('/v2/orders');
     expect(calls.join(' ')).not.toContain('secret');
+  });
+
+  it('continues approved-product pagination with nextPageToken after 10,000 contents', async () => {
+    let tokenUsed = false;
+    const getJson = async (_c: TrendyolLiveConfig, path: string, query: TrendyolQuery = {}) => {
+      if (!path.includes('/products/approved')) return { content: [] };
+      if (query.nextPageToken) {
+        tokenUsed = true;
+        return {
+          content: [{ title: 'Last', variants: [{ barcode: 'AFTER-10000', onSale: true }] }],
+        };
+      }
+      const page = Number(query.page ?? 0);
+      return {
+        content: Array.from({ length: 100 }, (_, index) => ({
+          title: `P${page}-${index}`,
+          variants: [{ barcode: `B-${page}-${index}`, onSale: true }],
+        })),
+        nextPageToken: page === 99 ? 'next-10000' : undefined,
+      };
+    };
+    const adapter = new LiveTrendyolReadAdapter(cfg, getJson);
+    const result = await adapter.listProducts({ page: 1, pageSize: 1 });
+    expect(tokenUsed).toBe(true);
+    expect(result.total).toBe(10_001);
   });
 });

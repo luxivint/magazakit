@@ -31,6 +31,8 @@ export type ProductListItem = {
   title: string;
   channel: Channel;
   priceTry: number;
+  /** ISO 4217 currency reported by the channel. `priceTry` is retained for API compatibility. */
+  priceCurrency?: string;
   marketplaceStock: number;
   physicalStock: number;
   reservedStock: number;
@@ -55,6 +57,8 @@ export type OrderListItem = {
   statusLabel: string;
   itemCount: number;
   totalTry: number;
+  /** ISO 4217 currency reported by the channel. `totalTry` is retained for API compatibility. */
+  totalCurrency?: string;
   cargoDeadlineAt: string | null;
   cargoWarning: boolean;
   createdAt: string;

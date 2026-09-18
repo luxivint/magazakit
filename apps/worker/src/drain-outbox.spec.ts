@@ -4,8 +4,8 @@ import { mockTrendyolOutboxStatus } from './mock-trendyol-write';
 import { drainPendingOutbox } from './drain-outbox';
 
 describe('worker mock outbox drain', () => {
-  it('marks non-negative qty sent and never needs secrets', () => {
-    assert.equal(mockTrendyolOutboxStatus(8), 'sent');
+  it('never claims that mock writes reached the marketplace', () => {
+    assert.equal(mockTrendyolOutboxStatus(8), 'unknown');
     assert.equal(mockTrendyolOutboxStatus(-1), 'failed');
   });
 
@@ -34,8 +34,8 @@ describe('worker mock outbox drain', () => {
       },
     };
     const result = await drainPendingOutbox(pg);
-    assert.deepEqual(result, { sent: 1, failed: 1 });
-    assert.equal(store.get('a')?.status, 'sent');
+    assert.deepEqual(result, { sent: 0, unknown: 1, failed: 1 });
+    assert.equal(store.get('a')?.status, 'unknown');
     assert.equal(store.get('b')?.status, 'failed');
   });
 });

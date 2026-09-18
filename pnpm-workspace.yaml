@@ -1,3 +1,16 @@
 packages:
-  - 'apps/*'
-  - 'packages/*'
+  - "apps/*"
+  - "packages/*"
+
+onlyBuiltDependencies:
+  - "@firebase/util"
+  - "@nestjs/core"
+  - "@parcel/watcher"
+  - esbuild
+  - protobufjs
+  - unrs-resolver
+
+overrides:
+  decode-uri-component: ">=0.5.0"
+  multer: ">=2.3.0"
+  uuid: ">=11.1.1"

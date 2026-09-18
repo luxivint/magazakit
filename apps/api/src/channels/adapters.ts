@@ -13,7 +13,10 @@ import type { ChannelReadAdapter } from './types';
 import { assertPublicHttps, channelFetchJson, num, rec, str } from './http';
 import { envTriple, httpImage, listing, order, pageItems } from './map';
 
-function emptyLists(query: PageQuery, mock: boolean): PreviewList<ProductListItem> {
+function emptyLists(
+  query: PageQuery,
+  mock: boolean,
+): PreviewList<ProductListItem> {
   return asPreviewList(paginate([] as ProductListItem[], query), mock);
 }
 
@@ -56,7 +59,10 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
   private cfg() {
     if (!this.cred?.id || !this.cred.key || !this.cred.secret) {
       throw new HttpException(
-        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'Hepsiburada merchantId/key/secret yok.' },
+        {
+          code: ErrorCodes.CHANNEL_UNAVAILABLE,
+          message: 'Hepsiburada merchantId/key/secret yok.',
+        },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
@@ -64,8 +70,13 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
     const listingHost = sit
       ? 'https://listing-external-sit.hepsiburada.com'
       : 'https://listing-external.hepsiburada.com';
-    const omsHost = sit ? 'https://oms-external-sit.hepsiburada.com' : 'https://oms-external.hepsiburada.com';
-    const auth = Buffer.from(`${this.cred.key}:${this.cred.secret}`, 'utf8').toString('base64');
+    const omsHost = sit
+      ? 'https://oms-external-sit.hepsiburada.com'
+      : 'https://oms-external.hepsiburada.com';
+    const auth = Buffer.from(
+      `${this.cred.key}:${this.cred.secret}`,
+      'utf8',
+    ).toString('base64');
     const headers = {
       Authorization: `Basic ${auth}`,
       /* Lonca SIT: yalın integrator adı. `{merchantId} - SelfIntegration` (TY kopyası) 401/403. */
@@ -88,13 +99,25 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
   }
 
   async pullFeed() {
+    return this.collectFeed(true, true);
+  }
+
+  private async collectFeed(includeListings: boolean, includeOrders: boolean) {
     const c = this.cfg();
-    const listingsRaw = await channelFetchJson(
-      `${c.listingHost}/listings/merchantid/${encodeURIComponent(c.merchantId)}?offset=0&limit=100`,
-      { headers: c.headers },
-      'Hepsiburada listings',
-    );
-    const listings = pageItems(listingsRaw, ['listings', 'items', 'data', 'content']).flatMap((row) => {
+    const listingRows: unknown[] = [];
+    if (includeListings) {
+      for (let offset = 0; offset < 100_000; offset += 100) {
+        const raw = await channelFetchJson(
+          `${c.listingHost}/listings/merchantid/${encodeURIComponent(c.merchantId)}?offset=${offset}&limit=100`,
+          { headers: c.headers },
+          'Hepsiburada listings',
+        );
+        const batch = pageItems(raw, ['listings', 'items', 'data', 'content']);
+        listingRows.push(...batch);
+        if (batch.length < 100) break;
+      }
+    }
+    const listings = listingRows.flatMap((row) => {
       const r = rec(row);
       if (!r) return [];
       const hbSku = str(r.hepsiburadaSku ?? r.HepsiburadaSku);
@@ -113,27 +136,47 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
         }),
       ];
     });
-    const ordersRaw = await channelFetchJson(
-      `${c.omsHost}/orders/merchantid/${encodeURIComponent(c.merchantId)}?offset=0&limit=100`,
-      { headers: c.headers },
-      'Hepsiburada orders',
-    );
-    const orders = pageItems(ordersRaw).map((row, i) => {
+    const orderRows: unknown[] = [];
+    if (includeOrders) {
+      for (let offset = 0; offset < 100_000; offset += 100) {
+        const raw = await channelFetchJson(
+          `${c.omsHost}/orders/merchantid/${encodeURIComponent(c.merchantId)}?offset=${offset}&limit=100`,
+          { headers: c.headers },
+          'Hepsiburada orders',
+        );
+        const batch = pageItems(raw);
+        orderRows.push(...batch);
+        if (batch.length < 100) break;
+      }
+    }
+    const orders = orderRows.map((row, i) => {
       const r = rec(row) ?? {};
-      const items = pageItems(r.items ?? r.Items);
+      const items = pageItems(r.lineItems ?? r.LineItems ?? r.items ?? r.Items);
       const number = str(r.orderNumber ?? r.OrderNumber) || `hb-${i}`;
       return order({
         channel: 'hepsiburada',
         id: `hb-${str(r.id ?? r.orderId) || number}`,
         orderNumber: number,
-        customerName: str(rec(r.shippingAddress)?.name ?? rec(r.ShippingAddress)?.name),
+        customerName: str(
+          rec(r.shippingAddress)?.name ??
+            rec(r.ShippingAddress)?.name ??
+            rec(r.deliveryAddress)?.name ??
+            rec(r.DeliveryAddress)?.Name,
+        ),
         statusRaw: str(r.status ?? r.Status),
-        totalTry: num(rec(r.totalPrice)?.amount ?? r.totalPrice),
+        totalTry: num(
+          rec(r.totalPrice)?.amount ??
+            rec(r.TotalPrice)?.Amount ??
+            r.totalPrice,
+        ),
         createdAt: str(r.orderDate ?? r.OrderDate) || undefined,
         lines: items.map((it) => {
           const line = rec(it) ?? {};
           const sku = str(line.sku ?? line.hbSku ?? line.merchantSku);
-          return { listingId: sku ? `hb-${sku}` : `hb-line-${str(line.id)}`, qty: Math.max(1, num(line.quantity)) };
+          return {
+            listingId: sku ? `hb-${sku}` : `hb-line-${str(line.id)}`,
+            qty: Math.max(1, num(line.quantity)),
+          };
         }),
       });
     });
@@ -141,10 +184,16 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
   }
 
   async listProducts(query: PageQuery) {
-    const { listings } = await this.pullFeed();
+    const { listings } = await this.collectFeed(true, false);
     return asPreviewList(
       paginate(
-        listings.map((p) => ({ ...p, listingId: p.id, organizationId: '', mapped: false, stockSource: 'none' as const })),
+        listings.map((p) => ({
+          ...p,
+          listingId: p.id,
+          organizationId: '',
+          mapped: false,
+          stockSource: 'none' as const,
+        })),
         query,
       ),
       false,
@@ -152,7 +201,7 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
   }
 
   async listOrders(query: PageQuery) {
-    const { orders } = await this.pullFeed();
+    const { orders } = await this.collectFeed(false, true);
     return asPreviewList(
       paginate(
         orders.map((o) => ({ ...o, organizationId: '' })),
@@ -171,7 +220,10 @@ export class N11ReadAdapter implements ChannelReadAdapter {
   private headers() {
     if (!this.cred) {
       throw new HttpException(
-        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'n11 appKey/appSecret yok.' },
+        {
+          code: ErrorCodes.CHANNEL_UNAVAILABLE,
+          message: 'n11 appKey/appSecret yok.',
+        },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
@@ -185,17 +237,35 @@ export class N11ReadAdapter implements ChannelReadAdapter {
   }
 
   async probe(): Promise<void> {
-    await channelFetchJson('https://api.n11.com/ms/product-query?page=0&size=1', { headers: this.headers() }, 'n11 products');
+    await channelFetchJson(
+      'https://api.n11.com/ms/product-query?page=0&size=1',
+      { headers: this.headers() },
+      'n11 products',
+    );
   }
 
   async pullFeed() {
+    return this.collectFeed(true, true);
+  }
+
+  private async collectFeed(includeListings: boolean, includeOrders: boolean) {
     const headers = this.headers();
-    const products = await channelFetchJson(
-      'https://api.n11.com/ms/product-query?page=0&size=50',
-      { headers },
-      'n11 products',
-    );
-    const listings = pageItems(products).map((row) => {
+    const productRows: unknown[] = [];
+    if (includeListings) {
+      for (let page = 0; page < 400; page += 1) {
+        const raw = await channelFetchJson(
+          `https://api.n11.com/ms/product-query?page=${page}&size=250`,
+          { headers },
+          'n11 products',
+        );
+        const batch = pageItems(raw);
+        productRows.push(...batch);
+        const totalPages = num(rec(raw)?.totalPages);
+        if (batch.length < 250 || (totalPages > 0 && page + 1 >= totalPages))
+          break;
+      }
+    }
+    const listings = productRows.map((row) => {
       const r = rec(row) ?? {};
       const sku = str(r.stockCode) || str(r.n11ProductId);
       return listing({
@@ -212,18 +282,33 @@ export class N11ReadAdapter implements ChannelReadAdapter {
     });
     const end = Date.now();
     const start = end - 7 * 24 * 60 * 60 * 1000;
-    const pkgs = await channelFetchJson(
-      `https://api.n11.com/rest/delivery/v1/shipmentPackages?startDate=${start}&endDate=${end}&page=0&size=50`,
-      { headers },
-      'n11 orders',
-    );
-    const orders = pageItems(pkgs).map((row) => {
+    const packageRows: unknown[] = [];
+    if (includeOrders) {
+      for (let page = 0; page < 400; page += 1) {
+        const raw = await channelFetchJson(
+          `https://api.n11.com/rest/delivery/v1/shipmentPackages?startDate=${start}&endDate=${end}&page=${page}&size=250`,
+          { headers },
+          'n11 orders',
+        );
+        const batch = pageItems(raw);
+        packageRows.push(...batch);
+        const totalPages = num(rec(raw)?.totalPages);
+        if (batch.length < 250 || (totalPages > 0 && page + 1 >= totalPages))
+          break;
+      }
+    }
+    const orders = packageRows.map((row) => {
       const r = rec(row) ?? {};
       const pkgId = str(r.id ?? r.packageId);
       const lines = pageItems(r.lines).map((it) => {
         const line = rec(it) ?? {};
-        const barcode = str(line.barcode);
-        return { listingId: barcode ? `n11-${barcode}` : `n11-line-${str(line.orderLineId)}`, qty: Math.max(1, num(line.quantity)) };
+        const stockCode = str(line.stockCode ?? line.barcode);
+        return {
+          listingId: stockCode
+            ? `n11-${stockCode}`
+            : `n11-line-${str(line.orderLineId)}`,
+          qty: Math.max(1, num(line.quantity)),
+        };
       });
       return order({
         channel: 'n11',
@@ -232,7 +317,9 @@ export class N11ReadAdapter implements ChannelReadAdapter {
         customerName: str(rec(r.shippingAddress)?.fullName),
         statusRaw: str(r.status ?? r.shipmentPackageStatus),
         totalTry: num(r.totalAmount ?? r.packageTotalPrice),
-        createdAt: num(r.orderDate) ? new Date(num(r.orderDate)).toISOString() : undefined,
+        createdAt: num(r.orderDate)
+          ? new Date(num(r.orderDate)).toISOString()
+          : undefined,
         lines,
       });
     });
@@ -240,10 +327,16 @@ export class N11ReadAdapter implements ChannelReadAdapter {
   }
 
   async listProducts(query: PageQuery) {
-    const { listings } = await this.pullFeed();
+    const { listings } = await this.collectFeed(true, false);
     return asPreviewList(
       paginate(
-        listings.map((p) => ({ ...p, listingId: p.id, organizationId: '', mapped: false, stockSource: 'none' as const })),
+        listings.map((p) => ({
+          ...p,
+          listingId: p.id,
+          organizationId: '',
+          mapped: false,
+          stockSource: 'none' as const,
+        })),
         query,
       ),
       false,
@@ -251,8 +344,14 @@ export class N11ReadAdapter implements ChannelReadAdapter {
   }
 
   async listOrders(query: PageQuery) {
-    const { orders } = await this.pullFeed();
-    return asPreviewList(paginate(orders.map((o) => ({ ...o, organizationId: '' })), query), false);
+    const { orders } = await this.collectFeed(false, true);
+    return asPreviewList(
+      paginate(
+        orders.map((o) => ({ ...o, organizationId: '' })),
+        query,
+      ),
+      false,
+    );
   }
 }
 
@@ -274,19 +373,25 @@ export class ShopifyReadAdapter implements ChannelReadAdapter {
     const token = process.env.SHOPIFY_ACCESS_TOKEN?.trim();
     if (!domain || !token) {
       throw new HttpException(
-        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN yok.' },
+        {
+          code: ErrorCodes.CHANNEL_UNAVAILABLE,
+          message: 'SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN yok.',
+        },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
     const host = domain.includes('.') ? domain : `${domain}.myshopify.com`;
     const version = process.env.SHOPIFY_API_VERSION?.trim() || '2026-07';
-    const url = assertPublicHttps(`https://${host}/admin/api/${version}/graphql.json`, 'Shopify');
+    const url = assertPublicHttps(
+      `https://${host}/admin/api/${version}/graphql.json`,
+      'Shopify',
+    );
     return { url, token };
   }
 
   private async gql(query: string): Promise<unknown> {
     const s = this.shop();
-    return channelFetchJson(
+    const payload = await channelFetchJson(
       s.url,
       {
         method: 'POST',
@@ -298,77 +403,127 @@ export class ShopifyReadAdapter implements ChannelReadAdapter {
       },
       'Shopify GraphQL',
     );
+    if (graphQlFailed(payload)) {
+      throw new HttpException(
+        {
+          code: ErrorCodes.CHANNEL_UNAVAILABLE,
+          message: 'Shopify GraphQL errors (token loglanmaz).',
+        },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+    return payload;
   }
 
   async probe(): Promise<void> {
-    const data = rec(await this.gql('{ shop { name } }'));
-    if (graphQlFailed(data)) {
-      throw new HttpException(
-        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'Shopify GraphQL errors (token loglanmaz).' },
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
+    await this.gql('{ shop { name } }');
   }
 
   async pullFeed() {
-    const products = rec(await this.gql(`{
-      products(first: 50) {
-        edges { node { id title featuredImage { url }
-          variants(first: 30) { edges { node { id sku barcode inventoryQuantity price } } } } }
-      }
-    }`));
-    const listings = pageItems(rec(rec(products?.data)?.products)?.edges, ['edges']).flatMap((edge) => {
-      const node = rec(rec(edge)?.node);
-      if (!node) return [];
-      const title = str(node.title);
-      const img = httpImage(rec(node.featuredImage)?.url);
-      return pageItems(rec(node.variants)?.edges, ['edges']).map((vEdge) => {
-        const v = rec(rec(vEdge)?.node) ?? {};
-        const sku = str(v.sku) || str(v.id);
-        return listing({
-          channel: 'shopify',
-          id: `sh-${sku}`,
-          sku,
-          barcode: str(v.barcode) || sku,
-          title,
-          priceTry: num(v.price),
-          marketplaceStock: num(v.inventoryQuantity),
-          imageUrl: img,
-        });
-      });
-    });
-    const ordersRaw = rec(await this.gql(`{
-      orders(first: 50) {
-        edges { node { id name createdAt displayFulfillmentStatus
-          currentTotalPriceSet { shopMoney { amount } }
-          lineItems(first: 30) { edges { node { sku quantity } } } } }
-      }
-    }`));
-    const orders = pageItems(rec(rec(ordersRaw?.data)?.orders)?.edges, ['edges']).map((edge) => {
-      const n = rec(rec(edge)?.node) ?? {};
-      const lines = pageItems(rec(n.lineItems)?.edges, ['edges']).map((le) => {
-        const li = rec(rec(le)?.node) ?? {};
-        const sku = str(li.sku);
-        return { listingId: sku ? `sh-${sku}` : 'sh-line', qty: Math.max(1, num(li.quantity)) };
-      });
-      return order({
-        channel: 'shopify',
-        id: `sh-${str(n.id).split('/').pop()}`,
-        orderNumber: str(n.name),
-        statusRaw: str(n.displayFulfillmentStatus),
-        totalTry: num(rec(rec(n.currentTotalPriceSet)?.shopMoney)?.amount),
-        createdAt: str(n.createdAt) || undefined,
-        lines,
-      });
-    });
+    const [listings, orders] = await Promise.all([
+      this.collectProducts(),
+      this.collectOrders(),
+    ]);
     return { listings, orders, returns: [] };
   }
 
+  private async collectProducts() {
+    const listings = [] as ReturnType<typeof listing>[];
+    let after = '';
+    for (let page = 0; page < 1000; page += 1) {
+      const payload = rec(
+        await this.gql(`{
+        productVariants(first: 100${after ? `, after: ${JSON.stringify(after)}` : ''}) {
+          edges { cursor node { id sku barcode inventoryQuantity price
+            product { title featuredImage { url } } } }
+          pageInfo { hasNextPage endCursor }
+        }
+      }`),
+      );
+      const connection = rec(rec(payload?.data)?.productVariants);
+      for (const edge of pageItems(connection?.edges, ['edges'])) {
+        const v = rec(rec(edge)?.node) ?? {};
+        const product = rec(v.product) ?? {};
+        const sku = str(v.sku) || str(v.id);
+        listings.push(
+          listing({
+            channel: 'shopify',
+            id: `sh-${sku}`,
+            sku,
+            barcode: str(v.barcode) || sku,
+            title: str(product.title) || sku,
+            priceTry: num(v.price),
+            marketplaceStock: num(v.inventoryQuantity),
+            imageUrl: httpImage(rec(product.featuredImage)?.url),
+          }),
+        );
+      }
+      const info = rec(connection?.pageInfo);
+      if (info?.hasNextPage !== true || !str(info.endCursor)) break;
+      after = str(info.endCursor);
+    }
+    return listings;
+  }
+
+  private async collectOrders() {
+    const orders = [] as Omit<OrderListItem, 'organizationId'>[];
+    let after = '';
+    for (let page = 0; page < 1000; page += 1) {
+      const payload = rec(
+        await this.gql(`{
+        orders(first: 100${after ? `, after: ${JSON.stringify(after)}` : ''}) {
+          edges { cursor node { id name createdAt displayFulfillmentStatus
+            currentTotalPriceSet { shopMoney { amount currencyCode } }
+            lineItems(first: 100) { edges { node { sku quantity } } } } }
+          pageInfo { hasNextPage endCursor }
+        }
+      }`),
+      );
+      const connection = rec(rec(payload?.data)?.orders);
+      for (const edge of pageItems(connection?.edges, ['edges'])) {
+        const n = rec(rec(edge)?.node) ?? {};
+        const lines = pageItems(rec(n.lineItems)?.edges, ['edges']).map(
+          (le) => {
+            const li = rec(rec(le)?.node) ?? {};
+            const sku = str(li.sku);
+            return {
+              listingId: sku ? `sh-${sku}` : `sh-line-${str(n.id)}`,
+              qty: Math.max(1, num(li.quantity)),
+            };
+          },
+        );
+        const money = rec(rec(n.currentTotalPriceSet)?.shopMoney);
+        orders.push(
+          order({
+            channel: 'shopify',
+            id: `sh-${str(n.id).split('/').pop()}`,
+            orderNumber: str(n.name),
+            statusRaw: str(n.displayFulfillmentStatus),
+            totalTry: num(money?.amount),
+            totalCurrency: str(money?.currencyCode) || 'TRY',
+            createdAt: str(n.createdAt) || undefined,
+            lines,
+          }),
+        );
+      }
+      const info = rec(connection?.pageInfo);
+      if (info?.hasNextPage !== true || !str(info.endCursor)) break;
+      after = str(info.endCursor);
+    }
+    return orders;
+  }
+
   async listProducts(query: PageQuery) {
-    const { listings } = await this.pullFeed();
+    const listings = await this.collectProducts();
     return asPreviewList(
       paginate(
-        listings.map((p) => ({ ...p, listingId: p.id, organizationId: '', mapped: false, stockSource: 'none' as const })),
+        listings.map((p) => ({
+          ...p,
+          listingId: p.id,
+          organizationId: '',
+          mapped: false,
+          stockSource: 'none' as const,
+        })),
         query,
       ),
       false,
@@ -376,8 +531,14 @@ export class ShopifyReadAdapter implements ChannelReadAdapter {
   }
 
   async listOrders(query: PageQuery) {
-    const { orders } = await this.pullFeed();
-    return asPreviewList(paginate(orders.map((o) => ({ ...o, organizationId: '' })), query), false);
+    const orders = await this.collectOrders();
+    return asPreviewList(
+      paginate(
+        orders.map((o) => ({ ...o, organizationId: '' })),
+        query,
+      ),
+      false,
+    );
   }
 }
 
@@ -391,25 +552,53 @@ export class WooCommerceReadAdapter implements ChannelReadAdapter {
     const secret = process.env.WOOCOMMERCE_CONSUMER_SECRET?.trim();
     if (!host || !key || !secret) {
       throw new HttpException(
-        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'WooCommerce host/key/secret yok.' },
+        {
+          code: ErrorCodes.CHANNEL_UNAVAILABLE,
+          message: 'WooCommerce host/key/secret yok.',
+        },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    const base = assertPublicHttps(host.startsWith('http') ? host : `https://${host}`, 'WooCommerce');
+    const base = assertPublicHttps(
+      host.startsWith('http') ? host : `https://${host}`,
+      'WooCommerce',
+    );
     const root = `${base.origin}/wp-json/wc/v3`;
-    const q = `consumer_key=${encodeURIComponent(key)}&consumer_secret=${encodeURIComponent(secret)}`;
-    return { root, q };
+    const headers = {
+      Authorization: `Basic ${Buffer.from(`${key}:${secret}`, 'utf8').toString('base64')}`,
+    };
+    return { root, headers };
   }
 
   async probe(): Promise<void> {
     const c = this.cfg();
-    await channelFetchJson(`${c.root}/products?per_page=1&${c.q}`, {}, 'WooCommerce products');
+    await channelFetchJson(
+      `${c.root}/products?per_page=1`,
+      { headers: c.headers },
+      'WooCommerce products',
+    );
   }
 
   async pullFeed() {
+    return this.collectFeed(true, true);
+  }
+
+  private async collectFeed(includeListings: boolean, includeOrders: boolean) {
     const c = this.cfg();
-    const products = await channelFetchJson(`${c.root}/products?per_page=50&${c.q}`, {}, 'WooCommerce products');
-    const listings = pageItems(products).map((row) => {
+    const productRows: unknown[] = [];
+    if (includeListings) {
+      for (let page = 1; page <= 1000; page += 1) {
+        const raw = await channelFetchJson(
+          `${c.root}/products?per_page=100&page=${page}`,
+          { headers: c.headers },
+          'WooCommerce products',
+        );
+        const batch = pageItems(raw);
+        productRows.push(...batch);
+        if (batch.length < 100) break;
+      }
+    }
+    const listings = productRows.map((row) => {
       const r = rec(row) ?? {};
       const sku = str(r.sku) || str(r.id);
       const img = rec(arrFirst(r.images) as unknown);
@@ -419,18 +608,34 @@ export class WooCommerceReadAdapter implements ChannelReadAdapter {
         sku,
         title: str(r.name) || sku,
         priceTry: num(r.price ?? r.regular_price),
+        priceCurrency: str(r.currency) || undefined,
         marketplaceStock: num(r.stock_quantity),
         active: str(r.stock_status) !== 'outofstock',
         imageUrl: httpImage(img?.src),
       });
     });
-    const ordersRaw = await channelFetchJson(`${c.root}/orders?per_page=50&${c.q}`, {}, 'WooCommerce orders');
-    const orders = pageItems(ordersRaw).map((row) => {
+    const orderRows: unknown[] = [];
+    if (includeOrders) {
+      for (let page = 1; page <= 1000; page += 1) {
+        const raw = await channelFetchJson(
+          `${c.root}/orders?per_page=100&page=${page}`,
+          { headers: c.headers },
+          'WooCommerce orders',
+        );
+        const batch = pageItems(raw);
+        orderRows.push(...batch);
+        if (batch.length < 100) break;
+      }
+    }
+    const orders = orderRows.map((row) => {
       const r = rec(row) ?? {};
       const lines = pageItems(r.line_items).map((it) => {
         const line = rec(it) ?? {};
         const sku = str(line.sku) || str(line.product_id);
-        return { listingId: `woo-${sku}`, qty: Math.max(1, num(line.quantity)) };
+        return {
+          listingId: `woo-${sku}`,
+          qty: Math.max(1, num(line.quantity)),
+        };
       });
       return order({
         channel: 'woocommerce',
@@ -439,7 +644,10 @@ export class WooCommerceReadAdapter implements ChannelReadAdapter {
         customerName: str(rec(r.billing)?.first_name),
         statusRaw: str(r.status),
         totalTry: num(r.total),
-        createdAt: str(r.date_created_gmt) ? `${str(r.date_created_gmt)}Z` : undefined,
+        totalCurrency: str(r.currency) || 'TRY',
+        createdAt: str(r.date_created_gmt)
+          ? `${str(r.date_created_gmt)}Z`
+          : undefined,
         lines,
       });
     });
@@ -447,10 +655,16 @@ export class WooCommerceReadAdapter implements ChannelReadAdapter {
   }
 
   async listProducts(query: PageQuery) {
-    const { listings } = await this.pullFeed();
+    const { listings } = await this.collectFeed(true, false);
     return asPreviewList(
       paginate(
-        listings.map((p) => ({ ...p, listingId: p.id, organizationId: '', mapped: false, stockSource: 'none' as const })),
+        listings.map((p) => ({
+          ...p,
+          listingId: p.id,
+          organizationId: '',
+          mapped: false,
+          stockSource: 'none' as const,
+        })),
         query,
       ),
       false,
@@ -458,8 +672,14 @@ export class WooCommerceReadAdapter implements ChannelReadAdapter {
   }
 
   async listOrders(query: PageQuery) {
-    const { orders } = await this.pullFeed();
-    return asPreviewList(paginate(orders.map((o) => ({ ...o, organizationId: '' })), query), false);
+    const { orders } = await this.collectFeed(false, true);
+    return asPreviewList(
+      paginate(
+        orders.map((o) => ({ ...o, organizationId: '' })),
+        query,
+      ),
+      false,
+    );
   }
 }
 
@@ -471,12 +691,18 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
     const key = process.env.CICEKSEPETI_API_KEY?.trim();
     if (!key) {
       throw new HttpException(
-        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'CICEKSEPETI_API_KEY yok.' },
+        {
+          code: ErrorCodes.CHANNEL_UNAVAILABLE,
+          message: 'CICEKSEPETI_API_KEY yok.',
+        },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    const sandbox = (process.env.CICEKSEPETI_ENV ?? 'prod').toLowerCase() === 'sandbox';
-    const base = sandbox ? 'https://sandbox-apis.ciceksepeti.com/api/v1' : 'https://apis.ciceksepeti.com/api/v1';
+    const sandbox =
+      (process.env.CICEKSEPETI_ENV ?? 'prod').toLowerCase() === 'sandbox';
+    const base = sandbox
+      ? 'https://sandbox-apis.ciceksepeti.com/api/v1'
+      : 'https://apis.ciceksepeti.com/api/v1';
     return {
       base,
       headers: {
@@ -493,17 +719,33 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
 
   async probe(): Promise<void> {
     const c = this.cfg();
-    await channelFetchJson(`${c.base}/Products?Page=1&PageSize=1`, { headers: c.headers }, 'Çiçeksepeti products');
-  }
-
-  async pullFeed() {
-    const c = this.cfg();
-    const productsRaw = await channelFetchJson(
-      `${c.base}/Products?Page=1&PageSize=50`,
+    await channelFetchJson(
+      `${c.base}/Products?Page=1&PageSize=1`,
       { headers: c.headers },
       'Çiçeksepeti products',
     );
-    const listings = pageItems(productsRaw, ['products', 'items', 'data']).map((row) => {
+  }
+
+  async pullFeed() {
+    return this.collectFeed(true, true);
+  }
+
+  private async collectFeed(includeListings: boolean, includeOrders: boolean) {
+    const c = this.cfg();
+    const productRows: unknown[] = [];
+    if (includeListings) {
+      for (let page = 1; page <= 1000; page += 1) {
+        const raw = await channelFetchJson(
+          `${c.base}/Products?Page=${page}&PageSize=100`,
+          { headers: c.headers },
+          'Çiçeksepeti products',
+        );
+        const batch = pageItems(raw, ['products', 'items', 'data']);
+        productRows.push(...batch);
+        if (batch.length < 100) break;
+      }
+    }
+    const listings = productRows.map((row) => {
       const r = rec(row) ?? {};
       const sku = str(r.stockCode ?? r.productCode);
       return listing({
@@ -513,26 +755,41 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
         title: str(r.productName ?? r.name) || sku,
         priceTry: num(r.salesPrice ?? r.salePrice),
         marketplaceStock: num(r.stockQuantity ?? r.quantity),
-        imageUrl: httpImage(rec(arrFirst(r.images))?.url ?? rec(arrFirst(r.images))?.imageUrl),
+        imageUrl: httpImage(
+          rec(arrFirst(r.images))?.url ?? rec(arrFirst(r.images))?.imageUrl,
+        ),
       });
     });
     const end = new Date();
     const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const payload = await channelFetchJson(
-      `${c.base}/Order/GetOrders`,
-      {
-        method: 'POST',
-        headers: c.headers,
-        body: JSON.stringify({
-          startDate: start.toISOString().slice(0, 10),
-          endDate: end.toISOString().slice(0, 10),
-          page: 0,
-          pageSize: 50,
-        }),
-      },
-      'Çiçeksepeti orders',
-    );
-    const orders = pageItems(payload, ['supplierOrderListWithBranch', 'orders', 'items', 'data']).map((row) => {
+    const orderRows: unknown[] = [];
+    if (includeOrders) {
+      for (let page = 0; page < 1000; page += 1) {
+        const payload = await channelFetchJson(
+          `${c.base}/Order/GetOrders`,
+          {
+            method: 'POST',
+            headers: c.headers,
+            body: JSON.stringify({
+              startDate: start.toISOString().slice(0, 10),
+              endDate: end.toISOString().slice(0, 10),
+              page,
+              pageSize: 100,
+            }),
+          },
+          'Çiçeksepeti orders',
+        );
+        const batch = pageItems(payload, [
+          'supplierOrderListWithBranch',
+          'orders',
+          'items',
+          'data',
+        ]);
+        orderRows.push(...batch);
+        if (batch.length < 100) break;
+      }
+    }
+    const orders = orderRows.map((row) => {
       const r = rec(row) ?? {};
       const items = pageItems(r.orderItems ?? r.items);
       const id = str(r.orderId ?? r.orderNo);
@@ -540,12 +797,15 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
         channel: 'ciceksepeti',
         id: `cs-${id}`,
         orderNumber: str(r.orderNo) || id,
-        statusRaw: str(r.statusId ?? r.status),
+        statusRaw: str(r.statusName ?? r.status ?? r.statusId),
         totalTry: num(r.totalPrice ?? r.amount),
         lines: items.map((it) => {
           const line = rec(it) ?? {};
           const code = str(line.stockCode ?? line.orderItemId);
-          return { listingId: `cs-${code}`, qty: Math.max(1, num(line.quantity)) };
+          return {
+            listingId: `cs-${code}`,
+            qty: Math.max(1, num(line.quantity)),
+          };
         }),
       });
     });
@@ -553,10 +813,16 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
   }
 
   async listProducts(query: PageQuery) {
-    const { listings } = await this.pullFeed();
+    const { listings } = await this.collectFeed(true, false);
     return asPreviewList(
       paginate(
-        listings.map((p) => ({ ...p, listingId: p.id, organizationId: '', mapped: false, stockSource: 'none' as const })),
+        listings.map((p) => ({
+          ...p,
+          listingId: p.id,
+          organizationId: '',
+          mapped: false,
+          stockSource: 'none' as const,
+        })),
         query,
       ),
       false,
@@ -564,61 +830,121 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
   }
 
   async listOrders(query: PageQuery) {
-    const { orders } = await this.pullFeed();
-    return asPreviewList(paginate(orders.map((o) => ({ ...o, organizationId: '' })), query), false);
+    const { orders } = await this.collectFeed(false, true);
+    return asPreviewList(
+      paginate(
+        orders.map((o) => ({ ...o, organizationId: '' })),
+        query,
+      ),
+      false,
+    );
   }
 }
 
 export class IkasReadAdapter implements ChannelReadAdapter {
   readonly channel = 'ikas' as const;
   readonly mock = false;
+  private cachedToken: { value: string; expiresAt: number } | null = null;
 
-  private token() {
-    const t = process.env.IKAS_ACCESS_TOKEN?.trim();
-    if (!t) {
+  private async token(): Promise<string> {
+    if (this.cachedToken && this.cachedToken.expiresAt > Date.now() + 60_000)
+      return this.cachedToken.value;
+    const clientId = process.env.IKAS_CLIENT_ID?.trim();
+    const clientSecret = process.env.IKAS_CLIENT_SECRET?.trim();
+    if (clientId && clientSecret) {
+      const body = new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
+      const payload = rec(
+        await channelFetchJson(
+          'https://api.myikas.com/api/admin/oauth/token',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body,
+          },
+          'ikas OAuth',
+        ),
+      );
+      const value = str(payload?.access_token);
+      if (value) {
+        this.cachedToken = {
+          value,
+          expiresAt: Date.now() + Math.max(60, num(payload?.expires_in)) * 1000,
+        };
+        return value;
+      }
+    }
+    const fallback = process.env.IKAS_ACCESS_TOKEN?.trim();
+    if (!fallback) {
       throw new HttpException(
-        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'IKAS_ACCESS_TOKEN yok.' },
+        {
+          code: ErrorCodes.CHANNEL_UNAVAILABLE,
+          message: 'IKAS_CLIENT_ID/IKAS_CLIENT_SECRET yok.',
+        },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    return t;
+    return fallback;
   }
 
-  private async gql(query: string, variables?: Record<string, unknown>): Promise<unknown> {
-    return channelFetchJson(
+  private async gql(
+    query: string,
+    variables?: Record<string, unknown>,
+  ): Promise<unknown> {
+    const payload = await channelFetchJson(
       'https://api.myikas.com/api/v2/admin/graphql',
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${this.token()}`,
+          Authorization: `Bearer ${await this.token()}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ query, variables }),
       },
       'ikas GraphQL',
     );
+    if (graphQlFailed(payload)) {
+      throw new HttpException(
+        {
+          code: ErrorCodes.CHANNEL_UNAVAILABLE,
+          message: 'ikas GraphQL errors (token loglanmaz).',
+        },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+    return payload;
   }
 
   async probe(): Promise<void> {
-    const data = rec(await this.gql('query { listProduct(pagination: { page: 1, limit: 1 }) { count } }'));
-    if (graphQlFailed(data)) {
-      throw new HttpException(
-        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'ikas GraphQL errors (token loglanmaz).' },
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
+    await this.gql(
+      'query { listProduct(pagination: { page: 1, limit: 1 }) { count } }',
+    );
   }
 
   async pullFeed() {
-    const products = rec(await this.gql(
-      `query ListProduct($pagination: PaginationInput) {
-        listProduct(pagination: $pagination) {
-          count data { id name totalStock variants { id sku barcodeList prices { sellPrice } } }
-        }
-      }`,
-      { pagination: { page: 1, limit: 50 } },
-    ));
-    const listings = pageItems(rec(rec(products?.data)?.listProduct)?.data).flatMap((row) => {
+    const productRows: unknown[] = [];
+    for (let page = 1; page <= 1000; page += 1) {
+      const products = rec(
+        await this.gql(
+          `query ListProduct($pagination: PaginationInput) {
+          listProduct(pagination: $pagination) {
+            count data { id name totalStock variants { id sku barcodeList prices { sellPrice } } }
+          }
+        }`,
+          { pagination: { page, limit: 100 } },
+        ),
+      );
+      const root = rec(rec(products?.data)?.listProduct);
+      const batch = pageItems(root?.data);
+      productRows.push(...batch);
+      const count = num(root?.count);
+      if (batch.length < 100 || (count > 0 && productRows.length >= count))
+        break;
+    }
+    const listings = productRows.flatMap((row) => {
       const p = rec(row) ?? {};
       const variants = pageItems(p.variants);
       if (variants.length === 0) {
@@ -636,7 +962,9 @@ export class IkasReadAdapter implements ChannelReadAdapter {
         const v = rec(vRaw) ?? {};
         const sku = str(v.sku) || str(v.id);
         const barcodes = v.barcodeList;
-        const barcode = Array.isArray(barcodes) ? str(barcodes[0]) : str(barcodes);
+        const barcode = Array.isArray(barcodes)
+          ? str(barcodes[0])
+          : str(barcodes);
         const price = rec(arrFirst(v.prices));
         return listing({
           channel: 'ikas',
@@ -656,7 +984,13 @@ export class IkasReadAdapter implements ChannelReadAdapter {
     const { listings } = await this.pullFeed();
     return asPreviewList(
       paginate(
-        listings.map((p) => ({ ...p, listingId: p.id, organizationId: '', mapped: false, stockSource: 'none' as const })),
+        listings.map((p) => ({
+          ...p,
+          listingId: p.id,
+          organizationId: '',
+          mapped: false,
+          stockSource: 'none' as const,
+        })),
         query,
       ),
       false,
@@ -671,14 +1005,20 @@ export class IkasReadAdapter implements ChannelReadAdapter {
 export class AmazonReadAdapter implements ChannelReadAdapter {
   readonly channel = 'amazon' as const;
   readonly mock = false;
+  private cachedToken: { value: string; expiresAt: number } | null = null;
 
   private async accessToken(): Promise<string> {
+    if (this.cachedToken && this.cachedToken.expiresAt > Date.now() + 60_000)
+      return this.cachedToken.value;
     const clientId = process.env.AMAZON_LWA_CLIENT_ID?.trim();
     const clientSecret = process.env.AMAZON_LWA_CLIENT_SECRET?.trim();
     const refresh = process.env.AMAZON_REFRESH_TOKEN?.trim();
     if (!clientId || !clientSecret || !refresh) {
       throw new HttpException(
-        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'Amazon LWA client/refresh yok.' },
+        {
+          code: ErrorCodes.CHANNEL_UNAVAILABLE,
+          message: 'Amazon LWA client/refresh yok.',
+        },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
@@ -691,17 +1031,28 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
     const json = rec(
       await channelFetchJson(
         'https://api.amazon.com/auth/o2/token',
-        { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body },
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+        },
         'Amazon LWA',
       ),
     );
     const token = str(json?.access_token);
     if (!token) {
       throw new HttpException(
-        { code: ErrorCodes.CHANNEL_UNAVAILABLE, message: 'Amazon access_token alınamadı.' },
+        {
+          code: ErrorCodes.CHANNEL_UNAVAILABLE,
+          message: 'Amazon access_token alınamadı.',
+        },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
+    this.cachedToken = {
+      value: token,
+      expiresAt: Date.now() + Math.max(60, num(json?.expires_in)) * 1000,
+    };
     return token;
   }
 
@@ -709,48 +1060,188 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
     return {
       'x-amz-access-token': token,
       Accept: 'application/json',
-      'User-Agent': process.env.AMAZON_USER_AGENT?.trim() || 'Magazam/1.0 (Language=JavaScript)',
+      'User-Agent':
+        process.env.AMAZON_USER_AGENT?.trim() ||
+        'Magazam/1.0 (Language=JavaScript)',
     };
   }
 
-  private ordersUrl(limit: number): string {
-    const marketplace = process.env.AMAZON_MARKETPLACE_ID?.trim() || 'A33AVAJ2PDY3EV';
-    const host = process.env.AMAZON_SP_HOST?.trim() || 'https://sellingpartnerapi-eu.amazon.com';
+  private ordersUrl(limit: number, paginationToken?: string): string {
+    const marketplace =
+      process.env.AMAZON_MARKETPLACE_ID?.trim() || 'A33AVAJ2PDY3EV';
+    const host = assertPublicHttps(
+      process.env.AMAZON_SP_HOST?.trim() ||
+        'https://sellingpartnerapi-eu.amazon.com',
+      'Amazon SP-API',
+    ).origin;
     const after = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    return `${host}/orders/2026-01-01/orders?marketplaceIds=${encodeURIComponent(marketplace)}&createdAfter=${encodeURIComponent(after)}&maxResultsPerPage=${limit}`;
+    const query = new URLSearchParams({
+      marketplaceIds: marketplace,
+      createdAfter: after,
+      maxResultsPerPage: String(limit),
+      includedData: 'PROCEEDS',
+    });
+    if (paginationToken) query.set('paginationToken', paginationToken);
+    return `${host}/orders/2026-01-01/orders?${query.toString()}`;
   }
 
   async probe(): Promise<void> {
     const token = await this.accessToken();
-    await channelFetchJson(this.ordersUrl(1), { headers: this.spHeaders(token) }, 'Amazon orders');
+    await channelFetchJson(
+      this.ordersUrl(1),
+      { headers: this.spHeaders(token) },
+      'Amazon orders',
+    );
   }
 
   async pullFeed() {
+    const [listings, orders] = await Promise.all([
+      this.collectProducts(),
+      this.collectOrders(),
+    ]);
+    return { listings, orders, returns: [] };
+  }
+
+  private async collectProducts() {
+    const sellerId = process.env.AMAZON_SELLER_ID?.trim();
+    if (!sellerId) return [];
     const token = await this.accessToken();
-    const payload = await channelFetchJson(this.ordersUrl(50), { headers: this.spHeaders(token) }, 'Amazon orders');
-    const root = rec(payload) ?? {};
-    const rows = pageItems(root.orders ?? rec(root.payload)?.Orders ?? payload, ['orders', 'Orders', 'items']);
+    const marketplace =
+      process.env.AMAZON_MARKETPLACE_ID?.trim() || 'A33AVAJ2PDY3EV';
+    const host = assertPublicHttps(
+      process.env.AMAZON_SP_HOST?.trim() ||
+        'https://sellingpartnerapi-eu.amazon.com',
+      'Amazon SP-API',
+    ).origin;
+    const rows: unknown[] = [];
+    let pageToken = '';
+    for (let page = 0; page < 1000; page += 1) {
+      const query = new URLSearchParams({
+        marketplaceIds: marketplace,
+        includedData: 'summaries,attributes,offers,fulfillmentAvailability',
+        pageSize: '20',
+      });
+      if (pageToken) query.set('pageToken', pageToken);
+      const payload =
+        rec(
+          await channelFetchJson(
+            `${host}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}?${query.toString()}`,
+            { headers: this.spHeaders(token) },
+            'Amazon listings',
+          ),
+        ) ?? {};
+      rows.push(...pageItems(payload.items));
+      pageToken = str(rec(payload.pagination)?.nextToken);
+      if (!pageToken) break;
+    }
+    return rows.map((raw) => {
+      const item = rec(raw) ?? {};
+      const sku = str(item.sku ?? item.sellerSku);
+      const summary = rec(arrFirst(item.summaries)) ?? {};
+      const offer = rec(arrFirst(item.offers)) ?? {};
+      const price = rec(offer.price) ?? {};
+      const availability = rec(arrFirst(item.fulfillmentAvailability)) ?? {};
+      return listing({
+        channel: 'amazon',
+        id: `amz-${sku}`,
+        sku,
+        barcode: sku,
+        title: str(summary.itemName) || sku,
+        priceTry: num(price.amount),
+        priceCurrency: str(price.currencyCode) || 'TRY',
+        marketplaceStock: num(availability.quantity),
+      });
+    });
+  }
+
+  private async collectOrders() {
+    const token = await this.accessToken();
+    const rows: unknown[] = [];
+    let paginationToken = '';
+    for (let page = 0; page < 1000; page += 1) {
+      const payload = await channelFetchJson(
+        this.ordersUrl(100, paginationToken || undefined),
+        { headers: this.spHeaders(token) },
+        'Amazon orders',
+      );
+      const root = rec(payload) ?? {};
+      rows.push(
+        ...pageItems(root.orders ?? rec(root.payload)?.Orders ?? payload, [
+          'orders',
+          'Orders',
+          'items',
+        ]),
+      );
+      paginationToken = str(
+        root.paginationToken ?? rec(root.payload)?.NextToken,
+      );
+      if (!paginationToken) break;
+    }
     const orders = rows.map((row) => {
       const r = rec(row) ?? {};
       const id = str(r.orderId ?? r.AmazonOrderId);
+      const fulfillment = rec(r.fulfillment);
+      const grandTotal = rec(rec(r.proceeds)?.grandTotal);
+      const orderItems = pageItems(r.orderItems);
+      const lines = orderItems.map((raw) => {
+        const item = rec(raw) ?? {};
+        const product = rec(item.product) ?? {};
+        const sku = str(product.sellerSku ?? item.SellerSKU);
+        return {
+          listingId: sku ? `amz-${sku}` : `amz-line-${str(item.orderItemId)}`,
+          qty: Math.max(1, num(item.quantityOrdered ?? item.QuantityOrdered)),
+        };
+      });
       return order({
         channel: 'amazon',
         id: `amz-${id}`,
         orderNumber: id,
-        statusRaw: str(r.orderStatus ?? r.OrderStatus),
-        totalTry: num(rec(r.orderTotal)?.amount ?? rec(r.OrderTotal)?.Amount),
+        statusRaw: str(
+          fulfillment?.fulfillmentStatus ?? r.orderStatus ?? r.OrderStatus,
+        ),
+        totalTry: num(
+          grandTotal?.amount ??
+            rec(r.orderTotal)?.amount ??
+            rec(r.OrderTotal)?.Amount,
+        ),
+        totalCurrency:
+          str(
+            grandTotal?.currencyCode ??
+              rec(r.orderTotal)?.currencyCode ??
+              rec(r.OrderTotal)?.CurrencyCode,
+          ) || 'TRY',
         createdAt: str(r.createdTime ?? r.PurchaseDate) || undefined,
+        lines,
       });
     });
-    return { listings: [], orders, returns: [] };
+    return orders;
   }
 
   async listProducts(query: PageQuery) {
-    return asPreviewList(paginate([] as ProductListItem[], query), false);
+    const listings = await this.collectProducts();
+    return asPreviewList(
+      paginate(
+        listings.map((p) => ({
+          ...p,
+          listingId: p.id,
+          organizationId: '',
+          mapped: false,
+          stockSource: 'none' as const,
+        })),
+        query,
+      ),
+      false,
+    );
   }
 
   async listOrders(query: PageQuery) {
-    const { orders } = await this.pullFeed();
-    return asPreviewList(paginate(orders.map((o) => ({ ...o, organizationId: '' })), query), false);
+    const orders = await this.collectOrders();
+    return asPreviewList(
+      paginate(
+        orders.map((o) => ({ ...o, organizationId: '' })),
+        query,
+      ),
+      false,
+    );
   }
 }

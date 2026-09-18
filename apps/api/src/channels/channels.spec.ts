@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { ErrorCodes } from '@magazakit/contracts';
-import { BlockedChannelAdapter } from './adapters';
+import { AmazonReadAdapter, BlockedChannelAdapter } from './adapters';
 import { assertPublicHttps } from './http';
 import { createChannelAdapters } from './registry';
 import { MockTrendyolReadAdapter } from '../trendyol/mock-trendyol-read.adapter';
@@ -47,6 +47,61 @@ describe('channel adapters', () => {
       expect(((err as HttpException).getResponse() as { code: string }).code).toBe(
         ErrorCodes.CHANNEL_UNAVAILABLE,
       );
+    }
+  });
+
+  it('maps the Amazon Orders 2026 schema and listing pagination fields', async () => {
+    const previous = {
+      id: process.env.AMAZON_LWA_CLIENT_ID,
+      secret: process.env.AMAZON_LWA_CLIENT_SECRET,
+      refresh: process.env.AMAZON_REFRESH_TOKEN,
+      seller: process.env.AMAZON_SELLER_ID,
+    };
+    process.env.AMAZON_LWA_CLIENT_ID = 'id';
+    process.env.AMAZON_LWA_CLIENT_SECRET = 'secret';
+    process.env.AMAZON_REFRESH_TOKEN = 'refresh';
+    process.env.AMAZON_SELLER_ID = 'seller';
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/auth/o2/token')) {
+        return new Response(JSON.stringify({ access_token: 'token', expires_in: 3600 }), { status: 200 });
+      }
+      if (url.includes('/listings/')) {
+        return new Response(JSON.stringify({
+          items: [{
+            sku: 'SKU-1',
+            summaries: [{ itemName: 'Ürün' }],
+            offers: [{ price: { amount: '42.50', currencyCode: 'TRY' } }],
+            fulfillmentAvailability: [{ quantity: 7 }],
+          }],
+          pagination: {},
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        orders: [{
+          orderId: 'ORDER-1',
+          createdTime: '2026-09-19T10:00:00Z',
+          fulfillment: { fulfillmentStatus: 'SHIPPED' },
+          proceeds: { grandTotal: { amount: '99.90', currencyCode: 'TRY' } },
+          orderItems: [{ orderItemId: 'I1', quantityOrdered: 2, product: { sellerSku: 'SKU-1' } }],
+        }],
+      }), { status: 200 });
+    });
+    try {
+      const feed = await new AmazonReadAdapter().pullFeed();
+      expect(feed.listings[0]).toMatchObject({ id: 'amz-SKU-1', marketplaceStock: 7 });
+      expect(feed.orders[0]).toMatchObject({ status: 'shipped', totalTry: 99.9, totalCurrency: 'TRY' });
+      expect(feed.orders[0].lines[0]).toMatchObject({ listingId: 'amz-SKU-1', qty: 2 });
+    } finally {
+      fetchMock.mockRestore();
+      for (const [key, value] of Object.entries(previous)) {
+        const envKey = {
+          id: 'AMAZON_LWA_CLIENT_ID', secret: 'AMAZON_LWA_CLIENT_SECRET',
+          refresh: 'AMAZON_REFRESH_TOKEN', seller: 'AMAZON_SELLER_ID',
+        }[key] as string;
+        if (value === undefined) delete process.env[envKey];
+        else process.env[envKey] = value;
+      }
     }
   });
 });

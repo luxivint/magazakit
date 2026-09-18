@@ -1,4 +1,9 @@
-import type { Channel, OrderListItem, OrderStatus, ProductStatus } from '@magazakit/contracts';
+import type {
+  Channel,
+  OrderListItem,
+  OrderStatus,
+  ProductStatus,
+} from '@magazakit/contracts';
 import type { MockListingSeed } from '../trendyol/mock-feed';
 import { num, rec, str } from './http';
 
@@ -9,6 +14,7 @@ export function listing(input: {
   barcode?: string;
   title: string;
   priceTry?: number;
+  priceCurrency?: string;
   marketplaceStock?: number;
   active?: boolean;
   imageUrl?: string | null;
@@ -22,6 +28,7 @@ export function listing(input: {
     title: input.title,
     channel: input.channel,
     priceTry: input.priceTry ?? 0,
+    priceCurrency: input.priceCurrency || 'TRY',
     marketplaceStock: qty,
     physicalStock: 0,
     reservedStock: 0,
@@ -33,15 +40,32 @@ export function listing(input: {
   };
 }
 
-export function mapStatus(raw: string): { status: OrderStatus; statusLabel: string } {
+export function mapStatus(raw: string): {
+  status: OrderStatus;
+  statusLabel: string;
+} {
   const s = raw.toLowerCase();
+  if (s === 'unfulfilled' || s === 'unshipped' || s === 'pending') {
+    return { status: 'created', statusLabel: raw || 'Oluşturuldu' };
+  }
+  if (s.includes('partially_fulfilled') || s.includes('partially fulfilled')) {
+    return { status: 'picking', statusLabel: 'Kısmen hazırlandı' };
+  }
+  if (s === 'fulfilled') {
+    return { status: 'shipped', statusLabel: 'Gönderildi' };
+  }
   if (s.includes('ship') || s.includes('kargo') || s === 'invoiced') {
     return { status: 'shipped', statusLabel: 'Kargoda' };
   }
   if (s.includes('deliver') || s.includes('teslim') || s === 'completed') {
     return { status: 'delivered', statusLabel: 'Teslim' };
   }
-  if (s.includes('cancel') || s.includes('iptal') || s.includes('refund') || s.includes('return')) {
+  if (
+    s.includes('cancel') ||
+    s.includes('iptal') ||
+    s.includes('refund') ||
+    s.includes('return')
+  ) {
     return { status: 'cancelled', statusLabel: 'İptal' };
   }
   if (s.includes('pick') || s.includes('hazır') || s === 'processing') {
@@ -58,6 +82,7 @@ export function order(input: {
   statusRaw?: string;
   itemCount?: number;
   totalTry?: number;
+  totalCurrency?: string;
   createdAt?: string;
   lines?: { listingId: string; qty: number }[];
 }): Omit<OrderListItem, 'organizationId'> {
@@ -72,6 +97,7 @@ export function order(input: {
     statusLabel: mapped.statusLabel,
     itemCount: input.itemCount ?? lines.reduce((n, l) => n + l.qty, 0),
     totalTry: input.totalTry ?? 0,
+    totalCurrency: input.totalCurrency || 'TRY',
     cargoDeadlineAt: null,
     cargoWarning: false,
     createdAt: input.createdAt || new Date().toISOString(),
@@ -87,7 +113,16 @@ export function order(input: {
 
 export function pageItems(
   payload: unknown,
-  keys = ['content', 'items', 'data', 'products', 'orders', 'listings', 'supplierOrderListWithBranch', 'Orders'],
+  keys = [
+    'content',
+    'items',
+    'data',
+    'products',
+    'orders',
+    'listings',
+    'supplierOrderListWithBranch',
+    'Orders',
+  ],
 ): unknown[] {
   const obj = rec(payload);
   if (Array.isArray(payload)) return payload;
@@ -105,10 +140,21 @@ export function httpImage(value: unknown): string | null {
   return url.startsWith('http://') || url.startsWith('https://') ? url : null;
 }
 
-export function envTriple(prefix: string): { id: string; key: string; secret: string } | null {
-  const id = process.env[`${prefix}_SELLER_ID`]?.trim() || process.env[`${prefix}_MERCHANT_ID`]?.trim() || '';
-  const key = process.env[`${prefix}_API_KEY`]?.trim() || process.env[`${prefix}_APP_KEY`]?.trim() || '';
-  const secret = process.env[`${prefix}_API_SECRET`]?.trim() || process.env[`${prefix}_APP_SECRET`]?.trim() || '';
+export function envTriple(
+  prefix: string,
+): { id: string; key: string; secret: string } | null {
+  const id =
+    process.env[`${prefix}_SELLER_ID`]?.trim() ||
+    process.env[`${prefix}_MERCHANT_ID`]?.trim() ||
+    '';
+  const key =
+    process.env[`${prefix}_API_KEY`]?.trim() ||
+    process.env[`${prefix}_APP_KEY`]?.trim() ||
+    '';
+  const secret =
+    process.env[`${prefix}_API_SECRET`]?.trim() ||
+    process.env[`${prefix}_APP_SECRET`]?.trim() ||
+    '';
   if (!key || !secret) return null;
   return { id, key, secret };
 }
