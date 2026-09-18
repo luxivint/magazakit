@@ -12,13 +12,21 @@ export class HealthController {
   @Get('health')
   getHealth(): HealthResponse {
     const mode = trendyolMode();
+    const configured = this.firebaseAuth.isConfigured();
+    const projectId = this.firebaseAuth.projectId();
     return {
       status: 'ok',
       service: 'api',
       mock: mode === 'mock',
       auth: {
         provider: 'firebase',
-        configured: this.firebaseAuth.isConfigured(),
+        projectId,
+        configured,
+        credential: !configured
+          ? 'none'
+          : this.firebaseAuth.usesAdc()
+            ? 'adc'
+            : 'project-id-only',
       },
       trendyol: {
         mode,

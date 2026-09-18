@@ -6,7 +6,7 @@ import { AppModule } from '../src/app.module';
 import { FirebaseAuthService } from '../src/auth/firebase-auth.service';
 import type { AuthUser } from '../src/auth/current-user.decorator';
 
-describe('F0/F1 API (e2e)', () => {
+describe('public API (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeEach(async () => {
@@ -24,21 +24,34 @@ describe('F0/F1 API (e2e)', () => {
     await app.close();
   });
 
-  it('GET /health is public without Firebase', async () => {
+  it('GET /health is public and defaults to magazam-app', async () => {
     const res = await request(app.getHttpServer()).get('/health').expect(200);
     expect(res.body.status).toBe('ok');
     expect(res.body.auth.provider).toBe('firebase');
-    expect(res.body.auth.configured).toBe(false);
+    expect(res.body.auth.projectId).toBe('magazam-app');
+    expect(res.body.auth.configured).toBe(true);
     expect(res.headers['x-request-id']).toBeDefined();
   });
 
   it('GET /v1/docs is public', async () => {
     const res = await request(app.getHttpServer()).get('/v1/docs').expect(200);
-    expect(res.body.auth.provider).toBe('firebase');
+    expect(res.body.auth.projectId).toBe('magazam-app');
   });
 
-  it('GET /v1/products is 401 AUTH_NOT_CONFIGURED without FIREBASE_PROJECT_ID', async () => {
+  it('GET /v1/products is 401 UNAUTHENTICATED without Bearer', async () => {
     const res = await request(app.getHttpServer()).get('/v1/products').expect(401);
+    expect(res.body.error.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('explicit empty FIREBASE_PROJECT_ID → AUTH_NOT_CONFIGURED', async () => {
+    await app.close();
+    process.env.FIREBASE_PROJECT_ID = '';
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = moduleFixture.createNestApplication();
+    await app.init();
+    const res = await request(app.getHttpServer()).get('/v1/me').expect(401);
     expect(res.body.error.code).toBe('AUTH_NOT_CONFIGURED');
   });
 });
@@ -49,9 +62,14 @@ describe('authenticated mock Firebase (e2e)', () => {
 
   beforeEach(async () => {
     process.env.TRENDYOL_USE_MOCK = 'true';
-    process.env.FIREBASE_PROJECT_ID = 'demo-magazam';
-    const firebaseAuth: Pick<FirebaseAuthService, 'isConfigured' | 'verifyBearer'> = {
+    process.env.FIREBASE_PROJECT_ID = 'magazam-app';
+    const firebaseAuth: Pick<
+      FirebaseAuthService,
+      'isConfigured' | 'verifyBearer' | 'projectId' | 'usesAdc'
+    > = {
       isConfigured: () => true,
+      projectId: () => 'magazam-app',
+      usesAdc: () => false,
       verifyBearer: async (authorization?: string): Promise<AuthUser> => {
         if (authorization === 'Bearer test') {
           return { uid, email: 'dev@example.com' };

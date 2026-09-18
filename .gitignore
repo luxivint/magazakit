@@ -7,3 +7,7 @@ coverage
 .turbo
 .nestjs
 workspace
+*firebase-adminsdk*.json
+*-service-account*.json
+google-services.json
+GoogleService-Info.plist

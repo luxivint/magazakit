@@ -1,41 +1,33 @@
 # Mağazam API
 
-NestJS for **Mağazam**. Client is **Expo** (`apps/mobile`). This PR does not own web UI.
+NestJS for **Mağazam**. Client is **Expo**. This PR does not own web/mobile UI.
 
-Auth is **Firebase**. Nest verifies `Authorization: Bearer <Firebase ID token>` with the Admin SDK and stores `uid` on org/device records. There is **no** email/password register or login route.
+Auth is **Firebase project `magazam-app`**. Nest verifies `Authorization: Bearer <Firebase ID token>` with the Admin SDK (`aud` must be `magazam-app`) and stores that `uid` on org/device records. There is **no** email/password register or login route.
 
 ## Expo
 
 ```
 EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:43140
-Authorization: Bearer <Firebase ID token>
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=magazam-app
+Authorization: Bearer <Firebase ID token issued for magazam-app>
 ```
 
-Without `FIREBASE_PROJECT_ID` on the API, `/health` still works; other user routes return `401` `AUTH_NOT_CONFIGURED`.
+## Firebase Admin
+
+- `FIREBASE_PROJECT_ID=magazam-app` (default if the env var is omitted).
+- **Do not commit a service account.** Local `verifyIdToken` works with project ID only (Google public certs).
+- If Application Default Credentials are present (`GOOGLE_APPLICATION_CREDENTIALS` or the runtime ADC), the Admin SDK uses them.
+- Cloud / production: set `GOOGLE_APPLICATION_CREDENTIALS` to a key file **outside the repo** when the platform does not already inject ADC.
+
+Blank `FIREBASE_PROJECT_ID=` disables auth (`401 AUTH_NOT_CONFIGURED`). Missing Bearer → `401 UNAUTHENTICATED`. `GET /health` stays public.
 
 ## Endpoints
 
-Public:
+Public: `GET /health`, `GET /v1/docs`
 
-| Method | Path |
-| --- | --- |
-| `GET` | `/health` |
-| `GET` | `/v1/docs` |
+Authenticated: `GET /v1/me`, `POST /v1/organizations`, `GET /v1/organizations/current`, `POST /v1/devices`, `GET /v1/products`, `GET /v1/orders`, `/api/preview/products`, `/api/preview/orders`.
 
-Authenticated (Firebase Bearer):
-
-| Method | Path | Body |
-| --- | --- | --- |
-| `GET` | `/v1/me` | |
-| `POST` | `/v1/organizations` | `{ "name": "..." }` |
-| `GET` | `/v1/organizations/current` | |
-| `POST` | `/v1/devices` | `{ "fcmToken": "..." }` in-memory |
-| `GET` | `/v1/products` | query `page`, `pageSize`, optional `organizationId` |
-| `GET` | `/v1/orders` | same |
-| `GET` | `/api/preview/products` | same as products (`mock: true`) |
-| `GET` | `/api/preview/orders` | same as orders |
-
-Foreign `organizationId` → `403`. Catalog/orders remain K01 **mock** (no Trendyol secrets).
+Foreign `organizationId` → `403`. Catalog remains K01 mock.
 
 ## Run
 
@@ -45,5 +37,3 @@ pnpm install
 pnpm --filter @magazakit/contracts build
 pnpm dev:api           # http://127.0.0.1:43140
 ```
-
-Optional: `pnpm dev:worker` (`:43141/health`), `docker compose up -d postgres` (unused in this slice).

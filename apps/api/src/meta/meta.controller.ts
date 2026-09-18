@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { Public } from '../auth/public.decorator';
+import { DEFAULT_FIREBASE_PROJECT_ID } from '../config/firebase-env';
 
 @Controller('v1')
 export class MetaController {
@@ -9,8 +10,9 @@ export class MetaController {
     return {
       auth: {
         provider: 'firebase',
-        header: 'Authorization: Bearer <Firebase ID token>',
-        note: 'Homemade register/login yok. Nest Admin SDK ile ID token doğrular.',
+        projectId: DEFAULT_FIREBASE_PROJECT_ID,
+        header: 'Authorization: Bearer <Firebase ID token from magazam-app>',
+        note: 'Homemade register/login yok. Nest Admin SDK verifyIdToken (aud = magazam-app). Service account JSON commit edilmez. Cloud/prod: GOOGLE_APPLICATION_CREDENTIALS.',
       },
       public: [{ method: 'GET', path: '/health' }, { method: 'GET', path: '/v1/docs' }],
       authenticated: [

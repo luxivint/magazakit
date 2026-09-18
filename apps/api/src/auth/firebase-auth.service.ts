@@ -1,12 +1,16 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ErrorCodes } from '@magazakit/contracts';
 import type { AuthUser } from './current-user.decorator';
+import {
+  hasApplicationDefaultCredentials,
+  resolveFirebaseProjectId,
+} from '../config/firebase-env';
 
 export const AUTH_NOT_CONFIGURED_MESSAGE =
-  'FIREBASE_PROJECT_ID yok. API Firebase ID token doğrular; kayıt/şifre endpoint’i yok. Expo Authorization: Bearer <ID token> göndermelidir.';
+  'FIREBASE_PROJECT_ID boş. API magazam-app üzerinde Firebase ID token doğrular; kayıt/şifre endpoint’i yok.';
 
 export const UNAUTHENTICATED_MESSAGE =
-  'Geçerli Firebase ID token gerekli. Header: Authorization: Bearer <token>.';
+  'Geçerli Firebase ID token gerekli (proje magazam-app). Header: Authorization: Bearer <token>.';
 
 type AdminAuth = {
   verifyIdToken: (token: string) => Promise<{ uid: string; email?: string }>;
@@ -14,10 +18,19 @@ type AdminAuth = {
 
 @Injectable()
 export class FirebaseAuthService {
+  private readonly logger = new Logger(FirebaseAuthService.name);
   private auth: AdminAuth | null = null;
 
+  projectId(): string | null {
+    return resolveFirebaseProjectId();
+  }
+
   isConfigured(): boolean {
-    return Boolean(process.env.FIREBASE_PROJECT_ID?.trim());
+    return this.projectId() !== null;
+  }
+
+  usesAdc(): boolean {
+    return hasApplicationDefaultCredentials();
   }
 
   async verifyBearer(authorization: string | undefined): Promise<AuthUser> {
@@ -46,14 +59,28 @@ export class FirebaseAuthService {
     if (this.auth) {
       return this.auth;
     }
-    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+    const projectId = this.projectId();
     if (!projectId) {
       throw this.notConfigured();
     }
     const appMod = await import('firebase-admin/app');
     const authMod = await import('firebase-admin/auth');
     if (appMod.getApps().length === 0) {
-      appMod.initializeApp({ projectId });
+      if (hasApplicationDefaultCredentials()) {
+        try {
+          appMod.initializeApp({
+            credential: appMod.applicationDefault(),
+            projectId,
+          });
+        } catch {
+          this.logger.warn(
+            'GOOGLE_APPLICATION_CREDENTIALS set but ADC failed; verifying ID tokens with projectId only (no service account file is loaded from the repo).',
+          );
+          appMod.initializeApp({ projectId });
+        }
+      } else {
+        appMod.initializeApp({ projectId });
+      }
     }
     this.auth = authMod.getAuth();
     return this.auth;

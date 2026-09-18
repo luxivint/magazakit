@@ -4,7 +4,9 @@ export type HealthResponse = {
   mock: boolean;
   auth: {
     provider: 'firebase';
+    projectId: string | null;
     configured: boolean;
+    credential: 'adc' | 'project-id-only' | 'none';
   };
   trendyol?: {
     mode: 'mock' | 'unconfigured';
