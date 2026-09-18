@@ -9,7 +9,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.magazam.app"
+      "bundleIdentifier": "com.luxivint.magazam"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.magazam.app"
+      "package": "com.luxivint.magazam"
     },
     "web": {
       "bundler": "metro",

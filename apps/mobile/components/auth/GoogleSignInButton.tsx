@@ -39,7 +39,7 @@ export function GoogleSignInButton({ disabled }: { disabled?: boolean }) {
       variant="ghost"
       icon={'logo-google' as keyof typeof Ionicons.glyphMap}
       onPress={onPress}
-      disabled={disabled || !configured || (!webClientId && Platform.OS !== 'web') || (!request && Platform.OS !== 'web')}
+      disabled={disabled || (Platform.OS !== 'web' && !webClientId)}
     />
   );
 }

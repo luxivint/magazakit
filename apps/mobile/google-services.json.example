@@ -1,22 +1,23 @@
 {
   "project_info": {
-    "project_number": "YOUR_PROJECT_NUMBER",
-    "project_id": "YOUR_PROJECT_ID",
-    "storage_bucket": "YOUR_PROJECT_ID.appspot.com"
+    "project_number": "978990997665",
+    "project_id": "magazam-app",
+    "storage_bucket": "magazam-app.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:YOUR_PROJECT_NUMBER:android:YOUR_APP_ID",
+        "mobilesdk_app_id": "1:978990997665:android:a0510c36ba5e3a42ded0e0",
         "android_client_info": {
-          "package_name": "com.magazam.app"
+          "package_name": "com.luxivint.magazam"
         }
       },
       "api_key": [
         {
-          "current_key": "YOUR_ANDROID_API_KEY"
+          "current_key": "REPLACE_FROM_FIREBASE_CONSOLE"
         }
       ]
     }
-  ]
+  ],
+  "comment": "Copy to google-services.json for EAS Android. FCM later. Do not commit the real file."
 }

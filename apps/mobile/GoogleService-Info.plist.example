@@ -1,19 +1,15 @@
-<!-- Copy to GoogleService-Info.plist for EAS iOS. Do not commit the real file. -->
+<!-- Copy to GoogleService-Info.plist for EAS iOS. FCM later. Do not commit the real file. -->
 <plist>
   <dict>
-    <key>CLIENT_ID</key>
-    <string>YOUR_IOS_CLIENT_ID.apps.googleusercontent.com</string>
-    <key>REVERSED_CLIENT_ID</key>
-    <string>com.googleusercontent.apps.YOUR_IOS_CLIENT_ID</string>
-    <key>GOOGLE_APP_ID</key>
-    <string>1:YOUR_PROJECT_NUMBER:ios:YOUR_APP_ID</string>
-    <key>GCM_SENDER_ID</key>
-    <string>YOUR_PROJECT_NUMBER</string>
     <key>BUNDLE_ID</key>
-    <string>com.magazam.app</string>
+    <string>com.luxivint.magazam</string>
     <key>PROJECT_ID</key>
-    <string>YOUR_PROJECT_ID</string>
-    <key>API_KEY</key>
-    <string>YOUR_IOS_API_KEY</string>
+    <string>magazam-app</string>
+    <key>GCM_SENDER_ID</key>
+    <string>978990997665</string>
+    <key>GOOGLE_APP_ID</key>
+    <string>1:978990997665:ios:72116d978e2e238bded0e0</string>
+    <key>STORAGE_BUCKET</key>
+    <string>magazam-app.firebasestorage.app</string>
   </dict>
 </plist>

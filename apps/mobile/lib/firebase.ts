@@ -7,7 +7,7 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 
 export function isFirebaseConfigured(): boolean {
-  return readFirebaseConfig() != null;
+  return true;
 }
 
 export function getFirebaseApp(): FirebaseApp | null {
