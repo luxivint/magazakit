@@ -8,7 +8,8 @@
     "start:api": "pnpm --filter @magazakit/api start",
     "start:worker": "pnpm --filter @magazakit/worker start",
     "build:api": "pnpm --filter @magazakit/contracts build && pnpm --filter @magazakit/api build",
-    "test:api": "pnpm --filter @magazakit/api test && pnpm --filter @magazakit/api test:e2e"
+    "test:api": "pnpm --filter @magazakit/api test && pnpm --filter @magazakit/api test:e2e",
+    "db:up": "docker compose up -d postgres"
   },
   "engines": {
     "node": ">=22"

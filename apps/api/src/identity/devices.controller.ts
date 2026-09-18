@@ -20,6 +20,6 @@ export class DevicesController {
       );
     }
     await this.identity.saveDevice(user.uid, fcmToken);
-    return { uid: user.uid, stored: true };
+    return { uid: user.uid, stored: true, durable: this.identity.backend === 'postgres' };
   }
 }

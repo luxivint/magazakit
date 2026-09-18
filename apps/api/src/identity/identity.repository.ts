@@ -35,6 +35,7 @@ export interface IdentityRepository {
   getOrgById(id: string): Promise<OrganizationSummary | null>;
   createOrg(uid: string, name: string): Promise<OrganizationSummary>;
   saveDevice(uid: string, fcmToken: string): Promise<void>;
+  getDeviceToken(uid: string): Promise<string | null>;
   upsertTrendyolMockShop(org: OrganizationSummary): Promise<ShopStatus>;
   listShopsForUid(uid: string): Promise<ShopStatus[]>;
   getShopById(shopId: string): Promise<ShopStatus | null>;

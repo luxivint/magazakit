@@ -19,9 +19,11 @@ import {
   type IdentityRepository,
   type StoredListing,
 } from './identity.repository';
+import { applySqlMigrations } from './run-migrations';
 
 type Pool = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
+  end?: () => Promise<void>;
 };
 
 function asIso(value: unknown): string {
@@ -66,94 +68,17 @@ export class PostgresIdentityRepository implements IdentityRepository {
   static async connect(databaseUrl: string): Promise<PostgresIdentityRepository> {
     const { Pool } = await import('pg');
     const pool = new Pool({ connectionString: databaseUrl, max: 4 });
-    const repo = new PostgresIdentityRepository(pool);
-    await repo.migrate();
-    return repo;
+    try {
+      await applySqlMigrations(pool);
+    } catch (err) {
+      await pool.end();
+      throw err;
+    }
+    return new PostgresIdentityRepository(pool);
   }
 
-  private async migrate(): Promise<void> {
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS organizations (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        owner_uid TEXT NOT NULL UNIQUE,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      );
-      CREATE TABLE IF NOT EXISTS shops (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL REFERENCES organizations (id),
-        channel TEXT NOT NULL,
-        status TEXT NOT NULL,
-        status_label TEXT NOT NULL,
-        seller_label TEXT NOT NULL,
-        connected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        last_sync_at TIMESTAMPTZ,
-        checkpoint TEXT
-      );
-      CREATE TABLE IF NOT EXISTS devices (
-        uid TEXT PRIMARY KEY,
-        fcm_token TEXT NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      );
-      CREATE TABLE IF NOT EXISTS listings (
-        organization_id TEXT NOT NULL REFERENCES organizations (id),
-        listing_id TEXT NOT NULL,
-        shop_id TEXT NOT NULL,
-        payload JSONB NOT NULL,
-        PRIMARY KEY (organization_id, listing_id)
-      );
-      CREATE TABLE IF NOT EXISTS org_orders (
-        organization_id TEXT NOT NULL REFERENCES organizations (id),
-        order_id TEXT NOT NULL,
-        payload JSONB NOT NULL,
-        PRIMARY KEY (organization_id, order_id)
-      );
-      CREATE TABLE IF NOT EXISTS listing_mappings (
-        organization_id TEXT NOT NULL REFERENCES organizations (id),
-        listing_id TEXT NOT NULL,
-        sku TEXT NOT NULL,
-        PRIMARY KEY (organization_id, listing_id)
-      );
-      CREATE TABLE IF NOT EXISTS sku_stock (
-        organization_id TEXT NOT NULL REFERENCES organizations (id),
-        sku TEXT NOT NULL,
-        physical INTEGER NOT NULL DEFAULT 0,
-        reserved INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (organization_id, sku)
-      );
-      CREATE TABLE IF NOT EXISTS stock_movements (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL,
-        sku TEXT NOT NULL,
-        delta_physical INTEGER NOT NULL,
-        delta_reserved INTEGER NOT NULL,
-        reason TEXT NOT NULL,
-        idempotency_key TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE (organization_id, idempotency_key)
-      );
-      CREATE TABLE IF NOT EXISTS stock_outbox (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL,
-        sku TEXT NOT NULL,
-        intended_qty INTEGER NOT NULL,
-        status TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      );
-      CREATE TABLE IF NOT EXISTS operations (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        status TEXT NOT NULL,
-        ref_id TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      );
-    `);
-    await this.pool.query(`
-      ALTER TABLE shops ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ;
-      ALTER TABLE shops ADD COLUMN IF NOT EXISTS checkpoint TEXT;
-    `);
+  async close(): Promise<void> {
+    await this.pool.end?.();
   }
 
   async getOrgForUid(uid: string): Promise<OrganizationSummary | null> {
@@ -189,6 +114,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
        ON CONFLICT (uid) DO UPDATE SET fcm_token = EXCLUDED.fcm_token, updated_at = now()`,
       [uid, fcmToken],
     );
+  }
+
+  async getDeviceToken(uid: string): Promise<string | null> {
+    const res = await this.pool.query('SELECT fcm_token FROM devices WHERE uid = $1', [uid]);
+    const row = res.rows[0];
+    return row ? String(row.fcm_token) : null;
   }
 
   async upsertTrendyolMockShop(org: OrganizationSummary): Promise<ShopStatus> {
@@ -490,7 +421,7 @@ export async function tryPostgresRepository(
   const log = new Logger('PostgresIdentityRepository');
   try {
     const repo = await PostgresIdentityRepository.connect(databaseUrl);
-    log.log('org persistence: postgres');
+    log.log('persistence: postgres (migrations applied; connection string not logged)');
     return repo;
   } catch {
     log.warn(

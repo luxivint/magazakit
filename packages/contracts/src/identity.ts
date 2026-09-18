@@ -13,6 +13,8 @@ export type OrganizationSummary = {
 export type DeviceRegistration = {
   uid: string;
   stored: true;
+  /** True when DATABASE_URL Postgres is active; memory process store otherwise. */
+  durable: boolean;
 };
 
 export type ShopChannel = 'trendyol';

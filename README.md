@@ -1,6 +1,6 @@
 # Mağazam API
 
-NestJS for Expo. Firebase project **magazam-app**. No homemade login. No mobile/web UI in this PR (Expo screens stay in the app repo). HB and billing are out of F3.
+NestJS for Expo. Firebase project **magazam-app**. No homemade login. No mobile/web UI in this PR (Expo screens stay in the app repo). HB, billing, and reports are F4 — not this slice.
 
 ## Expo how to call
 
@@ -16,6 +16,7 @@ Device: LAN IP, not 127.0.0.1. CORS allows Expo localhost / LAN / `*.expo.dev`.
 | Session | `GET /v1/me` |
 | Business (E-14) | `POST /v1/organizations` `{ "name" }` |
 | Current org | `GET /v1/organizations/current` |
+| Device FCM | `POST /v1/devices` `{ "fcmToken" }` — durable when Postgres is on |
 | Shops (E-08) | `GET /v1/shops` |
 | Connect TY (K01 mock) | `POST /v1/shops/trendyol/connect` `{}` — never send real keys |
 | Pull catalog (E-16) | `POST /v1/shops/:id/sync` — idempotent mock upsert |
@@ -33,13 +34,49 @@ Device: LAN IP, not 127.0.0.1. CORS allows Expo localhost / LAN / `*.expo.dev`.
 
 Unmapped listings: `mapped: false`, `stockSource: "none"`, `sellableStock: 0`. Unmapped SKU **cannot reserve or ship**. Marketplace `marketplaceStock` is **not** physical stock (K02). `sellable = physical − reserved`. Repeat sync does not duplicate (T06). Same reserve key is a no-op; a second reserve is `CONFLICT`. Same `idempotencyKey` on adjust is one ledger row.
 
-`GET /health` public. Missing Bearer → `401`. Foreign `organizationId` → `403`. Catalog: `GET /v1/docs`.
+`GET /health` public (`persistence`: `memory` or `postgres`). Missing Bearer → `401`. Foreign `organizationId` → `403`. Catalog: `GET /v1/docs`.
 
 ## Persistence
 
-In-memory unless `DATABASE_URL` (optional Postgres for orgs, catalog, stock ledger, outbox). Worker (`pnpm dev:worker`) is health-only; F3 outbox stores the **intended** Trendyol qty, it does not enqueue Redis.
+**Default:** in-memory if `DATABASE_URL` is unset (lost on restart).
 
-## Run
+**Postgres:** set `DATABASE_URL`. On boot the API applies `apps/api/migrations/*.sql` (tracked in `schema_migrations`). If the URL is set but Postgres is down, it logs a warning (never the connection string) and falls back to memory.
+
+### Run with Postgres
+
+```bash
+cp .env.example .env
+# uncomment DATABASE_URL in .env (local docker user/password only — not a production secret)
+docker compose up -d postgres
+# wait until healthy, then:
+pnpm install
+pnpm --filter @magazakit/contracts build
+pnpm dev:api
+```
+
+`GET /health` → `"persistence":"postgres"`.
+
+Do not commit `.env`, service-account JSON, or production `DATABASE_URL`.
+
+### Tables (`001_f3_core.sql`)
+
+| Table | Holds |
+| --- | --- |
+| `schema_migrations` | Applied SQL filenames |
+| `organizations` | İşletme, keyed by Firebase `owner_uid` |
+| `shops` | Mock Trendyol shop + sync checkpoint |
+| `devices` | Durable FCM tokens (`POST /v1/devices`) |
+| `listings` | Products after `POST /v1/shops/:id/sync` |
+| `org_orders` | Orders after sync; reservation/pack/label/ship flags in `payload` |
+| `listing_mappings` | Manual listing → master SKU |
+| `sku_stock` | Physical + reserved (sellable = physical − reserved) |
+| `stock_movements` | Immutable ledger (idempotency key unique per org) |
+| `stock_outbox` | Intended channel stock writes (no Redis) |
+| `operations` | `GET /v1/operations` feed |
+
+Worker (`pnpm dev:worker`) is health-only; F3 outbox stores the **intended** Trendyol qty.
+
+## Run (memory)
 
 ```bash
 cp .env.example .env

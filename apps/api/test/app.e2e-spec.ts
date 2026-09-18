@@ -128,11 +128,13 @@ describe('authenticated mock Firebase (e2e)', () => {
       .expect(200);
     expect(empty.body.items).toHaveLength(0);
 
-    await request(app.getHttpServer())
+    const device = await request(app.getHttpServer())
       .post('/v1/devices')
       .set(auth)
       .send({ fcmToken: 'fcm-test' })
       .expect(201);
+    expect(device.body.stored).toBe(true);
+    expect(device.body.durable).toBe(false);
 
     const connectFail = await request(app.getHttpServer())
       .post('/v1/shops/trendyol/connect')

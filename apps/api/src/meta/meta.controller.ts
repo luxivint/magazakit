@@ -19,7 +19,7 @@ export class MetaController {
         { method: 'GET', path: '/v1/me' },
         { method: 'POST', path: '/v1/organizations', body: { name: 'string' } },
         { method: 'GET', path: '/v1/organizations/current' },
-        { method: 'POST', path: '/v1/devices', body: { fcmToken: 'string' } },
+        { method: 'POST', path: '/v1/devices', body: { fcmToken: 'string' }, note: 'durable when DATABASE_URL is set' },
         { method: 'GET', path: '/v1/shops' },
         {
           method: 'POST',

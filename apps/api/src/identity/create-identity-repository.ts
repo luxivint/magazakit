@@ -7,9 +7,7 @@ export async function createIdentityRepository(): Promise<IdentityRepository> {
   const log = new Logger('IdentityRepository');
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
-    log.warn(
-      'TODO(F3): persist organizations in Postgres. DATABASE_URL unset — using in-memory store keyed by Firebase uid.',
-    );
+    log.warn('DATABASE_URL unset — in-memory store (lost on restart). Set DATABASE_URL for Postgres.');
     return new MemoryIdentityRepository();
   }
   const pg = await tryPostgresRepository(databaseUrl);

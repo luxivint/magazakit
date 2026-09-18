@@ -90,6 +90,10 @@ export class MemoryIdentityRepository implements IdentityRepository {
     this.fcmByUid.set(uid, fcmToken);
   }
 
+  async getDeviceToken(uid: string): Promise<string | null> {
+    return this.fcmByUid.get(uid) ?? null;
+  }
+
   async upsertTrendyolMockShop(org: OrganizationSummary): Promise<ShopStatus> {
     const existingId = this.shopsByOrg.get(org.id);
     const existing = existingId ? this.shopsById.get(existingId) : undefined;
