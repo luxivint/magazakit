@@ -73,6 +73,7 @@ export default function RootLayout() {
                     <Stack.Screen name="(auth)" />
                     <Stack.Screen name="(tabs)" />
                     <Stack.Screen name="urun/[id]" />
+                    <Stack.Screen name="siparis/[id]" />
                   </Stack>
                 </View>
               </CatalogProvider>

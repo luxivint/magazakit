@@ -50,6 +50,18 @@ export default function HesapScreen() {
             <Text style={styles.rowValue}>{shopHint}</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.muted} />
           </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/stok')}>
+            <Ionicons name="cube-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Stok</Text>
+            <Text style={styles.rowValue}>fiziksel</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/islem')}>
+            <Ionicons name="list-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>İşlem merkezi</Text>
+            <Text style={styles.rowValue}>defter</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
 
           <Text style={styles.section}>Oturum</Text>
           <Text style={styles.rowHint}>

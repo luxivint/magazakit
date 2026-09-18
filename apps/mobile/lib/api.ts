@@ -100,3 +100,48 @@ export type ShopSyncResult = {
   lastSyncAt: string;
   mock: true;
 };
+
+export type ReservationResult = {
+  orderId: string;
+  reserved: true;
+  alreadyReserved?: boolean;
+};
+
+export type ScanResult = {
+  orderId: string;
+  sku: string;
+  matched: boolean;
+  packed?: boolean;
+};
+
+export type LabelPreview = {
+  orderId: string;
+  pdfUrl?: string | null;
+  imageUrl?: string | null;
+  contentType?: string;
+  shipped: false;
+  printed?: boolean;
+};
+
+export type PrintResult = {
+  orderId: string;
+  printed: true;
+  shipped: boolean;
+};
+
+export type StockAdjustResult = {
+  sku: string;
+  physicalStock: number;
+  reservedStock: number;
+  sellableStock: number;
+};
+
+export type OperationItem = {
+  id: string;
+  type: string;
+  title: string;
+  status: 'ok' | 'pending' | 'unknown' | 'reconciling' | 'failed';
+  createdAt: string;
+  orderId?: string;
+  sku?: string;
+};

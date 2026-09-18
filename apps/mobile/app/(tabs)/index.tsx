@@ -55,9 +55,13 @@ export default function OzetScreen() {
             <Text style={styles.subLabel}>Sipariş</Text>
           </View>
           <View style={styles.actions}>
-            <QuickAction label="İçeri al" icon="download-outline" lime onPress={() => router.push('/(tabs)/icerik-al')} />
-            <QuickAction label="Eşleştir" icon="swap-horizontal-outline" onPress={() => router.push('/(tabs)/esleme')} />
-            <QuickAction label="Ürünler" icon="grid-outline" onPress={() => router.push('/(tabs)/urunler')} />
+            <QuickAction label="Hazırla" icon="barcode-outline" lime onPress={() => {
+              const first = catalog.orders[0];
+              if (first) router.push(`/siparis/${first.id}`);
+              else router.push('/(tabs)/siparisler');
+            }} />
+            <QuickAction label="Stok" icon="cube-outline" onPress={() => router.push('/(tabs)/stok')} />
+            <QuickAction label="İşlemler" icon="list-outline" onPress={() => router.push('/(tabs)/islem')} />
           </View>
         </View>
       </SafeAreaView>
@@ -102,7 +106,12 @@ export default function OzetScreen() {
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
             </View>
             {recentOrders.map((order) => (
-              <OrderCard key={order.id} order={order} compact />
+              <OrderCard
+                key={order.id}
+                order={order}
+                compact
+                onPress={() => router.push(`/siparis/${order.id}`)}
+              />
             ))}
             <SyncFooter time={catalog.lastSync ?? '—'} source={sourceLabel} />
           </ScrollView>

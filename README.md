@@ -27,6 +27,14 @@ npx expo start --web --port 43131
 
 Eşleşmeyince `mapped: false`, `sellableStock: 0`. `marketplaceStock` fiziksel sayılmaz.
 
+F3 (Nest 409 = ikinci rezervasyon yok):
+
+- `POST /v1/orders/:id/reserve` + `Idempotency-Key`
+- `POST /v1/orders/:id/scan` `{ sku }`
+- `GET /v1/orders/:id/label` · `POST /v1/orders/:id/label/print` — yazdırma kargolandı yapmaz
+- `POST /v1/stock/adjust` `{ sku, delta }` — yalnız eşli SKU
+- `GET /v1/operations` — append-only işlem defteri
+
 ## Ekranlar
 
-E-13 Giriş · E-22 Hesap oluştur · E-14 İşletme · E-11 Hesap lite · E-08 Mağazalarım · E-15 Trendyol bağla · E-16 İçeri al · E-18 Eşleştirme (manuel SKU) · E-04 Ürünler · E-02 Siparişler · E-05 ürün salt okunur.
+… E-03/E-12/E-60 Hazırla · E-06 Stok · E-09 İşlem merkezi. HB, fatura, ekip yok.

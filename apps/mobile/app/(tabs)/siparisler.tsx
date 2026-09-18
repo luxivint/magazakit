@@ -99,7 +99,11 @@ export default function SiparislerScreen() {
               <Text style={styles.sectionMeta}>{visible.length} sipariş</Text>
             </View>
             {visible.map((order) => (
-              <OrderCard key={order.id} order={order} />
+              <OrderCard
+                key={order.id}
+                order={order}
+                onPress={() => router.push(`/siparis/${order.id}`)}
+              />
             ))}
             <SyncFooter time={catalog.lastSync ?? '—'} source={sourceLabel} />
           </ScrollView>

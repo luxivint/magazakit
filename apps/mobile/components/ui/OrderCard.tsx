@@ -9,9 +9,17 @@ import { MoneyText } from './MoneyText';
 import { ProductThumb } from './ProductThumb';
 import { StatusDot } from './StatusBadge';
 
-export function OrderCard({ order, compact = false }: { order: Order; compact?: boolean }) {
+export function OrderCard({
+  order,
+  compact = false,
+  onPress,
+}: {
+  order: Order;
+  compact?: boolean;
+  onPress?: () => void;
+}) {
   return (
-    <Pressable style={styles.card}>
+    <Pressable style={styles.card} onPress={onPress}>
       <ProductThumb kind={order.thumb} />
       <View style={styles.mid}>
         <View style={styles.topLine}>

@@ -9,6 +9,12 @@ import {
   type OrderListItem,
   type ShopStatus,
   type ShopSyncResult,
+  type ReservationResult,
+  type ScanResult,
+  type LabelPreview,
+  type PrintResult,
+  type StockAdjustResult,
+  type OperationItem,
 } from '@/lib/api';
 import { getIdToken } from '@/lib/firebase';
 
@@ -23,6 +29,12 @@ export type {
   OrderListItem,
   ShopStatus,
   ShopSyncResult,
+  ReservationResult,
+  ScanResult,
+  LabelPreview,
+  PrintResult,
+  StockAdjustResult,
+  OperationItem,
 };
 
 export class ApiError extends Error {
@@ -36,9 +48,9 @@ export class ApiError extends Error {
   }
 }
 
-async function headers(json = false): Promise<HeadersInit> {
+async function headers(json = false, extra?: Record<string, string>): Promise<HeadersInit> {
   const token = await getIdToken();
-  const h: Record<string, string> = { Accept: 'application/json' };
+  const h: Record<string, string> = { Accept: 'application/json', ...extra };
   if (json) h['Content-Type'] = 'application/json';
   if (token) h.Authorization = `Bearer ${token}`;
   return h;
@@ -62,6 +74,12 @@ async function parseError(res: Response): Promise<never> {
   }
   if (res.status === 401) {
     message = message || 'Oturum doğrulanamadı. Tekrar giriş yap.';
+  }
+  if (res.status === 409) {
+    message =
+      message && message !== `API ${res.status}`
+        ? message
+        : 'Bu işlem zaten yapıldı. İkinci rezervasyon yok.';
   }
   throw new ApiError(message, res.status, code);
 }
@@ -142,4 +160,56 @@ export async function fetchProducts(organizationId?: string): Promise<PreviewLis
 export async function fetchOrders(organizationId?: string): Promise<PreviewList<OrderListItem>> {
   const q = organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : '';
   return request(`/v1/orders${q}`, { headers: await headers() });
+}
+
+function newKey(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `idemp_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+export async function reserveOrder(orderId: string, idempotencyKey = newKey()): Promise<ReservationResult> {
+  try {
+    return await request(`/v1/orders/${encodeURIComponent(orderId)}/reserve`, {
+      method: 'POST',
+      headers: await headers(true, { 'Idempotency-Key': idempotencyKey }),
+      body: JSON.stringify({ idempotencyKey }),
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) {
+      return { orderId, reserved: true, alreadyReserved: true };
+    }
+    throw e;
+  }
+}
+
+export async function scanOrderSku(orderId: string, sku: string): Promise<ScanResult> {
+  return request(`/v1/orders/${encodeURIComponent(orderId)}/scan`, {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify({ sku: sku.trim() }),
+  });
+}
+
+export async function fetchOrderLabel(orderId: string): Promise<LabelPreview> {
+  return request(`/v1/orders/${encodeURIComponent(orderId)}/label`, { headers: await headers() });
+}
+
+export async function printOrderLabel(orderId: string): Promise<PrintResult> {
+  return request(`/v1/orders/${encodeURIComponent(orderId)}/label/print`, {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify({}),
+  });
+}
+
+export async function adjustStock(sku: string, delta: number, idempotencyKey = newKey()): Promise<StockAdjustResult> {
+  return request('/v1/stock/adjust', {
+    method: 'POST',
+    headers: await headers(true, { 'Idempotency-Key': idempotencyKey }),
+    body: JSON.stringify({ sku, delta, idempotencyKey }),
+  });
+}
+
+export async function fetchOperations(): Promise<{ items: OperationItem[] }> {
+  return request('/v1/operations', { headers: await headers() });
 }
