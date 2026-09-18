@@ -63,7 +63,7 @@ export default function HazirlaScreen() {
   const reserveLock = useRef(false);
 
   const reserved = !!(work?.reserved ?? order?.reserved);
-  const packed = !!(work?.packed);
+  const packed = !!(work?.packed ?? order?.packed);
   const shipped = !!(work?.shipped ?? order?.shipped);
 
   const onReserve = async () => {
