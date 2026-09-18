@@ -8,11 +8,22 @@ import { F6Module } from './f6/f6.module';
 import { HttpErrorFilter } from './common/http-error.filter';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { HealthModule } from './health/health.module';
+import { ChannelsModule } from './channels/channels.module';
 import { IdentityModule } from './identity/identity.module';
 import { MetaModule } from './meta/meta.module';
 
 @Module({
-  imports: [AuthModule, HealthModule, MetaModule, IdentityModule, CatalogModule, F4Module, F5Module, F6Module],
+  imports: [
+    AuthModule,
+    HealthModule,
+    MetaModule,
+    ChannelsModule,
+    IdentityModule,
+    CatalogModule,
+    F4Module,
+    F5Module,
+    F6Module,
+  ],
   providers: [{ provide: APP_FILTER, useClass: HttpErrorFilter }],
 })
 export class AppModule implements NestModule {

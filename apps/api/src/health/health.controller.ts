@@ -39,6 +39,11 @@ export class HealthController {
         mode,
         k01: mode === 'live' ? LIVE_READ_NOTE : K01_NOTE,
       },
+      channels: this.identity.listChannelCatalog().map((row) => ({
+        channel: row.channel,
+        mode: row.mode,
+        write: false as const,
+      })),
     };
   }
 }

@@ -1,11 +1,10 @@
-import { IdentityStore } from './identity.store';
-import { MemoryIdentityRepository } from './memory-identity.repository';
-import { MockTrendyolReadAdapter } from '../trendyol/mock-trendyol-read.adapter';
+import { testIdentityStore } from './test-identity-store';
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { ErrorCodes } from '@magazakit/contracts';
 
 describe('IdentityStore F2 catalog', () => {
   async function store() {
-    return new IdentityStore(new MemoryIdentityRepository(), new MockTrendyolReadAdapter());
+    return testIdentityStore();
   }
 
   it('maps org to firebase uid and rejects foreigners', async () => {
@@ -55,7 +54,7 @@ describe('IdentityStore F2 catalog', () => {
 
 describe('IdentityStore F3 fulfillment', () => {
   async function ready() {
-    const s = new IdentityStore(new MemoryIdentityRepository(), new MockTrendyolReadAdapter());
+    const s = testIdentityStore();
     await s.createOrg('uid-a', 'Mağazam');
     const shop = await s.connectTrendyolMock('uid-a');
     await s.syncShop('uid-a', shop.id);
@@ -208,7 +207,7 @@ describe('IdentityStore F3 fulfillment', () => {
 
 describe('IdentityStore F4 stubs', () => {
   it('reviews returns without TY write; team invite stub; report has no profit', async () => {
-    const s = new IdentityStore(new MemoryIdentityRepository(), new MockTrendyolReadAdapter());
+    const s = testIdentityStore();
     await s.createOrg('uid-a', 'Mağazam');
     const shop = await s.connectTrendyolMock('uid-a');
     await s.syncShop('uid-a', shop.id);
@@ -251,7 +250,7 @@ describe('IdentityStore F4 stubs', () => {
 
 describe('IdentityStore F6 stubs', () => {
   it('suppliers, PO, default warehouse transfer, einvoice gibLive false, printer test', async () => {
-    const s = new IdentityStore(new MemoryIdentityRepository(), new MockTrendyolReadAdapter());
+    const s = testIdentityStore();
     await s.createOrg('uid-a', 'Mağazam');
     const sup = await s.saveSupplier('uid-a', { name: 'Tekstil A.Ş.' });
     const patched = await s.saveSupplier('uid-a', { id: sup.id, note: 'stub' });
@@ -268,5 +267,32 @@ describe('IdentityStore F6 stubs', () => {
     const test = await s.testPrint('uid-a');
     expect(test.printed).toBe(false);
     expect(test.mock).toBe(true);
+  });
+});
+
+describe('IdentityStore multi-channel', () => {
+  function code(err: unknown): string {
+    return ((err as HttpException).getResponse() as { code: string }).code;
+  }
+
+  it('lists 11 channels and never marks blocked ones connected', async () => {
+    const s = testIdentityStore();
+    const catalog = s.listChannelCatalog();
+    expect(catalog).toHaveLength(11);
+    expect(catalog.every((c) => c.write === false)).toBe(true);
+    expect(catalog.find((c) => c.channel === 'trendyol')?.mode).toBe('mock');
+    expect(catalog.find((c) => c.channel === 'pazarama')?.mode).toBe('blocked');
+    expect(catalog.find((c) => c.channel === 'ticimax')?.mode).toBe('blocked');
+    expect(catalog.find((c) => c.channel === 'ideasoft')?.mode).toBe('blocked');
+
+    await s.createOrg('uid-a', 'Mağazam');
+    await expect(s.connectChannel('uid-a', 'pazarama')).rejects.toBeInstanceOf(HttpException);
+    try {
+      await s.connectChannel('uid-a', 'hepsiburada');
+    } catch (err) {
+      expect(code(err)).toBe(ErrorCodes.CHANNEL_UNAVAILABLE);
+      expect((err as HttpException).getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+    }
+    expect(await s.listShops('uid-a')).toEqual([]);
   });
 });

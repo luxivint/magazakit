@@ -1,7 +1,21 @@
 import type { Order, Product, ProductThumbKind } from '@/data/mock';
-import type { OrderListItem, ProductListItem } from '@/lib/api';
+import type { Channel, OrderListItem, ProductListItem } from '@/lib/api';
 
 const THUMBS: ProductThumbKind[] = ['mug', 'towel', 'thermos', 'lamp'];
+
+const CHANNEL_LABELS: Record<Channel, string> = {
+  trendyol: 'Trendyol',
+  hepsiburada: 'Hepsiburada',
+  n11: 'n11',
+  shopify: 'Shopify',
+  woocommerce: 'WooCommerce',
+  ciceksepeti: 'Çiçeksepeti',
+  ikas: 'ikas',
+  amazon: 'Amazon TR',
+  pazarama: 'Pazarama',
+  ticimax: 'Ticimax',
+  ideasoft: 'IdeaSoft',
+};
 
 function mapStatus(status: string, label: string): Pick<Order, 'status' | 'statusLabel'> {
   if (status === 'shipped' || status === 'delivered' || label === 'Kargoda') {
@@ -41,7 +55,8 @@ export function mapApiProduct(item: ProductListItem, index: number): Product {
     marketplaceStock: item.marketplaceStock,
     mapped: item.mapped,
     listing: item.mapped ? item.statusLabel : 'Eşleşmedi',
-    channels: { trendyol: true },
+    channels: { trendyol: item.channel === 'trendyol' },
+    channel: item.channel,
     thumb: THUMBS[index % THUMBS.length],
     critical: item.critical,
   };
@@ -53,7 +68,7 @@ export function catalogSourceLabel(reachable: boolean, apiMock: boolean | null):
 }
 
 export function shopStatusLabel(status: string, fallback: string): string {
-  if (status === 'live_connected') return 'Bağlı (Trendyol)';
+  if (status === 'live_connected') return fallback || 'Bağlı (okuma)';
   if (status === 'mock_connected') return 'Bağlı (test)';
   return fallback;
 }
@@ -62,8 +77,8 @@ export function mapApiOrder(item: OrderListItem, index: number): Order {
   const due = dueLabel(item.cargoDeadlineAt, item.cargoWarning);
   return {
     id: item.id,
-    channel: 'trendyol',
-    channelLabel: 'Trendyol',
+    channel: item.channel,
+    channelLabel: CHANNEL_LABELS[item.channel] ?? item.channel,
     number: item.orderNumber.startsWith('#') ? item.orderNumber : `#${item.orderNumber}`,
     product: `${item.itemCount} adet`,
     customer: item.customerName,

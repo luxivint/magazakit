@@ -18,4 +18,9 @@ export type HealthResponse = {
     mode: 'mock' | 'live' | 'unconfigured';
     k01: string;
   };
+  channels?: {
+    channel: string;
+    mode: 'mock' | 'live' | 'unconfigured' | 'blocked';
+    write: false;
+  }[];
 };

@@ -28,6 +28,8 @@ import {
   type EinvoiceDraft,
   type PrinterSettings,
   type PrinterTestResult,
+  type Channel,
+  type ChannelCatalogRow,
 } from '@/lib/api';
 import { getIdToken } from '@/lib/firebase';
 
@@ -61,6 +63,8 @@ export type {
   EinvoiceDraft,
   PrinterSettings,
   PrinterTestResult,
+  Channel,
+  ChannelCatalogRow,
 };
 
 export class ApiError extends Error {
@@ -159,15 +163,40 @@ export async function fetchShops(): Promise<{ items: ShopStatus[]; mock: boolean
   return request('/v1/shops', { headers: await headers() });
 }
 
-/** Connect Trendyol. Never send apiKey/apiSecret from the phone. */
-export async function connectTrendyolShop(sellerId?: string): Promise<ShopStatus> {
+export async function fetchChannels(): Promise<{ items: ChannelCatalogRow[]; write: false }> {
+  return request('/v1/channels', { headers: { Accept: 'application/json' } });
+}
+
+const CHANNELS: Channel[] = [
+  'trendyol',
+  'hepsiburada',
+  'n11',
+  'shopify',
+  'woocommerce',
+  'ciceksepeti',
+  'ikas',
+  'amazon',
+  'pazarama',
+  'ticimax',
+  'ideasoft',
+];
+
+/** Connect a channel. Never send apiKey/apiSecret from the phone. */
+export async function connectShop(channel: Channel, sellerId?: string): Promise<ShopStatus> {
+  if (!CHANNELS.includes(channel)) {
+    throw new ApiError('Bilinmeyen kanal.', 400, 'VALIDATION');
+  }
   const body: { sellerId?: string } = {};
   if (sellerId?.trim()) body.sellerId = sellerId.trim();
-  return request('/v1/shops/trendyol/connect', {
+  return request(`/v1/shops/${encodeURIComponent(channel)}/connect`, {
     method: 'POST',
     headers: await headers(true),
     body: JSON.stringify(body),
   });
+}
+
+export async function connectTrendyolShop(sellerId?: string): Promise<ShopStatus> {
+  return connectShop('trendyol', sellerId);
 }
 
 export async function syncShop(shopId: string): Promise<ShopSyncResult> {

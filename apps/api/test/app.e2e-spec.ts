@@ -35,6 +35,7 @@ describe('public API (e2e)', () => {
     expect(res.body.persistence).toBe('memory');
     expect(res.body.outbox.pending).toBe(0);
     expect(res.body.outbox.mock).toBe(true);
+    expect(res.body.channels).toHaveLength(11);
     expect(res.headers['x-request-id']).toBeDefined();
   });
 
@@ -386,5 +387,25 @@ describe('authenticated mock Firebase (e2e)', () => {
     expect(inv.body.gibLive).toBe(false);
     const print = await request(app.getHttpServer()).post('/v1/printer/test-print').set(auth).expect(201);
     expect(print.body.printed).toBe(false);
+  });
+
+  it('GET /v1/channels lists 11; BLOKE connect is 503 not connected', async () => {
+    const auth = { Authorization: 'Bearer test' };
+    const listed = await request(app.getHttpServer()).get('/v1/channels').expect(200);
+    expect(listed.body.items).toHaveLength(11);
+    expect(listed.body.write).toBe(false);
+    const pazarama = listed.body.items.find((c: { channel: string }) => c.channel === 'pazarama');
+    expect(pazarama.mode).toBe('blocked');
+    expect(listed.body.items.every((c: { write: boolean }) => c.write === false)).toBe(true);
+
+    await request(app.getHttpServer()).post('/v1/organizations').set(auth).send({ name: 'Kanal' }).expect(201);
+    const blocked = await request(app.getHttpServer())
+      .post('/v1/shops/pazarama/connect')
+      .set(auth)
+      .send({})
+      .expect(503);
+    expect(blocked.body.error.code).toBe('CHANNEL_UNAVAILABLE');
+    const shops = await request(app.getHttpServer()).get('/v1/shops').set(auth).expect(200);
+    expect(shops.body.items).toHaveLength(0);
   });
 });

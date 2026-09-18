@@ -9,17 +9,28 @@ import { StoreBar } from '@/components/shell/StoreBar';
 import { Button } from '@/components/ui/Button';
 import { ConfigBanner } from '@/components/ui/ConfigBanner';
 import { TextField } from '@/components/ui/TextField';
+import { useShops } from '@/context/ShopContext';
+import { ApiError } from '@/lib/apiClient';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
 export default function HepsiburadaScreen() {
+  const { connectChannel } = useShops();
   const [sellerId, setSellerId] = useState('');
+  const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<string | null>(
-    'Hepsiburada canlı kanal değil. Adapter ve anahtar yok.',
+    'Anahtar Nest .env’de. Telefondan gönderilmez. Env yoksa 503 — bağlı sayılmaz.',
   );
 
-  const connect = () => {
-    void sellerId;
-    setBanner('Hepsiburada canlı değil. Bağlantı tamamlanmış sayılmaz.');
+  const connect = async () => {
+    setBusy(true);
+    try {
+      const shop = await connectChannel('hepsiburada', sellerId);
+      setBanner(`${shop.statusLabel}. Yazma kapalı.`);
+    } catch (e) {
+      setBanner(e instanceof ApiError ? e.message : 'Hepsiburada bağlı sayılmaz.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -31,7 +42,7 @@ export default function HepsiburadaScreen() {
         <StoreBar />
         <View style={styles.heroPad}>
           <Text style={styles.title}>Hepsiburada</Text>
-          <Text style={styles.sub}>Görünür stub. Canlı kanal kapalı.</Text>
+          <Text style={styles.sub}>listing-external + oms-external. Salt okuma.</Text>
         </View>
       </SafeAreaView>
       <PorcelainSheet>
@@ -42,17 +53,17 @@ export default function HepsiburadaScreen() {
               <Text style={styles.hbMark}>hb</Text>
             </View>
             <Text style={styles.name}>Hepsiburada</Text>
-            <Text style={styles.meta}>İkinci pazaryeri. Ürün, iade ve etiket kabiliyeti doğrulanmadı.</Text>
+            <Text style={styles.meta}>
+              MerchantId + Basic key/secret Nest’te olmalı. User-Agent: merchantId - SelfIntegration.
+            </Text>
           </View>
           <TextField
-            label="Satıcı ID"
+            label="Satıcı / merchant etiketi"
             value={sellerId}
             onChangeText={setSellerId}
-            placeholder="Gönderilmez"
-            keyboardType="number-pad"
+            placeholder="Gönderilir; anahtar değil"
           />
-          <Button label="Bağlamayı dene" onPress={connect} />
-          <Text style={styles.meta}>Anahtar yazılmaz. Trendyol mock bağlantısı ayrı durur.</Text>
+          <Button label="Bağlamayı dene" onPress={() => void connect()} loading={busy} />
         </ScrollView>
       </PorcelainSheet>
     </View>
@@ -88,3 +99,4 @@ const styles = StyleSheet.create({
   name: { fontFamily: fonts.semibold, fontSize: 16, color: colors.ink },
   meta: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, lineHeight: 18 },
 });
+

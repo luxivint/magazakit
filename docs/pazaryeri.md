@@ -1,34 +1,21 @@
-# Pazaryeri entegrasyonu (araştırma + mevcut kod)
+# Pazaryeri entegrasyonu (11 kanal)
 
-Tarih: 18 Eylül 2026. ChatGPT zip (`Pazaryeri_API_AI_Dokumanlari`) tek kaynak değil; resmi portal + GitHub ayrıca bakıldı.
+Tarih: 18 Eylül 2026. Zip tek kaynak değil. Yazma (stok PUT, etiket, iade, finans) yok. Anahtar Expo’da yok.
 
-## Bu dilimde gerçek olan
+`GET /v1/channels` her kanalın `mode` + `write: false` listeler. `POST /v1/shops/:channel/connect` Nest `.env` probe eder; BLOKE / eksik env → `CHANNEL_UNAVAILABLE` (503). Shop satırı yazılmaz.
 
-**Trendyol V2 salt okuma** (`apps/api`). HB, n11, Shopify, ikas vb. bağlanmaz. Stok/fiyat PUT, etiket, iade, finans yazılmaz.
+| Kanal | Okuma (env varsa) | Kaynak |
+|---|---|---|
+| Trendyol | V2 approved products + `/v2/orders`. Host `apigw.trendyol.com`. User-Agent `{sellerId} - SelfIntegration`. | [Getting started](https://developers.trendyol.com/v3.0/docs/getting-started-1), [ürün V2](https://developers.trendyol.com/v3.0/docs/product-filter-approved-product-v2), [sipariş V2](https://developers.trendyol.com/docs/sipari%C5%9F-paketlerini-%C3%A7ekme-getshipmentpackages). Lonca hâlâ V1 `/orders` örnekliyor — kullanılmaz. |
+| Hepsiburada | `listing-external` + `oms-external` Basic + User-Agent `{merchantId} - SelfIntegration`. | [developers.hepsiburada.com](https://developers.hepsiburada.com) |
+| n11 | `api.n11.com/ms/product-query` + `rest/delivery/v1/shipmentPackages` (`appKey`/`appSecret`). | developer.n11.com REST |
+| Shopify | Admin GraphQL `products` + `orders`. `SHOPIFY_SHOP` + token. HTTPS, özel IP yok. | Admin API |
+| WooCommerce | `wp-json/wc/v3` consumer key. Host `assertPublicHttps`. | Woo REST |
+| Çiçeksepeti | `POST /api/v1/Order/GetOrders`. Ürün şeması belgede yok; ilanlar sipariş kaleminden. | apis.ciceksepeti.com |
+| ikas | `api.myikas.com` `listProduct`. Sipariş sorgusu bu dilimde yok (boş liste, bağlı yalanı yok). | V2 GraphQL |
+| Amazon TR | LWA refresh → SP-API EU `orders/v0/orders`, marketplace `A33AVAJ2PDY3EV`. Catalog listings yok. | SP-API |
+| Pazarama | **BLOKE** — partner OpenAPI yok (isortagim). Path uydurulmadı. | — |
+| Ticimax | **BLOKE** — güncel REST/WSDL yok. SOAP XML feed değil. | — |
+| IdeaSoft | **BLOKE** — OAuth var; `/products` şeması doğrulanmadı. | — |
 
-| Kaynak | Ne doğrulandı |
-|---|---|
-| [Getting started](https://developers.trendyol.com/v3.0/docs/getting-started-1) | Basic auth (API key:secret), zorunlu `User-Agent`: `{sellerId} - SelfIntegration`. Prod `apigw.trendyol.com`; stage `stageapigw` + IP. |
-| [Onaylı ürün V2](https://developers.trendyol.com/v3.0/docs/product-filter-approved-product-v2) | `GET /integration/product/sellers/{sellerId}/products/approved` — `page`/`size`≤100, `page*size`≤10000, `nextPageToken`, `variants[]`. |
-| [Sipariş paketleri / V2](https://developers.trendyol.com/docs/sipari%C5%9F-paketlerini-%C3%A7ekme-getshipmentpackages) | `GET .../v2/orders`. Eski `/orders` 15 Ekim 2026’da kapanır. Paket `shipmentPackageId` ≠ `orderNumber`. Tarih yoksa son hafta; max pencere 2 hafta. |
-| [Changelog V2](https://developers.trendyol.com/v2.0/changelog/changelog) | 10k maxQueryWindow; stream ayrı. |
-| [Trendyol/trendyol-integration-developer-tool](https://github.com/Trendyol/trendyol-integration-developer-tool) | Resmi ürün-domain MCP; sipariş henüz “planned”. |
-| [loncadev/lonca `@lonca/trendyol`](https://github.com/loncadev/lonca/tree/main/sdks/trendyol) | Topluluk SDK (resmi değil). V1 `/orders` hâlâ örneklerde var — biz **V2** kullanıyoruz. |
-
-Hepsiburada (sonraki dilim): ayrı hostlar `listing-external` / `oms-external` / `mpop` / finance. Portal genel auth örneğini bütün servislere kopyalama. [developers.hepsiburada.com](https://developers.hepsiburada.com), [lonca hepsiburada SDK](https://github.com/loncadev/lonca/tree/main/sdks/hepsiburada).
-
-n11 / Pazarama / Ticimax: zip BLOKE; OpenAPI yokken parser uydurulmaz.
-
-## WSL’de canlı okuma
-
-Satıcı paneli → Hesap detayları → Entegrasyon bilgileri (master kullanıcı). Gitignored `.env`:
-
-```
-TRENDYOL_USE_MOCK=false
-TRENDYOL_BASE_URL=https://apigw.trendyol.com
-TRENDYOL_SELLER_ID=
-TRENDYOL_API_KEY=
-TRENDYOL_API_SECRET=
-```
-
-Expo `POST /v1/shops/trendyol/connect` key göndermez. `GET /health` → `trendyol.mode: "live"`. Yanlış host `api.trendyol.com` (eski örnek) kullanılmaz.
+WSL `.env` (gitignore). Expo `POST .../connect` key göndermez.

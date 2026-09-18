@@ -11,6 +11,7 @@ export const ErrorCodes = {
   INSUFFICIENT_STOCK: 'INSUFFICIENT_STOCK',
   PACK_INCOMPLETE: 'PACK_INCOMPLETE',
   K01_TRENDYOL_UNAVAILABLE: 'K01_TRENDYOL_UNAVAILABLE',
+  CHANNEL_UNAVAILABLE: 'CHANNEL_UNAVAILABLE',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

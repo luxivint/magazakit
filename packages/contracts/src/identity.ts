@@ -17,9 +17,11 @@ export type DeviceRegistration = {
   durable: boolean;
 };
 
-export type ShopChannel = 'trendyol';
+import type { Channel } from './catalog';
 
-export type ShopStatusCode = 'mock_connected' | 'live_connected' | 'k01_blocked';
+export type ShopChannel = Channel;
+
+export type ShopStatusCode = 'mock_connected' | 'live_connected' | 'k01_blocked' | 'unverified';
 
 /** E-08 connected-store row. Secrets are never returned. */
 export type ShopStatus = {

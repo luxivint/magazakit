@@ -7,6 +7,19 @@ export const API_URL = (
 
 export const API_BASE_URL = API_URL;
 
+export type Channel =
+  | 'trendyol'
+  | 'hepsiburada'
+  | 'n11'
+  | 'shopify'
+  | 'woocommerce'
+  | 'ciceksepeti'
+  | 'ikas'
+  | 'amazon'
+  | 'pazarama'
+  | 'ticimax'
+  | 'ideasoft';
+
 export type ProductListItem = {
   id: string;
   listingId: string;
@@ -14,7 +27,7 @@ export type ProductListItem = {
   sku: string;
   barcode: string;
   title: string;
-  channel: 'trendyol';
+  channel: Channel;
   priceTry: number;
   marketplaceStock: number;
   physicalStock: number;
@@ -38,7 +51,7 @@ export type OrderListItem = {
   id: string;
   organizationId?: string;
   orderNumber: string;
-  channel: 'trendyol';
+  channel: Channel;
   customerName: string;
   status: string;
   statusLabel: string;
@@ -82,12 +95,12 @@ export type CurrentUserResponse = {
   organization: OrganizationSummary | null;
 };
 
-export type ShopStatusCode = 'mock_connected' | 'live_connected' | 'k01_blocked';
+export type ShopStatusCode = 'mock_connected' | 'live_connected' | 'k01_blocked' | 'unverified';
 
 export type ShopStatus = {
   id: string;
   organizationId: string;
-  channel: 'trendyol';
+  channel: Channel;
   status: ShopStatusCode;
   statusLabel: string;
   sellerLabel: string;
@@ -287,4 +300,13 @@ export type PrinterTestResult = {
   printed: false;
   mock: true;
   note: 'Termal yazıcıya gönderilmedi.';
+};
+
+export type ChannelCatalogRow = {
+  channel: Channel;
+  label: string;
+  mode: 'mock' | 'live' | 'unconfigured' | 'blocked';
+  read: 'live' | 'mock' | 'blocked';
+  write: false;
+  note: string;
 };

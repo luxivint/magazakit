@@ -23,7 +23,7 @@ export function OrderCard({
       <ProductThumb kind={order.thumb} />
       <View style={styles.mid}>
         <View style={styles.topLine}>
-          <ChannelBadge />
+          <ChannelBadge channel={order.channel} />
           <Text style={styles.number}>{order.number}</Text>
         </View>
         {compact ? (

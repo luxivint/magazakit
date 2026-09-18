@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import {
   asPreviewList,
   ErrorCodes,
@@ -34,10 +34,9 @@ import type { IdentityRepository, PersistenceBackend } from './identity.reposito
 import { sellableOf, toProductListItem } from './identity.repository';
 import { K01_NOTE, readTrendyolLiveConfig, trendyolMode } from '../config/trendyol-env';
 import { mockTrendyolOutboxStatus } from '../outbox/mock-trendyol-write';
-import {
-  TRENDYOL_READ_ADAPTER,
-  type TrendyolReadAdapter,
-} from '../trendyol/trendyol-read.adapter';
+import { CHANNEL_LABELS, channelCatalog } from '../channels/registry';
+import { SHOP_CHANNELS, type ChannelAdapterMap, type ChannelCatalogRow } from '../channels/types';
+import type { Channel } from '@magazakit/contracts';
 
 function boom(code: string, message: string, status: HttpStatus): never {
   throw new HttpException({ code, message }, status);
@@ -75,11 +74,19 @@ trailer<</Root 1 0 R>>
 export class IdentityStore {
   constructor(
     private readonly repo: IdentityRepository,
-    @Inject(TRENDYOL_READ_ADAPTER) private readonly trendyol: TrendyolReadAdapter,
+    private readonly adapters: ChannelAdapterMap,
   ) {}
+
+  private get trendyol() {
+    return this.adapters.trendyol;
+  }
 
   get backend(): PersistenceBackend {
     return this.repo.backend;
+  }
+
+  listChannelCatalog(): ChannelCatalogRow[] {
+    return channelCatalog(this.adapters);
   }
 
   getOrgForUid(uid: string): Promise<OrganizationSummary | null> {
@@ -157,6 +164,26 @@ export class IdentityStore {
     return this.repo.upsertTrendyolMockShop(org);
   }
 
+  async connectChannel(uid: string, channel: string, sellerId?: string): Promise<ShopStatus> {
+    if (!(SHOP_CHANNELS as string[]).includes(channel)) {
+      boom(ErrorCodes.VALIDATION, 'Bilinmeyen kanal.', HttpStatus.BAD_REQUEST);
+    }
+    const ch = channel as Channel;
+    if (ch === 'trendyol') {
+      return this.connectTrendyolMock(uid, sellerId);
+    }
+    const org = await this.requireOrg(uid);
+    const adapter = this.adapters[ch];
+    await adapter.probe?.();
+    return this.repo.upsertShop(org, ch, {
+      status: 'live_connected',
+      statusLabel: `Bağlı (${CHANNEL_LABELS[ch]} okuma)`,
+      sellerLabel: sellerId?.trim() ? `${CHANNEL_LABELS[ch]} ${sellerId.trim()}` : CHANNEL_LABELS[ch],
+      mock: false,
+      k01: 'Salt okuma. Yazma kapalı. Anahtar telefonda yok.',
+    });
+  }
+
   listShops(uid: string): Promise<ShopStatus[]> {
     return this.repo.listShopsForUid(uid);
   }
@@ -170,13 +197,14 @@ export class IdentityStore {
         HttpStatus.NOT_FOUND,
       );
     }
-    const feed = await this.trendyol.pullFeed();
+    const adapter = this.adapters[shop.channel];
+    const feed = await adapter.pullFeed();
     const productsUpserted = await this.repo.upsertListings(org.id, shop.id, feed.listings);
     const ordersUpserted = await this.repo.upsertOrders(org.id, feed.orders);
     await this.repo.upsertReturns(org.id, feed.returns ?? []);
     const lastSyncAt = new Date().toISOString();
-    const prefix = this.trendyol.mock ? 'mock' : 'live';
-    const checkpoint = `${prefix}:${feed.listings.length}:${feed.orders.length}:${lastSyncAt}`;
+    const prefix = adapter.mock ? 'mock' : 'live';
+    const checkpoint = `${prefix}:${shop.channel}:${feed.listings.length}:${feed.orders.length}:${lastSyncAt}`;
     await this.repo.markShopSynced(shop.id, checkpoint, lastSyncAt);
     return {
       shopId: shop.id,
@@ -185,7 +213,7 @@ export class IdentityStore {
       ordersUpserted,
       checkpoint,
       lastSyncAt,
-      mock: this.trendyol.mock,
+      mock: adapter.mock,
     };
   }
 

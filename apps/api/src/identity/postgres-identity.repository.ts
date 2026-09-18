@@ -22,6 +22,9 @@ import type {
   WarehouseTransfer,
 } from '@magazakit/contracts';
 import { K01_NOTE } from '../config/trendyol-env';
+import { shopRecordId } from '../channels/registry';
+import { SHOP_CHANNELS } from '../channels/types';
+import type { Channel } from '@magazakit/contracts';
 import type { MockListingSeed } from '../trendyol/mock-feed';
 import {
   emptyStock,
@@ -56,16 +59,22 @@ function rowToOrg(row: Record<string, unknown>): OrganizationSummary {
   };
 }
 
+function parseChannel(raw: unknown): Channel {
+  const v = String(raw ?? 'trendyol');
+  return (SHOP_CHANNELS as string[]).includes(v) ? (v as Channel) : 'trendyol';
+}
+
 function rowToShop(row: Record<string, unknown>): ShopStatus {
   const status = (String(row.status ?? 'mock_connected') as ShopStatusCode) || 'mock_connected';
   const live = status === 'live_connected';
+  const channel = parseChannel(row.channel);
   return {
     id: String(row.id),
     organizationId: String(row.organization_id),
-    channel: 'trendyol',
+    channel,
     status,
-    statusLabel: String(row.status_label ?? (live ? 'Bağlı (Trendyol V2 okuma)' : 'Bağlı (mock — K01)')),
-    sellerLabel: String(row.seller_label ?? (live ? 'Trendyol' : 'Trendyol test mağazası (mock)')),
+    statusLabel: String(row.status_label ?? (live ? 'Bağlı (okuma)' : 'Bağlı (mock — K01)')),
+    sellerLabel: String(row.seller_label ?? channel),
     connectedAt: asIso(row.connected_at),
     lastSyncAt: row.last_sync_at ? asIso(row.last_sync_at) : null,
     checkpoint: row.checkpoint ? String(row.checkpoint) : null,
@@ -143,28 +152,35 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return row ? String(row.fcm_token) : null;
   }
 
-  async upsertTrendyolMockShop(
+  async upsertShop(
     org: OrganizationSummary,
-    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>>,
+    channel: ShopStatus['channel'],
+    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'>>,
   ): Promise<ShopStatus> {
-    const id = `shop_ty_${org.id}`;
+    const id = shopRecordId(org.id, channel);
     const live = overlay?.status === 'live_connected' || overlay?.mock === false;
     const status = overlay?.status ?? (live ? 'live_connected' : 'mock_connected');
-    const statusLabel =
-      overlay?.statusLabel ?? (live ? 'Bağlı (Trendyol V2 okuma)' : 'Bağlı (mock — K01)');
-    const sellerLabel =
-      overlay?.sellerLabel ?? (live ? 'Trendyol' : 'Trendyol test mağazası (mock)');
+    const statusLabel = overlay?.statusLabel ?? (live ? 'Bağlı (okuma)' : 'Bağlı (mock — K01)');
+    const sellerLabel = overlay?.sellerLabel ?? channel;
     const res = await this.pool.query(
       `INSERT INTO shops (id, organization_id, channel, status, status_label, seller_label)
-       VALUES ($1, $2, 'trendyol', $5, $3, $4)
+       VALUES ($1, $2, $6, $5, $3, $4)
        ON CONFLICT (id) DO UPDATE SET
+         channel = EXCLUDED.channel,
          status = EXCLUDED.status,
          status_label = EXCLUDED.status_label,
          seller_label = EXCLUDED.seller_label
        RETURNING id, organization_id, channel, status, status_label, seller_label, connected_at, last_sync_at, checkpoint`,
-      [id, org.id, statusLabel, sellerLabel, status],
+      [id, org.id, statusLabel, sellerLabel, status, channel],
     );
     return rowToShop(res.rows[0]);
+  }
+
+  async upsertTrendyolMockShop(
+    org: OrganizationSummary,
+    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>>,
+  ): Promise<ShopStatus> {
+    return this.upsertShop(org, 'trendyol', overlay);
   }
 
   async listShopsForUid(uid: string): Promise<ShopStatus[]> {

@@ -17,7 +17,7 @@ export function ProductRow({ product }: { product: Product }) {
         <Text style={styles.name}>{product.name}</Text>
         <Text style={styles.sku}>{product.mapped ? `Ana SKU: ${product.sku}` : 'Eşleşmedi · satılabilir 0'}</Text>
         <View style={styles.meta}>
-          <ChannelBadge />
+          <ChannelBadge channel={product.channel} />
           <Text style={styles.stock}>
             Fiz {product.physical} · Sat {product.sellable} · Pazar {product.marketplaceStock}
           </Text>

@@ -28,6 +28,15 @@ export class ShopsController {
     return this.identity.connectTrendyolMock(user.uid, body?.sellerId);
   }
 
+  @Post(':channel/connect')
+  async connectChannel(
+    @CurrentUser() user: AuthUser,
+    @Param('channel') channel: string,
+    @Body() body: ConnectBody,
+  ): Promise<ShopStatus> {
+    return this.identity.connectChannel(user.uid, channel, body?.sellerId);
+  }
+
   @Post(':id/sync')
   async sync(
     @CurrentUser() user: AuthUser,

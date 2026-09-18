@@ -1,8 +1,10 @@
+import type { Channel } from '@/lib/api';
+
 export type OrderStatus = 'hazirlanacak' | 'kargoda' | 'iade';
 
 export type Order = {
   id: string;
-  channel: 'trendyol';
+  channel: Channel;
   channelLabel: string;
   number: string;
   product: string;
@@ -41,6 +43,7 @@ export type Product = {
   mapped: boolean;
   marketplaceStock: number;
   listingId: string;
+  channel?: Channel;
 };
 
 export const STORE_NAME = 'Mağazam';

@@ -4,7 +4,18 @@ export type OrderLine = {
   scannedQty: number;
 };
 
-export type Channel = 'trendyol';
+export type Channel =
+  | 'trendyol'
+  | 'hepsiburada'
+  | 'n11'
+  | 'shopify'
+  | 'woocommerce'
+  | 'ciceksepeti'
+  | 'ikas'
+  | 'amazon'
+  | 'pazarama'
+  | 'ticimax'
+  | 'ideasoft';
 
 export type ProductStatus = 'active' | 'passive';
 

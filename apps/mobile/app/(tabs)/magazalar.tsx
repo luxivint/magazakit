@@ -18,7 +18,6 @@ import { colors, fonts, radii, space } from '@/theme/tokens';
 export default function MagazalarScreen() {
   const { orgName } = useAuth();
   const { shops, loading, error, refresh } = useShops();
-  const authorized = 0;
 
   return (
     <View style={styles.root}>
@@ -31,7 +30,7 @@ export default function MagazalarScreen() {
           <Text style={styles.title}>Mağazalarım</Text>
           <Text style={styles.sub}>Satış kanallarını tek yerde.</Text>
           <View style={styles.counts}>
-            <Text style={styles.count}>{authorized} bağlı mağaza</Text>
+            <Text style={styles.count}>{shops.length} bağlı mağaza</Text>
             <Text style={styles.countMuted}>{shops.length ? `${shops.length} mağaza` : '1 işlem uyarısı'}</Text>
           </View>
         </View>
@@ -51,12 +50,12 @@ export default function MagazalarScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.sheet}>
-            <PeachAlert text="Trendyol henüz canlı okumuyor." />
+            <PeachAlert text="Yazma kapalı. BLOKE kanallar bağlı sayılmaz." />
             <Text style={styles.section}>Bağlı mağazalar</Text>
             {shops.length === 0 ? (
               <View style={styles.emptyCard}>
                 <ChannelBadge />
-                <Text style={styles.emptyTitle}>Trendyol bağlı değil</Text>
+                <Text style={styles.emptyTitle}>Kanal bağlı değil</Text>
                 <Text style={styles.emptyBody}>
                   {orgName ?? 'İşletme'} için henüz yetkili mağaza yok.
                 </Text>
@@ -64,7 +63,7 @@ export default function MagazalarScreen() {
             ) : (
               shops.map((shop) => (
                 <View key={shop.id} style={styles.emptyCard}>
-                  <ChannelBadge />
+                  <ChannelBadge channel={shop.channel} />
                   <Text style={styles.emptyTitle}>{shop.sellerLabel}</Text>
                   <Text style={styles.emptyBody}>{shopStatusLabel(shop.status, shop.statusLabel)}</Text>
                 </View>

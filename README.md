@@ -1,6 +1,6 @@
 # Mağazam (magazakit)
 
-Trendyol satıcısı için stok, sipariş ve paketleme. **Bir clone:** Nest API (`apps/api`) + outbox worker (`apps/worker`) + Expo (`apps/mobile`). Next.js yok. Canlı Trendyol / HB / GİB yok (K01 mock). Nest’te `TRENDYOL_USE_MOCK=false` + satıcı panelinden key/secret olunca **V2 salt okuma** açılır (ürün + sipariş). Stok yazımı hâlâ mock outbox.
+Trendyol satıcısı için stok, sipariş ve paketleme. **Bir clone:** Nest API (`apps/api`) + outbox worker (`apps/worker`) + Expo (`apps/mobile`). Next.js yok. Pazaryeri yazımı yok. Nest `.env` ile **salt okuma**: Trendyol V2; HB, n11, Shopify, Woo, Çiçeksepeti, ikas, Amazon TR env varsa. Pazarama/Ticimax/IdeaSoft BLOKE.
 
 Kimlik: **Firebase Auth** (`magazam-app`). Nest `Authorization: Bearer <Firebase ID token>` doğrular. Bundle: `com.luxivint.magazam`.
 
@@ -66,9 +66,9 @@ Authorization: Bearer <Firebase idToken from magazam-app>
 
 CORS: Expo localhost / LAN / `*.expo.dev`.
 
-F0–F2: `/v1/me`, org, shops (Trendyol mock veya V2 live okuma), sync, mappings, products, orders.  
+F0–F2: `/v1/me`, org, shops (`GET /v1/channels` 11 kanal; connect Nest `.env` probe), sync, mappings, products, orders.
 
-Canlı bağlama (WSL, gitignored `apps/api/.env` veya kök `.env`):
+Canlı bağlama (WSL, gitignored `apps/api/.env` veya kök `.env`). Expo key göndermez:
 
 ```
 TRENDYOL_USE_MOCK=false
@@ -78,7 +78,9 @@ TRENDYOL_API_KEY=...
 TRENDYOL_API_SECRET=...
 ```
 
-Satıcı paneli → Hesap → Entegrasyon Bilgileri. User-Agent `{sellerId} - SelfIntegration`. Anahtar telefona yazılmaz; Expo sadece `sellerId` gönderir. `GET /health` → `trendyol.mode: live`. Stage (`stageapigw`) IP allowlist ister.
+HB / n11 / Shopify / Woo / Çiçeksepeti / ikas / Amazon: aynı dosyada ilgili env (`.env.example`). Pazarama, Ticimax, IdeaSoft path yok → `CHANNEL_UNAVAILABLE`, bağlı sayılmaz. Yazma kapalı.
+
+Satıcı paneli → Hesap → Entegrasyon Bilgileri. User-Agent `{sellerId} - SelfIntegration`. `GET /health` → `trendyol.mode` + `channels[]`. Stage (`stageapigw`) IP allowlist ister.
 
 F3: reserve, pack/scan, label PDF (yazdır ≠ kargo), stock, operations, `POST /v1/devices`.  
 F4/F5 stub: returns, team, reports (kâr yok), listing `mock: true`, billing `chargeable: false`.  

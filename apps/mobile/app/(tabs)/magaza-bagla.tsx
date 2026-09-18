@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,27 +12,35 @@ import { ConfigBanner } from '@/components/ui/ConfigBanner';
 import { TextField } from '@/components/ui/TextField';
 import { useAuth } from '@/context/AuthContext';
 import { useShops } from '@/context/ShopContext';
-import { ApiError } from '@/lib/apiClient';
+import type { Channel, ChannelCatalogRow } from '@/lib/api';
+import { ApiError, fetchChannels } from '@/lib/apiClient';
 import { shopStatusLabel } from '@/lib/mapCatalog';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
 export default function MagazaBaglaScreen() {
   const { orgName } = useAuth();
-  const { connectMock } = useShops();
+  const { connectChannel } = useShops();
   const [storeName, setStoreName] = useState(orgName ?? '');
   const [sellerId, setSellerId] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [apiSecret, setApiSecret] = useState('');
+  const [catalog, setCatalog] = useState<ChannelCatalogRow[]>([]);
+  const [channel, setChannel] = useState<Channel>('trendyol');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    void fetchChannels()
+      .then((page) => setCatalog(page.items))
+      .catch(() => setCatalog([]));
+  }, []);
+
+  const selected = catalog.find((c) => c.channel === channel);
+  const blocked = selected?.mode === 'blocked' || selected?.mode === 'unconfigured';
 
   const test = async () => {
     setBusy(true);
     setResult(null);
     try {
-      void apiKey;
-      void apiSecret;
-      const shop = await connectMock(sellerId);
+      const shop = await connectChannel(channel, sellerId);
       setResult(`${shopStatusLabel(shop.status, shop.statusLabel)}. Anahtar gönderilmedi.`);
     } catch (e) {
       setResult(e instanceof ApiError ? e.message : 'Bağlantı denendi sayılmaz.');
@@ -49,7 +57,7 @@ export default function MagazaBaglaScreen() {
         </Pressable>
         <BrandMark />
         <Text style={styles.headline}>Mağazanı bağla</Text>
-        <Text style={styles.lead}>Satış kanalını hesabına ekle.</Text>
+        <Text style={styles.lead}>Satış kanalını hesabına ekle. Anahtar telefonda durmaz.</Text>
         <View style={styles.steps}>
           <Text style={styles.stepMuted}>1 İşletme</Text>
           <Text style={styles.stepOn}>2 Mağaza</Text>
@@ -59,23 +67,35 @@ export default function MagazaBaglaScreen() {
       <PorcelainSheet>
         <ScrollView contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
           <Text style={styles.section}>Pazaryeri seç</Text>
-          <View style={styles.channelOn}>
-            <ChannelBadge />
-            <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-          </View>
-          <Text style={styles.hint}>
-            Trendyol anahtarları Nest `.env` (WSL) içinde. Telefona yazılan key/secret sunucuya gitmez. Hepsiburada canlı kanal değil.
-          </Text>
-          <Pressable style={styles.hbCard} onPress={() => router.push('/(tabs)/hepsiburada')}>
-            <View style={styles.hbMark}>
-              <Text style={styles.hbText}>hb</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.hbTitle}>Hepsiburada</Text>
-              <Text style={styles.hint}>Canlı değil. Bağlantı tamamlanmış sayılmaz.</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-          </Pressable>
+          {catalog.length === 0 ? (
+            <Text style={styles.hint}>Kanallar yüklenemedi. API /v1/channels açık olmalı.</Text>
+          ) : (
+            catalog.map((row) => {
+              const on = row.channel === channel;
+              return (
+                <Pressable
+                  key={row.channel}
+                  style={[styles.channelOn, on && styles.channelSelected]}
+                  onPress={() => {
+                    setChannel(row.channel);
+                    setResult(null);
+                  }}
+                >
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <ChannelBadge channel={row.channel} />
+                    <Text style={styles.hint}>
+                      {row.mode === 'live'
+                        ? 'Nest .env hazır · salt okuma'
+                        : row.mode === 'mock'
+                          ? 'Test okuma'
+                          : row.note}
+                    </Text>
+                  </View>
+                  {on ? <Ionicons name="checkmark-circle" size={22} color={colors.success} /> : null}
+                </Pressable>
+              );
+            })
+          )}
           <TextField
             label="Mağaza adı"
             placeholder="Ayşe Home"
@@ -84,26 +104,17 @@ export default function MagazaBaglaScreen() {
             autoCapitalize="words"
           />
           <TextField
-            label="Satıcı ID"
-            placeholder="Satıcı numarası"
+            label="Satıcı / mağaza etiketi"
+            placeholder="Gönderilir; anahtar değil"
             value={sellerId}
             onChangeText={setSellerId}
-            keyboardType="number-pad"
-          />
-          <TextField label="API Key" placeholder="Nest .env — gönderilmez" value={apiKey} onChangeText={setApiKey} />
-          <TextField
-            label="API Secret"
-            placeholder="••••••••"
-            value={apiSecret}
-            onChangeText={setApiSecret}
-            secureTextEntry
           />
           {result ? <ConfigBanner text={result} /> : null}
-          {result && !result.includes('sayılmaz') ? (
+          {result && !result.includes('sayılmaz') && !result.includes('yok') ? (
             <Button label="Ürünleri içeri al" variant="ghost" onPress={() => router.push('/(tabs)/icerik-al')} />
           ) : null}
           <Button
-            label="Bağlantıyı test et"
+            label={blocked ? 'Durumu dene (bağlı sayılmaz)' : 'Bağlantıyı test et'}
             icon="link-outline"
             trailing="arrow-forward"
             onPress={() => void test()}
@@ -138,27 +149,9 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: colors.sheetLine,
+    gap: 8,
   },
+  channelSelected: { borderColor: colors.success },
   hint: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, marginTop: -4 },
-  hbCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.white,
-    borderRadius: radii.card,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.sheetLine,
-  },
-  hbMark: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#E31E24',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hbText: { fontFamily: fonts.bold, fontSize: 11, color: colors.white },
-  hbTitle: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
   skip: { textAlign: 'center', fontFamily: fonts.medium, fontSize: 13, color: colors.muted, paddingVertical: 8 },
 });

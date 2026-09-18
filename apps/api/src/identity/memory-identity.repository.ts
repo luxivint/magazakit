@@ -12,6 +12,7 @@ import type {
   PurchaseOrderStub,
   ReturnListItem,
   ShopStatus,
+  ShopChannel,
   StockBalance,
   StockMovement,
   Supplier,
@@ -19,6 +20,7 @@ import type {
   WarehouseTransfer,
 } from '@magazakit/contracts';
 import { K01_NOTE } from '../config/trendyol-env';
+import { shopRecordId } from '../channels/registry';
 import type { MockListingSeed } from '../trendyol/mock-feed';
 import {
   emptyStock,
@@ -31,20 +33,21 @@ import {
 
 function mockShop(
   org: OrganizationSummary,
+  channel: ShopChannel,
   extra?: Partial<ShopStatus>,
 ): ShopStatus {
   const live = extra?.status === 'live_connected' || extra?.mock === false;
   return {
-    id: `shop_ty_${org.id}`,
+    id: shopRecordId(org.id, channel),
     organizationId: org.id,
-    channel: 'trendyol',
+    channel,
     status: extra?.status ?? (live ? 'live_connected' : 'mock_connected'),
-    statusLabel: extra?.statusLabel ?? (live ? 'Bağlı (Trendyol V2 okuma)' : 'Bağlı (mock — K01)'),
-    sellerLabel: extra?.sellerLabel ?? (live ? 'Trendyol' : 'Trendyol test mağazası (mock)'),
+    statusLabel: extra?.statusLabel ?? (live ? 'Bağlı (okuma)' : 'Bağlı (mock — K01)'),
+    sellerLabel: extra?.sellerLabel ?? channel,
     connectedAt: extra?.connectedAt ?? new Date().toISOString(),
     lastSyncAt: extra?.lastSyncAt ?? null,
     checkpoint: extra?.checkpoint ?? null,
-    k01: K01_NOTE,
+    k01: extra?.k01 ?? K01_NOTE,
     mock: extra?.mock ?? !live,
   };
 }
@@ -58,7 +61,7 @@ export class MemoryIdentityRepository implements IdentityRepository {
   private readonly orgsById = new Map<string, OrganizationSummary>();
   private readonly fcmByUid = new Map<string, string>();
   private readonly shopsById = new Map<string, ShopStatus>();
-  private readonly shopsByOrg = new Map<string, string>();
+  private readonly shopsByOrgChannel = new Map<string, string>();
   private readonly listings = new Map<string, StoredListing>();
   private readonly orders = new Map<string, OrderListItem>();
   private readonly mappings = new Map<string, ListingMapping>();
@@ -125,21 +128,30 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return this.fcmByUid.get(uid) ?? null;
   }
 
-  async upsertTrendyolMockShop(
+  async upsertShop(
     org: OrganizationSummary,
-    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>>,
+    channel: ShopChannel,
+    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'>>,
   ): Promise<ShopStatus> {
-    const existingId = this.shopsByOrg.get(org.id);
+    const mapKey = `${org.id}:${channel}`;
+    const existingId = this.shopsByOrgChannel.get(mapKey);
     const existing = existingId ? this.shopsById.get(existingId) : undefined;
-    const shop = mockShop(org, {
+    const shop = mockShop(org, channel, {
       connectedAt: existing?.connectedAt,
       lastSyncAt: existing?.lastSyncAt ?? null,
       checkpoint: existing?.checkpoint ?? null,
       ...overlay,
     });
     this.shopsById.set(shop.id, shop);
-    this.shopsByOrg.set(org.id, shop.id);
+    this.shopsByOrgChannel.set(mapKey, shop.id);
     return shop;
+  }
+
+  async upsertTrendyolMockShop(
+    org: OrganizationSummary,
+    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>>,
+  ): Promise<ShopStatus> {
+    return this.upsertShop(org, 'trendyol', overlay);
   }
 
   async listShopsForUid(uid: string): Promise<ShopStatus[]> {
@@ -147,9 +159,7 @@ export class MemoryIdentityRepository implements IdentityRepository {
     if (!org) {
       return [];
     }
-    const shopId = this.shopsByOrg.get(org.id);
-    const shop = shopId ? this.shopsById.get(shopId) : undefined;
-    return shop ? [shop] : [];
+    return [...this.shopsById.values()].filter((s) => s.organizationId === org.id);
   }
 
   async getShopById(shopId: string): Promise<ShopStatus | null> {

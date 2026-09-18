@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useAuth } from '@/context/AuthContext';
-import { ApiError, connectTrendyolShop, fetchShops, type ShopStatus } from '@/lib/apiClient';
+import { ApiError, connectShop, fetchShops, type ShopStatus } from '@/lib/apiClient';
+import type { Channel } from '@/lib/api';
 
 type ShopContextValue = {
   shops: ShopStatus[];
@@ -9,6 +10,7 @@ type ShopContextValue = {
   error: string | null;
   refresh: () => void;
   connectMock: (sellerId?: string) => Promise<ShopStatus>;
+  connectChannel: (channel: Channel, sellerId?: string) => Promise<ShopStatus>;
 };
 
 const ShopContext = createContext<ShopContextValue | null>(null);
@@ -51,8 +53,14 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       error,
       refresh: () => setTick((n) => n + 1),
       connectMock: async (sellerId) => {
-        const shop = await connectTrendyolShop(sellerId);
-        setShops([shop]);
+        const shop = await connectShop('trendyol', sellerId);
+        setShops((prev) => [...prev.filter((s) => s.id !== shop.id), shop]);
+        setError(null);
+        return shop;
+      },
+      connectChannel: async (channel, sellerId) => {
+        const shop = await connectShop(channel, sellerId);
+        setShops((prev) => [...prev.filter((s) => s.id !== shop.id), shop]);
         setError(null);
         return shop;
       },

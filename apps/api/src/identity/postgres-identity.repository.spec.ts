@@ -1,6 +1,5 @@
-import { IdentityStore } from './identity.store';
 import { PostgresIdentityRepository } from './postgres-identity.repository';
-import { MockTrendyolReadAdapter } from '../trendyol/mock-trendyol-read.adapter';
+import { testIdentityStore } from './test-identity-store';
 
 const DATABASE_CANDIDATES = [
   process.env.DATABASE_URL?.trim(),
@@ -29,7 +28,7 @@ describe('PostgresIdentityRepository durability', () => {
     }
 
     const uid = `uid-pg-${Date.now()}`;
-    const store = new IdentityStore(repo, new MockTrendyolReadAdapter());
+    const store = testIdentityStore(repo);
     const org = await store.createOrg(uid, 'PG Mağaza');
     await store.saveDevice(uid, 'fcm-durable-token');
     const shop = await store.connectTrendyolMock(uid);

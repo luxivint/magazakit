@@ -13,6 +13,7 @@ import type {
   PurchaseOrderStub,
   ReturnListItem,
   ShopStatus,
+  ShopChannel,
   StockBalance,
   StockMovement,
   Supplier,
@@ -46,6 +47,11 @@ export interface IdentityRepository {
   createOrg(uid: string, name: string): Promise<OrganizationSummary>;
   saveDevice(uid: string, fcmToken: string): Promise<void>;
   getDeviceToken(uid: string): Promise<string | null>;
+  upsertShop(
+    org: OrganizationSummary,
+    channel: ShopChannel,
+    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'>>,
+  ): Promise<ShopStatus>;
   upsertTrendyolMockShop(
     org: OrganizationSummary,
     overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>>,
