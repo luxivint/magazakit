@@ -61,6 +61,50 @@ export default function HesapScreen() {
             <Text style={styles.rowValue}>defter</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.muted} />
           </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/iadeler')}>
+            <Ionicons name="return-down-back-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>İadeler</Text>
+            <Text style={styles.rowValue}>incele</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/ekip')}>
+            <Ionicons name="people-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Ekip</Text>
+            <Text style={styles.rowValue}>davet</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/raporlar')}>
+            <Ionicons name="bar-chart-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Raporlar</Text>
+            <Text style={styles.rowValue}>adet / fark</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/yayin')}>
+            <Ionicons name="cloud-upload-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Katalog yayın</Text>
+            <Text style={styles.rowValue}>sihirbaz</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+
+          <Text style={styles.section}>Hesap</Text>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/abonelik')}>
+            <Ionicons name="card-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Abonelik</Text>
+            <Text style={styles.rowValue}>ödeme yok</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/iki-faktor')}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>İki adımlı doğrulama</Text>
+            <Text style={styles.rowValue}>isteğe bağlı</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/yardim')}>
+            <Ionicons name="help-circle-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Yardım</Text>
+            <Text style={styles.rowValue}>WhatsApp</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
 
           <Text style={styles.section}>Oturum</Text>
           <Text style={styles.rowHint}>

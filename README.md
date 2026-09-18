@@ -37,6 +37,12 @@ F3 (`sellable = physical − reserved`; eşlenmemiş rezerve/kargo yok; yazdır 
 - `POST /v1/devices` `{ fcmToken }` — bildirim izni sonrası, mümkünse
 - `GET /v1/operations`
 
+F4/F5 (menüde açık; Nest uçları yoksa boş/hata, uydurma kâr yok):
+
+- İadeler, ekip/davet, raporlar (sipariş adedi + stok farkı), katalog yayın sihirbazı
+- Abonelik 499 / 999 / 1999 — «Yakında · ödeme yok»
+- 2FA isteğe bağlı; yardım WhatsApp / e-posta (ticket yok)
+
 ## Ekranlar
 
 Özet, siparişler, ürünler, Hazırla, Stok, İşlem merkezi. HB, fatura, ekip yok.

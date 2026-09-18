@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
@@ -100,8 +100,25 @@ export default function OzetScreen() {
             <View style={styles.ops}>
               <OpStat value={toPrepare} label="Hazırlanacak" tone="warn" />
               <OpStat value={inTransit} label="Kargoda" tone="idle" />
-              <OpStat value={returns} label="İade" tone="idle" />
+              <Pressable style={{ flex: 1 }} onPress={() => router.push('/(tabs)/iadeler')}>
+                <OpStat value={returns} label="İade" tone="idle" />
+              </Pressable>
             </View>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>İşletme</Text>
+            </View>
+            <Pressable style={styles.linkRow} onPress={() => router.push('/(tabs)/raporlar')}>
+              <Text style={styles.linkLabel}>Raporlar</Text>
+              <Text style={styles.linkMeta}>sipariş / stok farkı</Text>
+            </Pressable>
+            <Pressable style={styles.linkRow} onPress={() => router.push('/(tabs)/ekip')}>
+              <Text style={styles.linkLabel}>Ekip</Text>
+              <Text style={styles.linkMeta}>davet</Text>
+            </Pressable>
+            <Pressable style={styles.linkRow} onPress={() => router.push('/(tabs)/abonelik')}>
+              <Text style={styles.linkLabel}>Abonelik</Text>
+              <Text style={styles.linkMeta}>ödeme yok</Text>
+            </Pressable>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>Son siparişler</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
@@ -179,4 +196,16 @@ const styles = StyleSheet.create({
   ops: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 },
   op: { flex: 1, gap: 6 },
   opValue: { fontFamily: fonts.bold, fontSize: 28, color: colors.ink, letterSpacing: -0.6 },
+  linkRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.sheetLine,
+  },
+  linkLabel: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  linkMeta: { fontFamily: fonts.medium, fontSize: 12, color: colors.muted },
 });

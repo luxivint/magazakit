@@ -156,3 +156,29 @@ export type OperationItem = {
   refId?: string | null;
   createdAt: string;
 };
+
+export type ReturnItem = {
+  id: string;
+  orderNumber?: string;
+  customerName?: string;
+  status?: string;
+  statusLabel?: string;
+  reason?: string | null;
+  createdAt?: string;
+};
+
+export type TeamMember = {
+  id: string;
+  email: string;
+  name?: string;
+  role?: string;
+  status?: string;
+};
+
+export type BillingPlan = {
+  id: string;
+  name: string;
+  priceTry: number;
+  period?: string;
+  blurb?: string;
+};

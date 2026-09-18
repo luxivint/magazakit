@@ -33,6 +33,13 @@ export default function TabLayout() {
         <Tabs.Screen name="esleme" options={{ href: null, title: 'Eşleştirme' }} />
         <Tabs.Screen name="stok" options={{ href: null, title: 'Stok' }} />
         <Tabs.Screen name="islem" options={{ href: null, title: 'İşlem merkezi' }} />
+        <Tabs.Screen name="iadeler" options={{ href: null, title: 'İadeler' }} />
+        <Tabs.Screen name="ekip" options={{ href: null, title: 'Ekip' }} />
+        <Tabs.Screen name="raporlar" options={{ href: null, title: 'Raporlar' }} />
+        <Tabs.Screen name="yayin" options={{ href: null, title: 'Katalog yayın' }} />
+        <Tabs.Screen name="abonelik" options={{ href: null, title: 'Abonelik' }} />
+        <Tabs.Screen name="yardim" options={{ href: null, title: 'Yardım' }} />
+        <Tabs.Screen name="iki-faktor" options={{ href: null, title: 'İki adımlı doğrulama' }} />
       </Tabs>
     </>
   );

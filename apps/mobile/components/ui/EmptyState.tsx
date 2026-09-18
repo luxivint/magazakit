@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -61,7 +62,7 @@ export function ErrorState({
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{body}</Text>
       <Button label="Yeniden dene" onPress={onRetry} icon="refresh" />
-      <Button label="Destek al" variant="ghost" onPress={() => undefined} />
+      <Button label="Destek al" variant="ghost" onPress={() => router.push('/(tabs)/yardim')} />
     </View>
   );
 }
