@@ -15,9 +15,15 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "REPLACE_WITH_CLI"
+          "current_key": "AIzaSyCmu6sO_LFzDsX_GKzS9f3kXIWF8SPTyik"
         }
-      ]
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
-  ]
+  ],
+  "configuration_version": "1"
 }

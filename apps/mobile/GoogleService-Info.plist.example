@@ -1,15 +1,16 @@
-<!-- Copy to GoogleService-Info.plist for EAS iOS. FCM later. Do not commit the real file. -->
-<plist>
-  <dict>
-    <key>BUNDLE_ID</key>
-    <string>com.luxivint.magazam</string>
-    <key>PROJECT_ID</key>
-    <string>magazam-app</string>
-    <key>GCM_SENDER_ID</key>
-    <string>978990997665</string>
-    <key>GOOGLE_APP_ID</key>
-    <string>1:978990997665:ios:72116d978e2e238bded0e0</string>
-    <key>STORAGE_BUCKET</key>
-    <string>magazam-app.firebasestorage.app</string>
-  </dict>
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BUNDLE_ID</key>
+	<string>com.luxivint.magazam</string>
+	<key>PROJECT_ID</key>
+	<string>magazam-app</string>
+	<key>GCM_SENDER_ID</key>
+	<string>978990997665</string>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:978990997665:ios:72116d978e2e238bded0e0</string>
+	<key>STORAGE_BUCKET</key>
+	<string>magazam-app.firebasestorage.app</string>
+</dict>
 </plist>

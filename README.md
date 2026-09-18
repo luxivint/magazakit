@@ -1,58 +1,87 @@
 # Mağazam
 
-Trendyol satıcısı için stok, sipariş ve paketleme. **Expo / React Native** (`apps/mobile`). Next.js yok.
+Trendyol satıcısı için stok, sipariş ve paketleme. **Expo / React Native** (`apps/mobile`). Next.js yok. Trendyol canlı değil (K01 mock).
 
-Kimlik: **Firebase Auth** (`magazam-app`). Nest’e `Authorization: Bearer <Firebase ID token>`.
+Kimlik: **Firebase Auth** (`magazam-app`). Nest’e `Authorization: Bearer <Firebase ID token>`. Bundle: `com.luxivint.magazam`.
 
-## Çalıştırma
+## Atakan — Windows / WSL
+
+API ve Metro’yu **WSL** içinde çalıştır. EAS Android paketini Windows’tan veya WSL’den `npx eas-cli` ile üret. Yerel iOS Simulator yok; iOS EAS bulutta.
+
+### 1. Nest (PR 2)
+
+Ayrı API checkout / aynı monorepo `apps/api` hangisi duruyorsa:
+
+```bash
+export PORT=43140
+export FIREBASE_PROJECT_ID=magazam-app
+export TRENDYOL_USE_MOCK=true
+# pnpm --filter @magazakit/api start:dev
+```
+
+`GET http://127.0.0.1:43140/health` 200 olmalı. Kapalı API’de işlem tamamlanmış sayılmaz.
+
+### 2. Expo (bu repo)
 
 ```bash
 cd apps/mobile
+cp .env.example .env
 npm install
 npx expo start --web --port 43131
 ```
 
-`EXPO_PUBLIC_API_URL` — web/emülatör `http://127.0.0.1:43140`; fiziksel cihaz için Nest’in LAN IP’si. Nest kapalıysa işlem tamamlanmış sayılmaz.
+`.env` içinde `EXPO_PUBLIC_API_URL=http://127.0.0.1:43140` WSL tarayıcı / emülatör için yeterli.
 
-## Nest (PR 2)
+**Fiziksel telefon (Expo Go veya development build):** telefonda `127.0.0.1` WSL Nest’e gitmez. Oturumda API adresini, telefonun gördüğü Windows/WSL host olarak ver (`ipconfig` / `hostname -I`). Bu adresi `.env`’e yazıp commit etme.
 
-- `GET /v1/me`
-- `POST /v1/organizations` `{ name }`
-- `GET /v1/organizations/current`
-- `GET /v1/shops`
-- `POST /v1/shops/trendyol/connect` — K01 mock; apiKey/apiSecret gönderilmez
-- `POST /v1/shops/:id/sync` — mock pull, idempotent; katalog senkten önce boş
-- `GET /v1/products` · `GET /v1/orders` — org kapsamı, Bearer
-- `POST /v1/mappings` `{ listingId, sku }` · `GET /v1/mappings`
+### 3. Expo Go sınırları
 
-Eşleşmeyince `mapped: false`, `sellableStock: 0`. `marketplaceStock` fiziksel sayılmaz.
+Expo Go’da özel `google-services.json` / FCM native kanalı ve bu projenin kamera native eklentisi yok. Giriş (e-posta) ve web/Metro akışı çalışır; barkod kamerası ve gerçek FCM token **EAS development build** ister.
 
-F3 (`sellable = physical − reserved`; eşlenmemiş rezerve/kargo yok; yazdır ≠ kargo; çift rezerve 409):
+Hazırla ekranı SKU/barkod yazarak da paketler.
 
-- `POST /v1/orders/:id/reserve` `{ idempotencyKey }`
-- `POST /v1/orders/:id/pack/scan` `{ sku | barcode }`
-- `POST /v1/orders/:id/label` · `GET /v1/orders/:id/label.pdf` — yazdırma `POST /ship` çağırmaz
-- `POST /v1/stock/adjust` `{ sku, deltaPhysical, reason, idempotencyKey }`
-- `GET /v1/stock/movements` · `GET /v1/stock/:sku`
-- `POST /v1/devices` `{ fcmToken }` — bildirim izni sonrası, mümkünse
-- `GET /v1/operations`
+### 4. EAS development build (Windows)
 
-F4/F5 (Bearer; kâr uydurulmaz; ödeme yok):
+İlk kez Expo hesabı:
 
-- `GET /v1/returns` · `PATCH /v1/returns/:id/review` `{ decision, note? }`
-- `GET /v1/team` · `GET /v1/team/members` · `POST /v1/team/invites` `{ email }`
-- `GET /v1/reports/summary`
-- `GET/POST /v1/listings/:id/draft` · `POST /v1/listings/:id/publish` `{ mock: true }`
-- `GET /v1/billing/offering` — 499/999/1999, `chargeable: false`
+```bash
+cd apps/mobile
+npx eas-cli@latest login
+npx eas-cli@latest init
+```
 
-F6 (Bearer; GİB canlı değil; yazıcı mock):
+`eas init` `extra.eas.projectId` yazar; uydurma UUID koyma.
 
-- `GET/POST /v1/suppliers` `{ name, note? }` · `GET/PATCH /v1/suppliers/:id`
-- `GET/POST /v1/purchase-orders` `{ supplierId, sku?, qty? }` — taslak, stok artmaz
-- `GET /v1/warehouses` · `POST /v1/warehouses/transfers` `{ sku, qty }`
-- `GET/POST /v1/einvoices` — `gibLive: false`
-- `GET/PUT /v1/printer` · `POST /v1/printer/test-print` — `printed: false`, mock
+Android APK (Play SHA’sı henüz yok — uydurma):
 
-## Ekranlar
+```bash
+cd apps/mobile
+npx eas-cli@latest build --profile development --platform android
+```
 
-Özet, siparişler, ürünler, Hazırla, Stok, İşlem merkezi, İadeler, Ekip, Raporlar, Katalog yayın, Abonelik, Alışlar, Depo, E-fatura, Termal, Hepsiburada stub. HB canlı kanal değil; kâr, ödeme, GİB ve WMS yok.
+Kurulumdan sonra `npx expo start --dev-client`. Kameraya izin iste; FCM `POST /v1/devices { fcmToken }` native token gelince gider.
+
+iOS: `npx eas-cli@latest build --profile development --platform ios` (EAS bulut; Windows’ta Simulator yok).
+
+### 5. Firebase native dosyalar
+
+Repo’daki `google-services.json` ve `GoogleService-Info.plist` **açık web SDK** alanları + paket adı. SHA-1/256 **yok** (uydurulmaz).
+
+CLI ile yenile (login gerekir):
+
+```bash
+cd apps/mobile
+bash ./scripts/fetch-firebase-sdk.sh
+```
+
+İlk Android build’den sonra EAS → Credentials → Android keystore SHA-1/256’yı Firebase Android uygulamasına ekle. Debug SHA icat etme.
+
+## Nest uçları (Bearer)
+
+F0–F2: `/v1/me`, org, shops (Trendyol mock), sync, mappings, products, orders.
+
+F3: reserve, pack/scan, label PDF (yazdır ≠ kargo), stock adjust/movements, operations, devices.
+
+F4/F5: returns, team, reports/summary (kâr yok), listing draft/publish `mock: true`, billing/offering `chargeable: false`.
+
+F6: suppliers, purchase-orders, warehouses/transfers, einvoices (`gibLive: false`), printer test-print mock.

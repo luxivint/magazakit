@@ -8,8 +8,10 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.24",
     "expo-auth-session": "~57.0.12",
+    "expo-camera": "~57.0.5",
     "expo-constants": "~57.0.19",
     "expo-crypto": "~57.0.3",
+    "expo-dev-client": "~57.0.19",
     "expo-device": "~57.0.2",
     "expo-font": "~57.0.4",
     "expo-linking": "~57.0.10",
@@ -37,9 +39,12 @@
   },
   "scripts": {
     "start": "expo start",
+    "start:web": "expo start --web --port 43131",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web --port 43131",
+    "eas:android:dev": "npx eas-cli@latest build --profile development --platform android",
+    "firebase:sdkconfig": "bash ./scripts/fetch-firebase-sdk.sh"
   },
   "private": true
 }

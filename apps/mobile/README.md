@@ -1,9 +1,21 @@
-# Mağazam mobil
+# Mağazam mobil (`apps/mobile`)
+
+Bundle `com.luxivint.magazam`. Firebase proje `magazam-app`. Nest Bearer.
 
 ```bash
+cp .env.example .env
+npm install
 npx expo start --web --port 43131
 ```
 
-`EXPO_PUBLIC_API_URL=http://127.0.0.1:43140` (cihazda LAN IP). Bearer: Firebase ID token.
+`EXPO_PUBLIC_API_URL` varsayılan `http://127.0.0.1:43140`. LAN IP commit etme.
 
-F4/F5: İadeler, Ekip, Raporlar, Katalog yayın, Abonelik (ödeme yok), 2FA, Yardım. Nest uçları varsa Bearer; yoksa boş/hata.
+Expo Go: kamera eklentisi ve native FCM yok. EAS:
+
+```bash
+npx eas-cli@latest login
+npx eas-cli@latest init
+npx eas-cli@latest build --profile development --platform android
+```
+
+Native config yenileme: `npm run firebase:sdkconfig` (`npx firebase-tools login` gerekir). SHA uydurma.

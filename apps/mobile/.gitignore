@@ -33,8 +33,9 @@ yarn-error.*
 # local env files
 .env
 .env*.local
-google-services.json
-GoogleService-Info.plist
+# CLI-refreshed copies may contain extra OAuth clients; examples stay in git.
+# google-services.json and GoogleService-Info.plist in this repo are public SDK
+# config only (no SHA fingerprints).
 
 
 # typescript

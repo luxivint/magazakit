@@ -9,7 +9,12 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.luxivint.magazam"
+      "bundleIdentifier": "com.luxivint.magazam",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Sipariş hazırlarken barkod okumak için kamera gerekir.",
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +24,9 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.luxivint.magazam"
+      "package": "com.luxivint.magazam",
+      "googleServicesFile": "./google-services.json",
+      "permissions": ["CAMERA", "POST_NOTIFICATIONS"]
     },
     "web": {
       "bundler": "metro",
@@ -28,6 +35,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       [
         "expo-splash-screen",
         {
@@ -36,10 +44,28 @@
           "backgroundColor": "#191C1D"
         }
       ],
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#191C1D",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Sipariş hazırlarken barkod okumak için kamera gerekir.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "firebaseProjectId": "magazam-app"
     }
   }
 }
