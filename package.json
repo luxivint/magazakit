@@ -1,0 +1,10 @@
+{
+  "name": "magazam",
+  "private": true,
+  "scripts": {
+    "start": "npm start --prefix apps/mobile",
+    "web": "npm run web --prefix apps/mobile",
+    "android": "npm run android --prefix apps/mobile",
+    "ios": "npm run ios --prefix apps/mobile"
+  }
+}
