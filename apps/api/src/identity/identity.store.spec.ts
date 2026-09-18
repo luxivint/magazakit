@@ -200,3 +200,46 @@ describe('IdentityStore F3 fulfillment', () => {
     expect(ops.items.some((e) => e.type === 'ship')).toBe(true);
   });
 });
+
+describe('IdentityStore F4 stubs', () => {
+  it('reviews returns without TY write; team invite stub; report has no profit', async () => {
+    const s = new IdentityStore(new MemoryIdentityRepository(), new MockTrendyolReadAdapter());
+    await s.createOrg('uid-a', 'Mağazam');
+    const shop = await s.connectTrendyolMock('uid-a');
+    await s.syncShop('uid-a', shop.id);
+
+    const listed = await s.listReturns('uid-a');
+    expect(listed.tyWrite).toBe(false);
+    expect(listed.items[0].id).toBe('ty-r-9001');
+    const reviewed = await s.reviewReturn('uid-a', 'ty-r-9001', { decision: 'approve', note: 'stub' });
+    expect(reviewed.status).toBe('approved');
+    expect(reviewed.tyWrite).toBe(false);
+
+    const team = await s.listTeam('uid-a');
+    expect(team.members.some((m) => m.role === 'owner')).toBe(true);
+    const invite = await s.inviteMember('uid-a', 'staff@example.com');
+    expect(invite.emailSent).toBe(false);
+    const again = await s.inviteMember('uid-a', 'staff@example.com');
+    expect(again.id).toBe(invite.id);
+
+    await s.adjustStock('uid-a', {
+      sku: 'MASTER-TSHIRT',
+      deltaPhysical: 4,
+      idempotencyKey: 'rep-1',
+    });
+    const report = await s.opsReport('uid-a');
+    expect(report.orderCounts.total).toBeGreaterThan(0);
+    expect(report.stockDeltaPhysical).toBe(4);
+    expect(report).not.toHaveProperty('profit');
+    expect(report).not.toHaveProperty('estimatedEarnings');
+
+    const draft = await s.saveListingDraft('uid-a', 'ty-p-1001', { title: 'Taslak tişört' });
+    expect(draft.state).toBe('draft');
+    expect(draft.liveTyWrite).toBe(false);
+    const unpublished = await s.publishListing('uid-a', 'ty-p-1001', false);
+    expect(unpublished.state).toBe('draft');
+    const mockLive = await s.publishListing('uid-a', 'ty-p-1001', true);
+    expect(mockLive.state).toBe('mock_live');
+    expect(mockLive.liveTyWrite).toBe(false);
+  });
+});

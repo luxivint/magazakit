@@ -302,4 +302,58 @@ describe('authenticated mock Firebase (e2e)', () => {
     const movements = await request(app.getHttpServer()).get('/v1/stock/movements').set(auth).expect(200);
     expect(movements.body.items.some((m: { reason: string }) => m.reason === 'ship')).toBe(true);
   });
+
+  it('F4 returns/team/reports/draft and F5 offering without charging', async () => {
+    const auth = { Authorization: 'Bearer test' };
+    await request(app.getHttpServer()).post('/v1/organizations').set(auth).send({ name: 'F4' }).expect(201);
+    const shop = await request(app.getHttpServer())
+      .post('/v1/shops/trendyol/connect')
+      .set(auth)
+      .send({})
+      .expect(201);
+    await request(app.getHttpServer()).post(`/v1/shops/${shop.body.id}/sync`).set(auth).expect(201);
+
+    const returns = await request(app.getHttpServer()).get('/v1/returns').set(auth).expect(200);
+    expect(returns.body.tyWrite).toBe(false);
+    expect(returns.body.items[0].id).toBe('ty-r-9001');
+    const reviewed = await request(app.getHttpServer())
+      .patch('/v1/returns/ty-r-9001/review')
+      .set(auth)
+      .send({ decision: 'reject', note: 'stub' })
+      .expect(200);
+    expect(reviewed.body.tyWrite).toBe(false);
+    expect(reviewed.body.status).toBe('rejected');
+
+    const invite = await request(app.getHttpServer())
+      .post('/v1/team/invites')
+      .set(auth)
+      .send({ email: 'a@b.co' })
+      .expect(201);
+    expect(invite.body.emailSent).toBe(false);
+    const team = await request(app.getHttpServer()).get('/v1/team/members').set(auth).expect(200);
+    expect(team.body.members.length).toBeGreaterThan(0);
+
+    const report = await request(app.getHttpServer()).get('/v1/reports/summary').set(auth).expect(200);
+    expect(report.body.orderCounts.total).toBeGreaterThan(0);
+    expect(report.body.profit).toBeUndefined();
+
+    const draft = await request(app.getHttpServer())
+      .post('/v1/listings/ty-p-1001/draft')
+      .set(auth)
+      .send({ title: 'Draft' })
+      .expect(201);
+    expect(draft.body.liveTyWrite).toBe(false);
+    const live = await request(app.getHttpServer())
+      .post('/v1/listings/ty-p-1001/publish')
+      .set(auth)
+      .send({ mock: true })
+      .expect(201);
+    expect(live.body.state).toBe('mock_live');
+    expect(live.body.liveTyWrite).toBe(false);
+
+    const offering = await request(app.getHttpServer()).get('/v1/billing/offering').set(auth).expect(200);
+    expect(offering.body.chargeable).toBe(false);
+    expect(offering.body.processor).toBeNull();
+    expect(offering.body.items.map((p: { priceTry: number }) => p.priceTry)).toEqual([499, 999, 1999]);
+  });
 });

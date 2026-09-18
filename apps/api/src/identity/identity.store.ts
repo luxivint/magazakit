@@ -17,6 +17,11 @@ import {
   type ShopSyncResult,
   type StockBalance,
   type StockMovement,
+  type ListingDraft,
+  type OpsReport,
+  type OrgInvite,
+  type OrgMember,
+  type ReturnListItem,
 } from '@magazakit/contracts';
 import type { IdentityRepository, PersistenceBackend } from './identity.repository';
 import { sellableOf, toProductListItem } from './identity.repository';
@@ -132,6 +137,7 @@ export class IdentityStore {
     const feed = await this.trendyol.pullFeed();
     const productsUpserted = await this.repo.upsertListings(org.id, shop.id, feed.listings);
     const ordersUpserted = await this.repo.upsertOrders(org.id, feed.orders);
+    await this.repo.upsertReturns(org.id, feed.returns ?? []);
     const lastSyncAt = new Date().toISOString();
     const checkpoint = `mock:${feed.listings.length}:${feed.orders.length}:${lastSyncAt}`;
     await this.repo.markShopSynced(shop.id, checkpoint, lastSyncAt);
@@ -597,5 +603,182 @@ export class IdentityStore {
       refId,
       createdAt: nowIso(),
     });
+  }
+
+  async listReturns(uid: string): Promise<{ items: ReturnListItem[]; tyWrite: false }> {
+    const org = await this.requireOrg(uid);
+    const items = await this.repo.listReturns(org.id);
+    return { items, tyWrite: false };
+  }
+
+  async reviewReturn(
+    uid: string,
+    returnId: string,
+    body: { decision?: string; note?: string },
+  ): Promise<ReturnListItem> {
+    const org = await this.requireOrg(uid);
+    const item = await this.repo.getReturn(org.id, returnId);
+    if (!item) {
+      boom(ErrorCodes.NOT_FOUND, 'İade bulunamadı. Önce senkron.', HttpStatus.NOT_FOUND);
+    }
+    const decision = body.decision?.trim();
+    if (decision !== 'approve' && decision !== 'reject') {
+      boom(ErrorCodes.VALIDATION, 'decision approve veya reject olmalı.', HttpStatus.BAD_REQUEST);
+    }
+    const reviewed: ReturnListItem = {
+      ...item,
+      status: decision === 'approve' ? 'approved' : 'rejected',
+      statusLabel: decision === 'approve' ? 'Onaylandı (stub)' : 'Reddedildi (stub)',
+      reviewNote: body.note?.trim() || item.reviewNote,
+      tyWrite: false,
+    };
+    await this.repo.saveReturn(reviewed);
+    await this.op(org.id, 'return_review', `İade inceleme stub ${reviewed.id}`, 'ok', reviewed.id);
+    return reviewed;
+  }
+
+  async listTeam(uid: string): Promise<{ members: OrgMember[]; invites: OrgInvite[] }> {
+    const org = await this.requireOrg(uid);
+    let members = await this.repo.listMembers(org.id);
+    if (!members.some((m) => m.role === 'owner')) {
+      members = [
+        {
+          organizationId: org.id,
+          uid: org.ownerUid,
+          email: '',
+          role: 'owner',
+          status: 'active',
+        },
+        ...members,
+      ];
+    }
+    const invites = await this.repo.listInvites(org.id);
+    return { members, invites };
+  }
+
+  async inviteMember(uid: string, emailRaw: string): Promise<OrgInvite> {
+    const org = await this.requireOrg(uid);
+    const email = emailRaw.trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      boom(ErrorCodes.VALIDATION, 'Geçerli e-posta gerekli.', HttpStatus.BAD_REQUEST);
+    }
+    const existing = await this.repo.findInviteByEmail(org.id, email);
+    if (existing) {
+      return existing;
+    }
+    const invite: OrgInvite = {
+      id: newId('inv'),
+      organizationId: org.id,
+      email,
+      role: 'staff',
+      status: 'pending',
+      emailSent: false,
+      createdAt: nowIso(),
+    };
+    await this.repo.saveInvite(invite);
+    await this.op(org.id, 'team_invite', `Davet kaydı ${email} (e-posta gönderilmedi)`, 'ok', invite.id);
+    return invite;
+  }
+
+  async opsReport(uid: string): Promise<OpsReport> {
+    const org = await this.requireOrg(uid);
+    const orders = await this.repo.listOrgOrders(org.id);
+    const movements = await this.repo.listMovements(org.id);
+    const count = (status: string) => orders.filter((o) => o.status === status).length;
+    return {
+      organizationId: org.id,
+      orderCounts: {
+        total: orders.length,
+        created: count('created'),
+        picking: count('picking'),
+        shipped: count('shipped'),
+        delivered: count('delivered'),
+        cancelled: count('cancelled'),
+      },
+      stockDeltaPhysical: movements.reduce((sum, m) => sum + m.deltaPhysical, 0),
+      note: 'Kâr hesaplanmaz; maliyet ve komisyon yok.',
+    };
+  }
+
+  async saveListingDraft(
+    uid: string,
+    listingId: string,
+    body: { title?: string; priceTry?: number },
+  ): Promise<ListingDraft> {
+    const org = await this.requireOrg(uid);
+    const listing = await this.repo.getListing(org.id, listingId);
+    if (!listing) {
+      boom(ErrorCodes.NOT_FOUND, 'İlan yok. Önce POST /v1/shops/:id/sync.', HttpStatus.NOT_FOUND);
+    }
+    const prev = await this.repo.getListingDraft(org.id, listingId);
+    const draft: ListingDraft = {
+      listingId,
+      organizationId: org.id,
+      state: prev?.state === 'mock_live' ? 'mock_live' : 'draft',
+      title: body.title?.trim() || prev?.title || listing.title,
+      priceTry: Number.isFinite(body.priceTry) ? Number(body.priceTry) : (prev?.priceTry ?? listing.priceTry),
+      mock: prev?.mock ?? true,
+      liveTyWrite: false,
+      updatedAt: nowIso(),
+    };
+    return this.repo.saveListingDraft(draft);
+  }
+
+  async publishListing(uid: string, listingId: string, mockFlag: boolean): Promise<ListingDraft> {
+    const org = await this.requireOrg(uid);
+    const listing = await this.repo.getListing(org.id, listingId);
+    if (!listing) {
+      boom(ErrorCodes.NOT_FOUND, 'İlan yok. Önce senkron.', HttpStatus.NOT_FOUND);
+    }
+    const prev =
+      (await this.repo.getListingDraft(org.id, listingId)) ??
+      ({
+        listingId,
+        organizationId: org.id,
+        state: 'draft' as const,
+        title: listing.title,
+        priceTry: listing.priceTry,
+        mock: true,
+        liveTyWrite: false as const,
+        updatedAt: nowIso(),
+      } satisfies ListingDraft);
+    const next: ListingDraft = {
+      ...prev,
+      state: mockFlag ? 'mock_live' : 'draft',
+      mock: mockFlag,
+      liveTyWrite: false,
+      updatedAt: nowIso(),
+    };
+    const saved = await this.repo.saveListingDraft(next);
+    await this.op(
+      org.id,
+      'listing_publish',
+      mockFlag ? `Mock yayın ${listingId} (canlı TY yazılmadı)` : `Taslak kaldı ${listingId} (canlı TY yok)`,
+      'ok',
+      listingId,
+    );
+    return saved;
+  }
+
+  async getListingDraft(uid: string, listingId: string): Promise<ListingDraft> {
+    const org = await this.requireOrg(uid);
+    const existing = await this.repo.getListingDraft(org.id, listingId);
+    if (existing) {
+      return existing;
+    }
+    const listing = await this.repo.getListing(org.id, listingId);
+    if (!listing) {
+      boom(ErrorCodes.NOT_FOUND, 'İlan yok.', HttpStatus.NOT_FOUND);
+    }
+    return {
+      listingId,
+      organizationId: org.id,
+      state: 'draft',
+      title: listing.title,
+      priceTry: listing.priceTry,
+      mock: true,
+      liveTyWrite: false,
+      updatedAt: listing.id ? nowIso() : nowIso(),
+    };
   }
 }

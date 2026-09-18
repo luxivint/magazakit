@@ -1,10 +1,14 @@
 import type {
+  ListingDraft,
   ListingMapping,
   OperationEvent,
   OrderListItem,
+  OrgInvite,
+  OrgMember,
   OrganizationSummary,
   OutboxEntry,
   ProductListItem,
+  ReturnListItem,
   ShopStatus,
   StockBalance,
   StockMovement,
@@ -58,6 +62,17 @@ export interface IdentityRepository {
   listOutbox(orgId: string): Promise<OutboxEntry[]>;
   appendOperation(event: OperationEvent): Promise<OperationEvent>;
   listOperations(orgId: string): Promise<OperationEvent[]>;
+  upsertReturns(orgId: string, returns: Omit<ReturnListItem, 'organizationId'>[]): Promise<number>;
+  listReturns(orgId: string): Promise<ReturnListItem[]>;
+  getReturn(orgId: string, returnId: string): Promise<ReturnListItem | null>;
+  saveReturn(item: ReturnListItem): Promise<ReturnListItem>;
+  listMembers(orgId: string): Promise<OrgMember[]>;
+  upsertMember(member: OrgMember): Promise<OrgMember>;
+  listInvites(orgId: string): Promise<OrgInvite[]>;
+  findInviteByEmail(orgId: string, email: string): Promise<OrgInvite | null>;
+  saveInvite(invite: OrgInvite): Promise<OrgInvite>;
+  getListingDraft(orgId: string, listingId: string): Promise<ListingDraft | null>;
+  saveListingDraft(draft: ListingDraft): Promise<ListingDraft>;
 }
 
 export function toProductListItem(
@@ -122,5 +137,28 @@ export function withOrderDefaults(
     cargoDeadlineAt: incoming.cargoDeadlineAt,
     cargoWarning: incoming.cargoWarning,
     orderNumber: incoming.orderNumber,
+  };
+}
+
+export function withReturnDefaults(
+  orgId: string,
+  incoming: Omit<ReturnListItem, 'organizationId'> | ReturnListItem,
+  existing?: ReturnListItem,
+): ReturnListItem {
+  if (!existing) {
+    return {
+      ...incoming,
+      organizationId: orgId,
+      tyWrite: false,
+      reviewNote: incoming.reviewNote ?? null,
+    };
+  }
+  return {
+    ...existing,
+    orderId: incoming.orderId,
+    orderNumber: incoming.orderNumber,
+    reason: incoming.reason,
+    channel: 'trendyol',
+    tyWrite: false,
   };
 }

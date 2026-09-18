@@ -1,6 +1,6 @@
 # Mağazam API
 
-NestJS for Expo. Firebase project **magazam-app**. No homemade login. No mobile/web UI in this PR (Expo screens stay in the app repo). HB, billing, and reports are F4 — not this slice.
+NestJS for Expo. Firebase project **magazam-app**. No homemade login. No mobile/web UI in this PR. F6 (WMS / extra marketplaces) is not in this slice. Billing has **offerings only** — no processor, no card tokens.
 
 ## Expo how to call
 
@@ -31,6 +31,11 @@ Device: LAN IP, not 127.0.0.1. CORS allows Expo localhost / LAN / `*.expo.dev`.
 | Label (E-60) | `POST /v1/orders/:id/label` → mock `pdfUrl`; print **does not** ship |
 | Ship | `POST /v1/orders/:id/ship` — separate from label |
 | Ops feed (E-09) | `GET /v1/operations` |
+| Returns (E-19 stub) | `GET /v1/returns` · `PATCH /v1/returns/:id/review` `{ decision: approve\|reject }` — **no live TY return write** |
+| Team (E-43 stub) | `GET /v1/team/members` · `POST /v1/team/invites` `{ email }` — e-posta gönderilmez |
+| Reports | `GET /v1/reports/summary` — sipariş adetleri + stok `deltaPhysical`; **kâr yok** |
+| Publish stub | `POST /v1/listings/:id/draft` · `POST /v1/listings/:id/publish` `{ mock: true }` — canlı TY yazılmaz (`liveTyWrite: false`) |
+| Billing offering (F5) | `GET /v1/billing/offering` — 499 / 999 / 1999 ₺, `chargeable: false` |
 
 Unmapped listings: `mapped: false`, `stockSource: "none"`, `sellableStock: 0`. Unmapped SKU **cannot reserve or ship**. Marketplace `marketplaceStock` is **not** physical stock (K02). `sellable = physical − reserved`. Repeat sync does not duplicate (T06). Same reserve key is a no-op; a second reserve is `CONFLICT`. Same `idempotencyKey` on adjust is one ledger row.
 
@@ -72,8 +77,12 @@ Do not commit `.env`, `apps/api/.env`, service-account JSON, or any real `DATABA
 | `stock_movements` | Immutable ledger (idempotency key unique per org) |
 | `stock_outbox` | Intended channel stock writes (no Redis) |
 | `operations` | `GET /v1/operations` feed |
+| `org_returns` | İade listesi + inceleme stub |
+| `org_members` | Org üyeleri (sahip) |
+| `org_invites` | E-posta davet kaydı (gönderilmez) |
+| `listing_drafts` | Yayın taslağı / mock_live |
 
-Worker (`pnpm dev:worker`) is health-only; F3 outbox stores the **intended** Trendyol qty.
+F4 SQL: `apps/api/migrations/002_f4_stubs.sql`. Worker (`pnpm dev:worker`) is health-only.
 
 ## Run (memory)
 

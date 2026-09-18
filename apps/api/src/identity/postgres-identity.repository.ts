@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import type {
+  ListingDraft,
   ListingMapping,
   OperationEvent,
   OrderListItem,
+  OrgInvite,
+  OrgMember,
   OrganizationSummary,
   OutboxEntry,
+  ReturnListItem,
   ShopStatus,
   StockBalance,
   StockMovement,
@@ -16,6 +20,7 @@ import {
   emptyStock,
   sellableOf,
   withOrderDefaults,
+  withReturnDefaults,
   type IdentityRepository,
   type StoredListing,
 } from './identity.repository';
@@ -105,7 +110,14 @@ export class PostgresIdentityRepository implements IdentityRepository {
       'INSERT INTO organizations (id, name, owner_uid) VALUES ($1, $2, $3) RETURNING id, name, owner_uid',
       [id, name, uid],
     );
-    return rowToOrg(res.rows[0]);
+    const org = rowToOrg(res.rows[0]);
+    await this.pool.query(
+      `INSERT INTO org_members (organization_id, uid, email, role, status)
+       VALUES ($1, $2, '', 'owner', 'active')
+       ON CONFLICT (organization_id, uid) DO NOTHING`,
+      [org.id, uid],
+    );
+    return org;
   }
 
   async saveDevice(uid: string, fcmToken: string): Promise<void> {
@@ -399,6 +411,156 @@ export class PostgresIdentityRepository implements IdentityRepository {
       refId: row.ref_id ? String(row.ref_id) : null,
       createdAt: asIso(row.created_at),
     }));
+  }
+
+  async upsertReturns(
+    orgId: string,
+    returns: Omit<ReturnListItem, 'organizationId'>[],
+  ): Promise<number> {
+    for (const item of returns) {
+      const existing = await this.getReturn(orgId, item.id);
+      const merged = withReturnDefaults(orgId, item, existing ?? undefined);
+      await this.pool.query(
+        `INSERT INTO org_returns (organization_id, return_id, payload)
+         VALUES ($1, $2, $3::jsonb)
+         ON CONFLICT (organization_id, return_id)
+         DO UPDATE SET payload = EXCLUDED.payload`,
+        [orgId, item.id, JSON.stringify(merged)],
+      );
+    }
+    return returns.length;
+  }
+
+  async listReturns(orgId: string): Promise<ReturnListItem[]> {
+    const res = await this.pool.query('SELECT payload FROM org_returns WHERE organization_id = $1', [orgId]);
+    return res.rows.map((row) => ({
+      ...(row.payload as ReturnListItem),
+      organizationId: orgId,
+      tyWrite: false as const,
+    }));
+  }
+
+  async getReturn(orgId: string, returnId: string): Promise<ReturnListItem | null> {
+    const res = await this.pool.query(
+      'SELECT payload FROM org_returns WHERE organization_id = $1 AND return_id = $2',
+      [orgId, returnId],
+    );
+    const row = res.rows[0];
+    if (!row) {
+      return null;
+    }
+    return { ...(row.payload as ReturnListItem), organizationId: orgId, tyWrite: false };
+  }
+
+  async saveReturn(item: ReturnListItem): Promise<ReturnListItem> {
+    const stored = { ...item, tyWrite: false as const };
+    await this.pool.query(
+      `INSERT INTO org_returns (organization_id, return_id, payload)
+       VALUES ($1, $2, $3::jsonb)
+       ON CONFLICT (organization_id, return_id)
+       DO UPDATE SET payload = EXCLUDED.payload`,
+      [item.organizationId, item.id, JSON.stringify(stored)],
+    );
+    return stored;
+  }
+
+  async listMembers(orgId: string): Promise<OrgMember[]> {
+    const res = await this.pool.query(
+      'SELECT organization_id, uid, email, role, status FROM org_members WHERE organization_id = $1',
+      [orgId],
+    );
+    return res.rows.map((row) => ({
+      organizationId: String(row.organization_id),
+      uid: String(row.uid),
+      email: String(row.email ?? ''),
+      role: row.role as OrgMember['role'],
+      status: row.status as OrgMember['status'],
+    }));
+  }
+
+  async upsertMember(member: OrgMember): Promise<OrgMember> {
+    const uid = member.uid ?? member.email;
+    await this.pool.query(
+      `INSERT INTO org_members (organization_id, uid, email, role, status)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (organization_id, uid)
+       DO UPDATE SET email = EXCLUDED.email, role = EXCLUDED.role, status = EXCLUDED.status`,
+      [member.organizationId, uid, member.email, member.role, member.status],
+    );
+    return { ...member, uid };
+  }
+
+  async listInvites(orgId: string): Promise<OrgInvite[]> {
+    const res = await this.pool.query(
+      `SELECT id, organization_id, email, role, status, created_at
+       FROM org_invites WHERE organization_id = $1 ORDER BY created_at DESC`,
+      [orgId],
+    );
+    return res.rows.map((row) => ({
+      id: String(row.id),
+      organizationId: String(row.organization_id),
+      email: String(row.email),
+      role: 'staff' as const,
+      status: 'pending' as const,
+      emailSent: false as const,
+      createdAt: asIso(row.created_at),
+    }));
+  }
+
+  async findInviteByEmail(orgId: string, email: string): Promise<OrgInvite | null> {
+    const res = await this.pool.query(
+      `SELECT id, organization_id, email, role, status, created_at
+       FROM org_invites WHERE organization_id = $1 AND lower(email) = lower($2)`,
+      [orgId, email],
+    );
+    const row = res.rows[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      id: String(row.id),
+      organizationId: String(row.organization_id),
+      email: String(row.email),
+      role: 'staff',
+      status: 'pending',
+      emailSent: false,
+      createdAt: asIso(row.created_at),
+    };
+  }
+
+  async saveInvite(invite: OrgInvite): Promise<OrgInvite> {
+    await this.pool.query(
+      `INSERT INTO org_invites (id, organization_id, email, role, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
+       ON CONFLICT (organization_id, email)
+       DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`,
+      [invite.id, invite.organizationId, invite.email, invite.role, invite.status, invite.createdAt],
+    );
+    return { ...invite, emailSent: false };
+  }
+
+  async getListingDraft(orgId: string, listingId: string): Promise<ListingDraft | null> {
+    const res = await this.pool.query(
+      'SELECT payload FROM listing_drafts WHERE organization_id = $1 AND listing_id = $2',
+      [orgId, listingId],
+    );
+    const row = res.rows[0];
+    if (!row) {
+      return null;
+    }
+    return { ...(row.payload as ListingDraft), organizationId: orgId, liveTyWrite: false };
+  }
+
+  async saveListingDraft(draft: ListingDraft): Promise<ListingDraft> {
+    const stored = { ...draft, liveTyWrite: false as const };
+    await this.pool.query(
+      `INSERT INTO listing_drafts (organization_id, listing_id, payload)
+       VALUES ($1, $2, $3::jsonb)
+       ON CONFLICT (organization_id, listing_id)
+       DO UPDATE SET payload = EXCLUDED.payload`,
+      [draft.organizationId, draft.listingId, JSON.stringify(stored)],
+    );
+    return stored;
   }
 }
 

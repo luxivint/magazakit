@@ -1,4 +1,4 @@
-import type { OrderListItem, ProductListItem } from '@magazakit/contracts';
+import type { OrderListItem, ProductListItem, ReturnListItem } from '@magazakit/contracts';
 
 export type MockListingSeed = Omit<
   ProductListItem,
@@ -125,12 +125,29 @@ const ORDERS: Omit<OrderListItem, 'organizationId'>[] = [
   },
 ];
 
+const RETURNS: Omit<ReturnListItem, 'organizationId'>[] = [
+  {
+    id: 'ty-r-9001',
+    orderId: 'ty-o-5002',
+    orderNumber: 'TY-1048302',
+    channel: 'trendyol',
+    reason: 'Yanlış beden',
+    status: 'open',
+    statusLabel: 'Açık',
+    reviewNote: null,
+    tyWrite: false,
+    createdAt: '2026-09-18T12:00:00.000Z',
+  },
+];
+
 export function mockTrendyolFeed(): {
   listings: MockListingSeed[];
   orders: Omit<OrderListItem, 'organizationId'>[];
+  returns: Omit<ReturnListItem, 'organizationId'>[];
 } {
   return {
     listings: PRODUCTS.map((p) => ({ ...p })),
     orders: ORDERS.map((o) => ({ ...o })),
+    returns: RETURNS.map((r) => ({ ...r })),
   };
 }

@@ -1,9 +1,13 @@
 import type {
+  ListingDraft,
   ListingMapping,
   OperationEvent,
   OrderListItem,
+  OrgInvite,
+  OrgMember,
   OrganizationSummary,
   OutboxEntry,
+  ReturnListItem,
   ShopStatus,
   StockBalance,
   StockMovement,
@@ -14,6 +18,7 @@ import {
   emptyStock,
   sellableOf,
   withOrderDefaults,
+  withReturnDefaults,
   type IdentityRepository,
   type StoredListing,
 } from './identity.repository';
@@ -35,8 +40,7 @@ function mockShop(org: OrganizationSummary, extra?: Partial<ShopStatus>): ShopSt
 }
 
 /**
- * TODO(F3): require Postgres when stock writes land.
- * In-memory is lost on process restart.
+ * In-memory is lost on process restart. Set DATABASE_URL for Postgres.
  */
 export class MemoryIdentityRepository implements IdentityRepository {
   readonly backend = 'memory' as const;
@@ -52,6 +56,10 @@ export class MemoryIdentityRepository implements IdentityRepository {
   private readonly movements = new Map<string, StockMovement>();
   private readonly outbox: OutboxEntry[] = [];
   private readonly operations: OperationEvent[] = [];
+  private readonly returns = new Map<string, ReturnListItem>();
+  private readonly members = new Map<string, OrgMember>();
+  private readonly invites = new Map<string, OrgInvite>();
+  private readonly drafts = new Map<string, ListingDraft>();
   private seq = 0;
 
   private listingKey(orgId: string, listingId: string): string {
@@ -83,6 +91,13 @@ export class MemoryIdentityRepository implements IdentityRepository {
     };
     this.orgsByOwner.set(uid, org);
     this.orgsById.set(org.id, org);
+    this.members.set(`${org.id}:${uid}`, {
+      organizationId: org.id,
+      uid,
+      email: '',
+      role: 'owner',
+      status: 'active',
+    });
     return org;
   }
 
@@ -240,5 +255,70 @@ export class MemoryIdentityRepository implements IdentityRepository {
 
   async listOperations(orgId: string): Promise<OperationEvent[]> {
     return this.operations.filter((e) => e.organizationId === orgId).slice().reverse();
+  }
+
+  async upsertReturns(
+    orgId: string,
+    returns: Omit<ReturnListItem, 'organizationId'>[],
+  ): Promise<number> {
+    for (const item of returns) {
+      const key = this.orderKey(orgId, item.id);
+      const existing = this.returns.get(key);
+      this.returns.set(key, withReturnDefaults(orgId, item, existing));
+    }
+    return returns.length;
+  }
+
+  async listReturns(orgId: string): Promise<ReturnListItem[]> {
+    return [...this.returns.values()].filter((r) => r.organizationId === orgId);
+  }
+
+  async getReturn(orgId: string, returnId: string): Promise<ReturnListItem | null> {
+    return this.returns.get(this.orderKey(orgId, returnId)) ?? null;
+  }
+
+  async saveReturn(item: ReturnListItem): Promise<ReturnListItem> {
+    this.returns.set(this.orderKey(item.organizationId, item.id), { ...item, tyWrite: false });
+    return item;
+  }
+
+  async listMembers(orgId: string): Promise<OrgMember[]> {
+    return [...this.members.values()].filter((m) => m.organizationId === orgId);
+  }
+
+  async upsertMember(member: OrgMember): Promise<OrgMember> {
+    const uid = member.uid ?? member.email;
+    this.members.set(`${member.organizationId}:${uid}`, member);
+    return member;
+  }
+
+  async listInvites(orgId: string): Promise<OrgInvite[]> {
+    return [...this.invites.values()].filter((i) => i.organizationId === orgId);
+  }
+
+  async findInviteByEmail(orgId: string, email: string): Promise<OrgInvite | null> {
+    const needle = email.trim().toLowerCase();
+    return (
+      [...this.invites.values()].find(
+        (i) => i.organizationId === orgId && i.email.toLowerCase() === needle,
+      ) ?? null
+    );
+  }
+
+  async saveInvite(invite: OrgInvite): Promise<OrgInvite> {
+    this.invites.set(invite.id, invite);
+    return invite;
+  }
+
+  async getListingDraft(orgId: string, listingId: string): Promise<ListingDraft | null> {
+    return this.drafts.get(this.listingKey(orgId, listingId)) ?? null;
+  }
+
+  async saveListingDraft(draft: ListingDraft): Promise<ListingDraft> {
+    this.drafts.set(this.listingKey(draft.organizationId, draft.listingId), {
+      ...draft,
+      liveTyWrite: false,
+    });
+    return { ...draft, liveTyWrite: false };
   }
 }
