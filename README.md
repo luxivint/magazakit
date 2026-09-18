@@ -40,15 +40,14 @@ Unmapped listings: `mapped: false`, `stockSource: "none"`, `sellableStock: 0`. U
 
 **Default:** in-memory if `DATABASE_URL` is unset (lost on restart).
 
-**Postgres:** set `DATABASE_URL`. On boot the API applies `apps/api/migrations/*.sql` (tracked in `schema_migrations`). If the URL is set but Postgres is down, it logs a warning (never the connection string) and falls back to memory.
+**Postgres:** set `DATABASE_URL` **locally** in gitignored `apps/api/.env` or repo `.env`. Never commit it. Never put a real URL in `.env.example`. On boot the API applies `apps/api/migrations/*.sql` (tracked in `schema_migrations`). If the URL is set but Postgres is down, it logs a warning (never the connection string) and falls back to memory.
 
 ### Run with Postgres
 
 ```bash
-cp .env.example .env
-# uncomment DATABASE_URL in .env (local docker user/password only — not a production secret)
+# put DATABASE_URL only in gitignored apps/api/.env (or .env) — never commit
+# optional local docker:
 docker compose up -d postgres
-# wait until healthy, then:
 pnpm install
 pnpm --filter @magazakit/contracts build
 pnpm dev:api
@@ -56,7 +55,7 @@ pnpm dev:api
 
 `GET /health` → `"persistence":"postgres"`.
 
-Do not commit `.env`, service-account JSON, or production `DATABASE_URL`.
+Do not commit `.env`, `apps/api/.env`, service-account JSON, or any real `DATABASE_URL`.
 
 ### Tables (`001_f3_core.sql`)
 
