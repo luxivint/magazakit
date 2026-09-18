@@ -20,7 +20,6 @@ import { MappingProvider } from '@/context/MappingContext';
 import { ShopProvider } from '@/context/ShopContext';
 import { PushRegistrar } from '@/components/shell/PushRegistrar';
 import { colors } from '@/theme/tokens';
-import * as Notifications from 'expo-notifications';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -29,18 +28,6 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
-
-if (Platform.OS !== 'web') {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: false,
-      shouldShowBanner: false,
-      shouldShowList: false,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
-    }),
-  });
-}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({

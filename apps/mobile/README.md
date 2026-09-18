@@ -12,7 +12,7 @@ npx expo start
 
 `EXPO_PUBLIC_API_URL` varsayılan `http://127.0.0.1:43140`. LAN IP commit etme.
 
-Expo Go: kamera eklentisi ve native FCM yok. EAS:
+Push: Firebase FCM (`@react-native-firebase/messaging`). Expo Go’da native modül yok; import güvenli no-op. EAS / dev client:
 
 ```bash
 npx eas-cli@latest login

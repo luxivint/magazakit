@@ -43,7 +43,9 @@ pnpm dev:worker       # :43141 — stock_outbox pending → sent/failed (mock TY
 
 ## Expo Go vs EAS
 
-Expo Go’da özel `google-services.json` / native FCM ve kamera eklentisi yok. E-posta girişi ve Metro çalışır; barkod kamerası ve gerçek FCM **EAS development build** ister. Hazırla ekranı SKU/barkod yazarak da paketler.
+Push **Firebase FCM** (`@react-native-firebase/messaging`), Expo push / `expo-notifications` değil. `POST /v1/devices` yalnızca gerçek FCM token gönderir.
+
+Expo Go ve `expo start --web` native FCM yüklemez (import patlamaz; token da gelmez). E-posta girişi ve Metro çalışır. Barkod kamerası ve gerçek FCM **EAS development / expo-dev-client** ister. Hazırla ekranı SKU/barkod yazarak da paketler.
 
 ```bash
 cd apps/mobile

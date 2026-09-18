@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 import { useAuth } from '@/context/AuthContext';
-import { syncPushDevice } from '@/lib/push';
+import { subscribeFcmTokenRefresh, syncPushDevice } from '@/lib/push';
 
 /** Requests notification permission and registers FCM with Nest when signed in. */
 export function PushRegistrar() {
@@ -12,7 +12,11 @@ export function PushRegistrar() {
     const timer = setTimeout(() => {
       void syncPushDevice();
     }, 2000);
-    return () => clearTimeout(timer);
+    const unsub = subscribeFcmTokenRefresh();
+    return () => {
+      clearTimeout(timer);
+      unsub?.();
+    };
   }, [idToken, user?.uid]);
 
   return null;

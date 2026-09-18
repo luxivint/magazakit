@@ -44,12 +44,14 @@
           "backgroundColor": "#191C1D"
         }
       ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
       [
-        "expo-notifications",
+        "expo-build-properties",
         {
-          "icon": "./assets/images/icon.png",
-          "color": "#191C1D",
-          "defaultChannel": "default"
+          "ios": {
+            "useFrameworks": "static"
+          }
         }
       ],
       [

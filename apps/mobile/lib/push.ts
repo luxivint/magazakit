@@ -1,18 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
 
 import { registerDevice } from '@/lib/apiClient';
+import { getNativeMessaging } from '@/lib/fcm';
 
 const TOKEN_KEY = 'magazam.push.token.v1';
 
 export type SavedPushToken = {
-  expo?: string;
-  device?: string;
+  fcm?: string;
   permission: string;
   savedAt: string;
 };
+
+function persist(saved: SavedPushToken): Promise<void> {
+  return AsyncStorage.setItem(TOKEN_KEY, JSON.stringify(saved));
+}
 
 export async function loadSavedPushToken(): Promise<SavedPushToken | null> {
   const raw = await AsyncStorage.getItem(TOKEN_KEY);
@@ -24,60 +25,89 @@ export async function loadSavedPushToken(): Promise<SavedPushToken | null> {
   }
 }
 
-/** Request OS permission and persist Expo/FCM token. Does not open a ticket inbox. */
+function isPermissionGranted(
+  messaging: NonNullable<ReturnType<typeof getNativeMessaging>>,
+  status: number,
+): boolean {
+  const auth = messaging.AuthorizationStatus;
+  return status === auth.AUTHORIZED || status === auth.PROVISIONAL || status === auth.EPHEMERAL;
+}
+
+/** Request OS permission and persist the FCM token. Does not open a ticket inbox. */
 export async function registerForPush(): Promise<SavedPushToken> {
   const saved: SavedPushToken = {
     permission: 'undetermined',
     savedAt: new Date().toISOString(),
   };
 
-  try {
-    const existing = await Notifications.getPermissionsAsync();
-    let status: string = existing.status;
-    if (status !== 'granted') {
-      if (Platform.OS === 'web' && typeof Notification !== 'undefined' && Notification.permission === 'denied') {
-        status = 'denied';
-      } else {
-        const asked = await Notifications.requestPermissionsAsync();
-        status = asked.status;
-      }
-    }
-    saved.permission = status;
+  const messaging = getNativeMessaging();
+  if (!messaging) {
+    saved.permission = 'unavailable';
+    await persist(saved);
+    return saved;
+  }
 
-    if (status === 'granted') {
-      if (Platform.OS !== 'web') {
-        try {
-          const expo = await Notifications.getExpoPushTokenAsync();
-          saved.expo = expo.data;
-        } catch {
-          /* projectId yoksa native token yine denenebilir */
-        }
-      }
-      if (Platform.OS === 'web' || Device.isDevice) {
-        try {
-          const device = await Notifications.getDevicePushTokenAsync();
-          saved.device = typeof device.data === 'string' ? device.data : JSON.stringify(device.data);
-        } catch {
-          /* web / Expo Go’da FCM token gelmeyebilir */
-        }
-      }
+  try {
+    const instance = messaging();
+    if (!instance.isDeviceRegisteredForRemoteMessages) {
+      await instance.registerDeviceForRemoteMessages();
+    }
+    const status = await instance.requestPermission();
+    saved.permission = isPermissionGranted(messaging, status) ? 'granted' : 'denied';
+    if (saved.permission === 'granted') {
+      saved.fcm = await instance.getToken();
     }
   } catch {
     saved.permission = 'denied';
   }
 
-  await AsyncStorage.setItem(TOKEN_KEY, JSON.stringify(saved));
+  await persist(saved);
   return saved;
 }
 
-/** Ask permission, then POST /v1/devices { fcmToken } when a token exists. */
+/** Ask permission, then POST /v1/devices { fcmToken } when a real FCM token exists. */
 export async function syncPushDevice(): Promise<void> {
   const saved = await registerForPush();
-  const fcmToken = saved.device || saved.expo;
-  if (!fcmToken) return;
+  if (!saved.fcm) return;
   try {
-    await registerDevice(fcmToken);
+    await registerDevice(saved.fcm);
   } catch {
     /* lite: kayıt olmazsa uygulama durmaz */
   }
 }
+
+/** Keep Nest in sync when FCM rotates the token. No-op in Expo Go / web. */
+export function subscribeFcmTokenRefresh(): (() => void) | undefined {
+  const messaging = getNativeMessaging();
+  if (!messaging) return undefined;
+  try {
+    return messaging().onTokenRefresh((token) => {
+      void (async () => {
+        const prev = (await loadSavedPushToken()) ?? {
+          permission: 'granted',
+          savedAt: new Date().toISOString(),
+        };
+        prev.fcm = token;
+        prev.savedAt = new Date().toISOString();
+        await persist(prev);
+        try {
+          await registerDevice(token);
+        } catch {
+          /* lite */
+        }
+      })();
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+(() => {
+  const messaging = getNativeMessaging();
+  if (!messaging) return;
+  try {
+    messaging().setBackgroundMessageHandler(async () => undefined);
+  } catch {
+    /* Expo Go / web */
+  }
+})();
