@@ -27,13 +27,14 @@ npx expo start --web --port 43131
 
 Eşleşmeyince `mapped: false`, `sellableStock: 0`. `marketplaceStock` fiziksel sayılmaz.
 
-F3 (Nest 409 = ikinci rezervasyon yok):
+F3 (`sellable = physical − reserved`; eşlenmemiş rezerve/kargo yok; yazdır ≠ kargo; çift rezerve 409):
 
-- `POST /v1/orders/:id/reserve` + `Idempotency-Key`
-- `POST /v1/orders/:id/scan` `{ sku }`
-- `GET /v1/orders/:id/label` · `POST /v1/orders/:id/label/print` — yazdırma kargolandı yapmaz
-- `POST /v1/stock/adjust` `{ sku, delta }` — yalnız eşli SKU
-- `GET /v1/operations` — append-only işlem defteri
+- `POST /v1/orders/:id/reserve` `{ idempotencyKey }`
+- `POST /v1/orders/:id/pack/scan` `{ sku | barcode }`
+- `POST /v1/orders/:id/label` · `GET /v1/orders/:id/label.pdf` — yazdırma `POST /ship` çağırmaz
+- `POST /v1/stock/adjust` `{ sku, deltaPhysical, reason, idempotencyKey }`
+- `GET /v1/stock/movements` · `GET /v1/stock/:sku`
+- `GET /v1/operations`
 
 ## Ekranlar
 

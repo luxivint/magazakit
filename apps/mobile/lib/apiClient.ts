@@ -9,11 +9,10 @@ import {
   type OrderListItem,
   type ShopStatus,
   type ShopSyncResult,
-  type ReservationResult,
-  type ScanResult,
-  type LabelPreview,
-  type PrintResult,
+  type LabelResult,
   type StockAdjustResult,
+  type StockBalance,
+  type StockMovement,
   type OperationItem,
 } from '@/lib/api';
 import { getIdToken } from '@/lib/firebase';
@@ -29,11 +28,10 @@ export type {
   OrderListItem,
   ShopStatus,
   ShopSyncResult,
-  ReservationResult,
-  ScanResult,
-  LabelPreview,
-  PrintResult,
+  LabelResult,
   StockAdjustResult,
+  StockBalance,
+  StockMovement,
   OperationItem,
 };
 
@@ -167,46 +165,67 @@ function newKey(): string {
   return `idemp_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-export async function reserveOrder(orderId: string, idempotencyKey = newKey()): Promise<ReservationResult> {
+export { newKey };
+
+/** T07: same key replays; a second key on a reserved order is Nest 409 CONFLICT. Never swallow 409. */
+export async function reserveOrder(orderId: string, idempotencyKey = newKey()): Promise<OrderListItem> {
+  return request(`/v1/orders/${encodeURIComponent(orderId)}/reserve`, {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify({ idempotencyKey }),
+  });
+}
+
+export async function scanPackSku(orderId: string, token: string): Promise<OrderListItem> {
+  const value = token.trim();
+  const body = /^\d+$/.test(value) ? { barcode: value } : { sku: value };
+  return request(`/v1/orders/${encodeURIComponent(orderId)}/pack/scan`, {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify(body),
+  });
+}
+
+/** POST label. Does not ship. */
+export async function createOrderLabel(orderId: string): Promise<LabelResult> {
+  return request(`/v1/orders/${encodeURIComponent(orderId)}/label`, {
+    method: 'POST',
+    headers: await headers(),
+  });
+}
+
+/** GET mock PDF. Print uses this — never POST /ship. */
+export async function fetchOrderLabelPdf(orderId: string): Promise<Blob> {
+  let res: Response;
   try {
-    return await request(`/v1/orders/${encodeURIComponent(orderId)}/reserve`, {
-      method: 'POST',
-      headers: await headers(true, { 'Idempotency-Key': idempotencyKey }),
-      body: JSON.stringify({ idempotencyKey }),
+    res = await fetch(`${API_URL}/v1/orders/${encodeURIComponent(orderId)}/label.pdf`, {
+      headers: await headers(false, { Accept: 'application/pdf' }),
     });
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 409) {
-      return { orderId, reserved: true, alreadyReserved: true };
-    }
-    throw e;
+  } catch {
+    throw new ApiError('Nest API’ye bağlanılamadı. İşlem tamamlanmış sayılmaz.', 0);
   }
+  if (!res.ok) await parseError(res);
+  return res.blob();
 }
 
-export async function scanOrderSku(orderId: string, sku: string): Promise<ScanResult> {
-  return request(`/v1/orders/${encodeURIComponent(orderId)}/scan`, {
-    method: 'POST',
-    headers: await headers(true),
-    body: JSON.stringify({ sku: sku.trim() }),
-  });
+export async function fetchSkuStock(sku: string): Promise<StockBalance> {
+  return request(`/v1/stock/${encodeURIComponent(sku)}`, { headers: await headers() });
 }
 
-export async function fetchOrderLabel(orderId: string): Promise<LabelPreview> {
-  return request(`/v1/orders/${encodeURIComponent(orderId)}/label`, { headers: await headers() });
+export async function fetchStockMovements(): Promise<{ items: StockMovement[] }> {
+  return request('/v1/stock/movements', { headers: await headers() });
 }
 
-export async function printOrderLabel(orderId: string): Promise<PrintResult> {
-  return request(`/v1/orders/${encodeURIComponent(orderId)}/label/print`, {
-    method: 'POST',
-    headers: await headers(true),
-    body: JSON.stringify({}),
-  });
-}
-
-export async function adjustStock(sku: string, delta: number, idempotencyKey = newKey()): Promise<StockAdjustResult> {
+export async function adjustStock(
+  sku: string,
+  deltaPhysical: number,
+  reason: 'adjust' | 'count' = 'adjust',
+  idempotencyKey = newKey(),
+): Promise<StockAdjustResult> {
   return request('/v1/stock/adjust', {
     method: 'POST',
-    headers: await headers(true, { 'Idempotency-Key': idempotencyKey }),
-    body: JSON.stringify({ sku, delta, idempotencyKey }),
+    headers: await headers(true),
+    body: JSON.stringify({ sku, deltaPhysical, reason, idempotencyKey }),
   });
 }
 

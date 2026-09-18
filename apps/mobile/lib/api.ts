@@ -28,8 +28,15 @@ export type ProductListItem = {
   imageUrl: string | null;
 };
 
+export type OrderLine = {
+  listingId: string;
+  qty: number;
+  scannedQty: number;
+};
+
 export type OrderListItem = {
   id: string;
+  organizationId?: string;
   orderNumber: string;
   channel: 'trendyol';
   customerName: string;
@@ -40,6 +47,13 @@ export type OrderListItem = {
   cargoDeadlineAt: string | null;
   cargoWarning: boolean;
   createdAt: string;
+  lines?: OrderLine[];
+  reserved?: boolean;
+  reservationKey?: string | null;
+  packed?: boolean;
+  labeled?: boolean;
+  shipped?: boolean;
+  labelUrl?: string | null;
 };
 
 export type PreviewList<T> = {
@@ -101,47 +115,44 @@ export type ShopSyncResult = {
   mock: true;
 };
 
-export type ReservationResult = {
-  orderId: string;
-  reserved: true;
-  alreadyReserved?: boolean;
-};
-
-export type ScanResult = {
-  orderId: string;
-  sku: string;
-  matched: boolean;
-  packed?: boolean;
-};
-
-export type LabelPreview = {
-  orderId: string;
-  pdfUrl?: string | null;
-  imageUrl?: string | null;
-  contentType?: string;
-  shipped: false;
-  printed?: boolean;
-};
-
-export type PrintResult = {
-  orderId: string;
-  printed: true;
-  shipped: boolean;
-};
-
-export type StockAdjustResult = {
+export type StockBalance = {
+  organizationId: string;
   sku: string;
   physicalStock: number;
   reservedStock: number;
   sellableStock: number;
 };
 
+export type StockMovement = {
+  id: string;
+  organizationId: string;
+  sku: string;
+  deltaPhysical: number;
+  deltaReserved: number;
+  reason: 'adjust' | 'count' | 'reserve' | 'ship';
+  idempotencyKey: string;
+  createdAt: string;
+};
+
+export type LabelResult = {
+  orderId: string;
+  labeled: true;
+  shipped: boolean;
+  pdfUrl: string;
+  mock: true;
+};
+
+export type StockAdjustResult = {
+  balance: StockBalance;
+  movement: StockMovement;
+};
+
 export type OperationItem = {
   id: string;
+  organizationId?: string;
   type: string;
   title: string;
-  status: 'ok' | 'pending' | 'unknown' | 'reconciling' | 'failed';
+  status: 'ok' | 'pending' | 'unknown' | 'reconciling' | 'error';
+  refId?: string | null;
   createdAt: string;
-  orderId?: string;
-  sku?: string;
 };

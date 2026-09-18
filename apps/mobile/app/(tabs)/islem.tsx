@@ -22,6 +22,8 @@ function statusTr(status: OperationItem['status']): string {
       return 'Mutabakat';
     case 'unknown':
       return 'Bilinmiyor';
+    case 'error':
+      return 'Hata';
     default:
       return 'Başarısız';
   }
@@ -65,7 +67,7 @@ export default function IslemScreen() {
         <StoreBar />
         <View style={styles.heroPad}>
           <Text style={styles.title}>İşlem merkezi</Text>
-          <Text style={styles.sub}>Append-only. Timeout başarısız değildir.</Text>
+          <Text style={styles.sub}>GET /v1/operations. Timeout başarısız değildir.</Text>
         </View>
       </SafeAreaView>
       <PorcelainSheet>

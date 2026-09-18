@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { createElement, useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
@@ -11,13 +11,32 @@ import { TextField } from '@/components/ui/TextField';
 import { useCatalog } from '@/context/CatalogContext';
 import {
   ApiError,
-  fetchOrderLabel,
-  printOrderLabel,
+  createOrderLabel,
+  fetchOrderLabelPdf,
+  newKey,
   reserveOrder,
-  scanOrderSku,
-  type LabelPreview,
+  scanPackSku,
+  type LabelResult,
+  type OrderListItem,
 } from '@/lib/apiClient';
 import { colors, fonts, radii, space } from '@/theme/tokens';
+
+function LabelPdfFrame({ uri }: { uri: string }) {
+  if (Platform.OS !== 'web') {
+    return <Text style={styles.meta}>PDF mockup hazır. Yazdır ≠ kargolandı.</Text>;
+  }
+  return createElement('iframe', {
+    src: uri,
+    title: 'Kargo etiketi PDF',
+    style: {
+      width: '100%',
+      height: 200,
+      border: '1px solid #E6E6E0',
+      borderRadius: 12,
+      background: '#fff',
+    },
+  });
+}
 
 export default function HazirlaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,28 +46,48 @@ export default function HazirlaScreen() {
     () => catalog.products.filter((p) => p.mapped).map((p) => p.sku),
     [catalog.products],
   );
+  const barcodes = useMemo(
+    () => catalog.products.filter((p) => p.mapped && p.barcode).map((p) => p.barcode),
+    [catalog.products],
+  );
 
   const [sku, setSku] = useState('');
   const [busy, setBusy] = useState(false);
-  const [reserved, setReserved] = useState(false);
-  const [already, setAlready] = useState(false);
-  const [scanned, setScanned] = useState(false);
-  const [label, setLabel] = useState<LabelPreview | null>(null);
+  const [work, setWork] = useState<OrderListItem | null>(null);
+  const [conflict, setConflict] = useState<string | null>(null);
+  const [label, setLabel] = useState<LabelResult | null>(null);
+  const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [printNote, setPrintNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const reserveKey = useRef<string | null>(null);
   const reserveLock = useRef(false);
+
+  const reserved = !!(work?.reserved ?? order?.reserved);
+  const packed = !!(work?.packed);
+  const shipped = !!(work?.shipped ?? order?.shipped);
 
   const onReserve = async () => {
     if (!id || reserveLock.current || busy) return;
     reserveLock.current = true;
     setBusy(true);
     setError(null);
+    setConflict(null);
     try {
-      const result = await reserveOrder(id);
-      setReserved(true);
-      setAlready(!!result.alreadyReserved);
+      if (!reserveKey.current) {
+        const key = newKey();
+        reserveKey.current = key;
+        const result = await reserveOrder(id, key);
+        setWork(result);
+        catalog.refresh();
+      } else {
+        await reserveOrder(id, newKey());
+      }
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Rezervasyon tamamlanmış sayılmaz.');
+      if (e instanceof ApiError && e.status === 409) {
+        setConflict(e.message);
+      } else {
+        setError(e instanceof ApiError ? e.message : 'Rezervasyon tamamlanmış sayılmaz.');
+      }
     } finally {
       setBusy(false);
       reserveLock.current = false;
@@ -65,14 +104,14 @@ export default function HazirlaScreen() {
     setBusy(true);
     setError(null);
     try {
-      const result = await scanOrderSku(id, value);
-      if (!result.matched) {
-        setError('Yanlış barkod / SKU. Sipariş paketlenmedi.');
-        return;
+      const result = await scanPackSku(id, value);
+      setWork(result);
+      if (result.packed) {
+        const created = await createOrderLabel(id);
+        setLabel(created);
+        const blob = await fetchOrderLabelPdf(id);
+        setPdfUri(URL.createObjectURL(blob));
       }
-      setScanned(true);
-      const next = await fetchOrderLabel(id);
-      setLabel(next);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Tarama tamamlanmış sayılmaz.');
     } finally {
@@ -85,11 +124,15 @@ export default function HazirlaScreen() {
     setBusy(true);
     setError(null);
     try {
-      const printed = await printOrderLabel(id);
+      const created = await createOrderLabel(id);
+      setLabel(created);
+      const blob = await fetchOrderLabelPdf(id);
+      const uri = URL.createObjectURL(blob);
+      setPdfUri(uri);
       setPrintNote(
-        printed.shipped === true
+        created.shipped
           ? 'Hata: yazdırma kargolandı yapmamalı.'
-          : 'Etiket yazdırıldı. Sipariş kargolandı değil.',
+          : 'Etiket yazdırıldı. Sipariş kargolandı değil. POST /ship çağrılmadı.',
       );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Yazdırma kargolandı sayılmaz.');
@@ -98,65 +141,66 @@ export default function HazirlaScreen() {
     }
   };
 
+  const scanHint = [...mappedSkus.slice(0, 2), ...barcodes.slice(0, 1)].filter(Boolean).join(', ');
+
   return (
     <View style={styles.root}>
       <SafeAreaView edges={['top']} style={styles.hero}>
         <Pressable style={styles.back} onPress={() => router.back()} accessibilityLabel="Geri">
           <Ionicons name="chevron-back" size={22} color={colors.white} />
         </Pressable>
-        <Text style={styles.kicker}>E-12 · paket ≠ sipariş</Text>
+        <Text style={styles.kicker}>E-12 · paket ≠ sipariş · yazdır ≠ kargo</Text>
         <Text style={styles.title}>{order?.number ?? 'Sipariş'}</Text>
-        <Text style={styles.lead}>{order ? `${order.customer} · ${order.qty} adet` : 'Katalogda yok — içeri al.'}</Text>
+        <Text style={styles.lead}>
+          {order ? `${order.customer} · ${order.qty} adet` : 'Katalogda yok — içeri al.'}
+          {shipped ? ' · kargoda' : reserved ? ' · rezerve' : ''}
+        </Text>
       </SafeAreaView>
       <PorcelainSheet>
         <ScrollView contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
           {error ? <ConfigBanner text={error} /> : null}
-          {already ? <Text style={styles.ok}>Nest 409: ikinci rezervasyon yok, paketlemeye devam.</Text> : null}
+          {conflict ? <ConfigBanner text={`CONFLICT · ${conflict}`} /> : null}
 
           <Text style={styles.section}>1. Rezerve</Text>
-          <Text style={styles.body}>Çift dokunuş tek rezervasyon. T07 Nest 409.</Text>
+          <Text style={styles.body}>
+            satılabilir = fiziksel − rezerve. Eşlenmemiş ilan rezervelenemez / kargolanamaz. İkinci anahtar → 409.
+          </Text>
           <Button
-            label={reserved ? 'Rezerve edildi' : 'Stoğu rezerve et'}
-            loading={busy && !reserved}
-            disabled={reserved}
+            label={reserved ? 'Tekrar rezerve (CONFLICT)' : 'Stoğu rezerve et'}
+            loading={busy && !packed}
             onPress={() => void onReserve()}
           />
 
           <Text style={styles.section}>2. Barkod / SKU</Text>
           <Text style={styles.body}>
-            Kamera native; web’de klavye. Eşli SKU örnekleri: {mappedSkus.slice(0, 3).join(', ') || 'önce eşleştir'}
+            POST /pack/scan. Örnek: {scanHint || 'önce eşleştir'}
           </Text>
           <TextField
-            label="SKU"
+            label="SKU veya barkod"
             value={sku}
             onChangeText={setSku}
             autoCapitalize="characters"
             placeholder="MASTER-SKU veya barkod"
           />
           <Button
-            label="Tara ve eşle"
+            label={packed ? 'Paket tamam' : 'Tara ve eşle'}
             icon="barcode-outline"
             variant="lime"
-            disabled={!reserved}
-            loading={busy && reserved && !scanned}
+            disabled={!reserved || packed}
+            loading={busy && reserved && !packed}
             onPress={() => void onScan()}
           />
 
           <Text style={styles.section}>3. Kargo etiketi</Text>
-          <Text style={styles.body}>Yazdırmak kargolandı yapmaz (E-60). Demo barkod yok.</Text>
-          {label?.imageUrl ? (
-            <Image source={{ uri: label.imageUrl }} style={styles.labelImg} resizeMode="contain" />
-          ) : label?.pdfUrl ? (
-            <Text style={styles.meta}>PDF: {label.pdfUrl}</Text>
-          ) : scanned ? (
-            <Text style={styles.meta}>Etiket bekleniyor…</Text>
-          ) : null}
+          <Text style={styles.body}>POST /label + GET /label.pdf. Yazdırma POST /ship çağırmaz.</Text>
+          {pdfUri ? <LabelPdfFrame uri={pdfUri} /> : null}
+          {label && !pdfUri ? <Text style={styles.meta}>PDF: {label.pdfUrl}</Text> : null}
           {printNote ? <Text style={styles.ok}>{printNote}</Text> : null}
           <Button
             label="Etiketi yazdır"
             icon="print-outline"
-            disabled={!label}
-            loading={busy && scanned}
+            disabled={!packed && !label}
+            loading={busy && packed}
             onPress={() => void onPrint()}
           />
         </ScrollView>
@@ -177,12 +221,4 @@ const styles = StyleSheet.create({
   body: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, lineHeight: 18 },
   meta: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink },
   ok: { fontFamily: fonts.medium, fontSize: 13, color: colors.success },
-  labelImg: {
-    width: '100%',
-    height: 160,
-    backgroundColor: colors.white,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.sheetLine,
-  },
 });

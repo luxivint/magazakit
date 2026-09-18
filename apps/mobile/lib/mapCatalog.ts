@@ -63,5 +63,9 @@ export function mapApiOrder(item: OrderListItem, index: number): Order {
     dueTone: due.dueTone,
     ...mapStatus(item.status, item.statusLabel),
     thumb: THUMBS[index % THUMBS.length],
+    reserved: !!item.reserved,
+    packed: !!item.packed,
+    labeled: !!item.labeled,
+    shipped: !!item.shipped,
   };
 }

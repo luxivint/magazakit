@@ -15,6 +15,10 @@ export type Order = {
   status: OrderStatus;
   statusLabel: string;
   thumb: ProductThumbKind;
+  reserved?: boolean;
+  packed?: boolean;
+  labeled?: boolean;
+  shipped?: boolean;
 };
 
 export type ProductThumbKind = 'mug' | 'towel' | 'thermos' | 'lamp';
