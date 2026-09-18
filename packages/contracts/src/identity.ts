@@ -28,6 +28,8 @@ export type ShopStatus = {
   statusLabel: string;
   sellerLabel: string;
   connectedAt: string;
+  lastSyncAt: string | null;
+  checkpoint: string | null;
   k01: string;
   mock: true;
 };

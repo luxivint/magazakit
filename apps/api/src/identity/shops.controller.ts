@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
-import type { ShopStatus } from '@magazakit/contracts';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import type { ShopStatus, ShopSyncResult } from '@magazakit/contracts';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { IdentityStore } from './identity.store';
 
@@ -27,5 +27,13 @@ export class ShopsController {
   ): Promise<ShopStatus> {
     void _body;
     return this.identity.connectTrendyolMock(user.uid);
+  }
+
+  @Post(':id/sync')
+  async sync(
+    @CurrentUser() user: AuthUser,
+    @Param('id') shopId: string,
+  ): Promise<ShopSyncResult> {
+    return this.identity.syncShop(user.uid, shopId);
   }
 }

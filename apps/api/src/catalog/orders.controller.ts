@@ -1,28 +1,19 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
-import { parsePageQuery, type OrderListItem, type PreviewList } from '@magazakit/contracts';
+import { Controller, Get, Query } from '@nestjs/common';
+import { type OrderListItem, type PreviewList } from '@magazakit/contracts';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { IdentityStore } from '../identity/identity.store';
-import {
-  TRENDYOL_READ_ADAPTER,
-  type TrendyolReadAdapter,
-} from '../trendyol/trendyol-read.adapter';
 
 @Controller()
 export class OrdersController {
-  constructor(
-    @Inject(TRENDYOL_READ_ADAPTER)
-    private readonly trendyol: TrendyolReadAdapter,
-    private readonly identity: IdentityStore,
-  ) {}
+  constructor(private readonly identity: IdentityStore) {}
 
   @Get(['v1/orders', 'api/preview/orders'])
-  async list(
+  list(
     @CurrentUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('organizationId') organizationId?: string,
   ): Promise<PreviewList<OrderListItem>> {
-    await this.identity.assertOrgAccess(user.uid, organizationId);
-    return this.trendyol.listOrders(parsePageQuery({ page, pageSize }));
+    return this.identity.listOrders(user.uid, organizationId, page, pageSize);
   }
 }

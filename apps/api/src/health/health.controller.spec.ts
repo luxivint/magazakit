@@ -2,6 +2,7 @@ import { HealthController } from './health.controller';
 import { FirebaseAuthService } from '../auth/firebase-auth.service';
 import { IdentityStore } from '../identity/identity.store';
 import { MemoryIdentityRepository } from '../identity/memory-identity.repository';
+import { MockTrendyolReadAdapter } from '../trendyol/mock-trendyol-read.adapter';
 
 describe('HealthController', () => {
   it('stays public and reports magazam-app', () => {
@@ -11,7 +12,7 @@ describe('HealthController', () => {
       projectId: () => 'magazam-app',
       usesAdc: () => false,
     } as FirebaseAuthService;
-    const identity = new IdentityStore(new MemoryIdentityRepository());
+    const identity = new IdentityStore(new MemoryIdentityRepository(), new MockTrendyolReadAdapter());
     const body = new HealthController(firebaseAuth, identity).getHealth();
     expect(body.status).toBe('ok');
     expect(body.persistence).toBe('memory');

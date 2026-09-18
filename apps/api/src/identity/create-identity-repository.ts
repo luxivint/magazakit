@@ -8,7 +8,7 @@ export async function createIdentityRepository(): Promise<IdentityRepository> {
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
     log.warn(
-      'TODO(F2): persist organizations in Postgres. DATABASE_URL unset — using in-memory store keyed by Firebase uid.',
+      'TODO(F3): persist organizations in Postgres. DATABASE_URL unset — using in-memory store keyed by Firebase uid.',
     );
     return new MemoryIdentityRepository();
   }

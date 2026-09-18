@@ -122,18 +122,11 @@ describe('authenticated mock Firebase (e2e)', () => {
       .expect(201);
     expect(org.body.ownerUid).toBe('uid-1');
 
-    const products = await request(app.getHttpServer())
+    const empty = await request(app.getHttpServer())
       .get('/v1/products?pageSize=1')
       .set(auth)
       .expect(200);
-    expect(products.body.mock).toBe(true);
-    expect(products.body.items[0].sku).toBeDefined();
-
-    const preview = await request(app.getHttpServer())
-      .get('/api/preview/orders?pageSize=1')
-      .set(auth)
-      .expect(200);
-    expect(preview.body.mock).toBe(true);
+    expect(empty.body.items).toHaveLength(0);
 
     await request(app.getHttpServer())
       .post('/v1/devices')
@@ -160,8 +153,50 @@ describe('authenticated mock Firebase (e2e)', () => {
       .send({ sellerId: '123', apiKey: 'should-not-be-stored', apiSecret: 'nope' })
       .expect(201);
     expect(shop.body.channel).toBe('trendyol');
-    expect(shop.body.mock).toBe(true);
     expect(JSON.stringify(shop.body)).not.toContain('should-not-be-stored');
+
+    const sync = await request(app.getHttpServer())
+      .post(`/v1/shops/${shop.body.id}/sync`)
+      .set(auth)
+      .expect(201);
+    expect(sync.body.productsUpserted).toBe(3);
+    await request(app.getHttpServer())
+      .post(`/v1/shops/${shop.body.id}/sync`)
+      .set(auth)
+      .expect(201);
+
+    const products = await request(app.getHttpServer()).get('/v1/products').set(auth).expect(200);
+    expect(products.body.total).toBe(3);
+    expect(products.body.items[0].mapped).toBe(false);
+    expect(products.body.items[0].stockSource).toBe('none');
+    expect(products.body.items[0].sellableStock).toBe(0);
+
+    const listingId = products.body.items[0].listingId as string;
+    const mapping = await request(app.getHttpServer())
+      .post('/v1/mappings')
+      .set(auth)
+      .send({ listingId, sku: 'MASTER-1' })
+      .expect(201);
+    expect(mapping.body.stockSource).toBe('master_sku');
+
+    const mappedPage = await request(app.getHttpServer()).get('/v1/products').set(auth).expect(200);
+    const mapped = mappedPage.body.items.find((p: { listingId: string }) => p.listingId === listingId);
+    expect(mapped.mapped).toBe(true);
+    expect(mapped.sku).toBe('MASTER-1');
+    expect(mapped.sellableStock).toBe(0);
+
+    const preview = await request(app.getHttpServer())
+      .get('/api/preview/orders?pageSize=1')
+      .set(auth)
+      .expect(200);
+    expect(preview.body.items[0].orderNumber).toBeDefined();
+    expect(preview.body.items[0].organizationId).toBe(org.body.id);
+
+    const otherCatalog = await request(app.getHttpServer())
+      .get('/v1/products')
+      .set({ Authorization: 'Bearer other' })
+      .expect(200);
+    expect(otherCatalog.body.items).toHaveLength(0);
 
     const shops = await request(app.getHttpServer()).get('/v1/shops').set(auth).expect(200);
     expect(shops.body.items).toHaveLength(1);
