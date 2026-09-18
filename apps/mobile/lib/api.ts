@@ -9,15 +9,20 @@ export const API_BASE_URL = API_URL;
 
 export type ProductListItem = {
   id: string;
+  listingId: string;
+  organizationId: string;
   sku: string;
   barcode: string;
   title: string;
   channel: 'trendyol';
   priceTry: number;
+  marketplaceStock: number;
   physicalStock: number;
   reservedStock: number;
   sellableStock: number;
   critical: boolean;
+  mapped: boolean;
+  stockSource: 'none' | 'master_sku';
   status: 'active' | 'passive';
   statusLabel: string;
   imageUrl: string | null;
@@ -73,6 +78,25 @@ export type ShopStatus = {
   statusLabel: string;
   sellerLabel: string;
   connectedAt: string;
+  lastSyncAt: string | null;
+  checkpoint: string | null;
   k01: string;
+  mock: true;
+};
+
+export type ListingMapping = {
+  organizationId: string;
+  listingId: string;
+  sku: string;
+  stockSource: 'master_sku';
+};
+
+export type ShopSyncResult = {
+  shopId: string;
+  organizationId: string;
+  productsUpserted: number;
+  ordersUpserted: number;
+  checkpoint: string;
+  lastSyncAt: string;
   mock: true;
 };

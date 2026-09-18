@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,6 +18,7 @@ export default function IcerikAlScreen() {
   const { shops } = useShops();
   const catalog = useCatalog();
   const shop = shops[0];
+  const [note, setNote] = useState<string | null>(null);
 
   return (
     <View style={styles.root}>
@@ -26,33 +28,43 @@ export default function IcerikAlScreen() {
         </Pressable>
         <BrandMark />
         <Text style={styles.headline}>Ürünleri içeri al</Text>
-        <Text style={styles.lead}>Trendyol kataloğu ve siparişler Nest üzerinden okunur.</Text>
+        <Text style={styles.lead}>POST /v1/shops/:id/sync — mock, idempotent. Liste senkten sonra dolar.</Text>
       </SafeAreaView>
       <PorcelainSheet>
         <ScrollView contentContainerStyle={styles.sheet}>
           {shop?.mock ? <PeachAlert text="K01 mock — gerçek Trendyol anahtarı yok" /> : null}
           <Text style={styles.section}>Kaynak</Text>
           <Text style={styles.body}>
-            {shop ? shop.sellerLabel : 'Bağlı mağaza yok'}. GET {API_URL}/v1/products ve /v1/orders. Bearer Firebase
-            ID token. T06: liste yenilenir, çoğalmaz.
+            {shop ? `${shop.sellerLabel} · ${shop.id}` : 'Bağlı mağaza yok'}. Bearer Firebase ID token. GET {API_URL}
+            /v1/products ve /v1/orders org kapsamında; senkten önce boş.
           </Text>
-          <Text style={styles.meta}>Son içerik alma: {catalog.lastSync ?? 'henüz yok'}</Text>
+          <Text style={styles.meta}>Son senk: {shop?.lastSyncAt ?? catalog.lastSync ?? 'henüz yok'}</Text>
           <Text style={styles.meta}>
             {catalog.products.length} ürün · {catalog.orders.length} sipariş
-            {catalog.apiMock ? ' · Nest mock' : ''}
+            {catalog.lastIngest
+              ? ` · +${catalog.lastIngest.productsUpserted} ürün / +${catalog.lastIngest.ordersUpserted} sipariş`
+              : ''}
           </Text>
           {catalog.error ? <ConfigBanner text={catalog.error} /> : null}
+          {note ? <Text style={styles.meta}>{note}</Text> : null}
           <Button
             label="İçeri al"
             icon="download-outline"
             trailing="arrow-forward"
-            loading={catalog.ingesting || catalog.loading}
+            loading={catalog.ingesting}
             onPress={() => {
               if (!shop) {
                 router.push('/(tabs)/magaza-bagla');
                 return;
               }
-              void catalog.ingest().then(() => router.replace('/(tabs)/urunler'));
+              setNote(null);
+              void catalog
+                .ingest()
+                .then((r) => {
+                  setNote(`Upsert ${r.productsUpserted} ürün, ${r.ordersUpserted} sipariş. ${r.checkpoint}`);
+                  router.replace('/(tabs)/urunler');
+                })
+                .catch(() => undefined);
             }}
           />
           <Button label="Eşleştirmeyi aç" variant="ghost" onPress={() => router.push('/(tabs)/esleme')} />

@@ -15,14 +15,11 @@ export function ProductRow({ product }: { product: Product }) {
       <ProductThumb kind={product.thumb} />
       <View style={styles.mid}>
         <Text style={styles.name}>{product.name}</Text>
-        <Text style={styles.sku}>Ana SKU: {product.sku}</Text>
-        {product.sku !== product.listingSku ? (
-          <Text style={styles.sku}>İlan: {product.listingSku}</Text>
-        ) : null}
+        <Text style={styles.sku}>{product.mapped ? `Ana SKU: ${product.sku}` : 'Eşleşmedi · satılabilir 0'}</Text>
         <View style={styles.meta}>
           <ChannelBadge />
           <Text style={styles.stock}>
-            Fiz {product.physical} · Rez {product.reserved} · Sat {product.sellable}
+            Fiz {product.physical} · Sat {product.sellable} · Pazar {product.marketplaceStock}
           </Text>
         </View>
       </View>

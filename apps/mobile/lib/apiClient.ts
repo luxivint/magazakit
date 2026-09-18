@@ -2,11 +2,13 @@ import {
   API_URL,
   type CurrentUserResponse,
   type HealthResponse,
+  type ListingMapping,
   type OrganizationSummary,
   type PreviewList,
   type ProductListItem,
   type OrderListItem,
   type ShopStatus,
+  type ShopSyncResult,
 } from '@/lib/api';
 import { getIdToken } from '@/lib/firebase';
 
@@ -14,11 +16,13 @@ export { API_URL, API_URL as API_BASE_URL };
 export type {
   CurrentUserResponse,
   HealthResponse,
+  ListingMapping,
   OrganizationSummary,
   PreviewList,
   ProductListItem,
   OrderListItem,
   ShopStatus,
+  ShopSyncResult,
 };
 
 export class ApiError extends Error {
@@ -108,6 +112,25 @@ export async function connectTrendyolShop(sellerId?: string): Promise<ShopStatus
     method: 'POST',
     headers: await headers(true),
     body: JSON.stringify(body),
+  });
+}
+
+export async function syncShop(shopId: string): Promise<ShopSyncResult> {
+  return request(`/v1/shops/${encodeURIComponent(shopId)}/sync`, {
+    method: 'POST',
+    headers: await headers(),
+  });
+}
+
+export async function fetchMappings(): Promise<{ items: ListingMapping[] }> {
+  return request('/v1/mappings', { headers: await headers() });
+}
+
+export async function upsertMapping(listingId: string, sku: string): Promise<ListingMapping> {
+  return request('/v1/mappings', {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify({ listingId, sku }),
   });
 }
 

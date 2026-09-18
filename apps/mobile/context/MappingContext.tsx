@@ -1,77 +1,68 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useAuth } from '@/context/AuthContext';
-
-type MappingTable = Record<string, string>;
+import { ApiError, fetchMappings, upsertMapping, type ListingMapping } from '@/lib/apiClient';
 
 type MappingContextValue = {
   ready: boolean;
+  error: string | null;
+  items: ListingMapping[];
   skuOf: (listingId: string) => string | undefined;
-  setSku: (listingId: string, sku: string) => void;
+  saveSku: (listingId: string, sku: string) => Promise<ListingMapping>;
+  refresh: () => Promise<void>;
   mappedCount: number;
 };
 
 const MappingContext = createContext<MappingContextValue | null>(null);
 
-function storageKey(orgId: string) {
-  return `magazam.skuMap.${orgId}`;
-}
-
 export function MappingProvider({ children }: { children: ReactNode }) {
-  const { org } = useAuth();
-  const [table, setTable] = useState<MappingTable>({});
+  const { idToken, org } = useAuth();
+  const [items, setItems] = useState<ListingMapping[]>([]);
   const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!idToken || !org) {
+      setItems([]);
+      setError(null);
+      setReady(true);
+      return;
+    }
+    try {
+      const page = await fetchMappings();
+      setItems(page.items);
+      setError(null);
+    } catch (e) {
+      setItems([]);
+      setError(e instanceof ApiError ? e.message : 'Eşleştirmeler yüklenemedi.');
+    } finally {
+      setReady(true);
+    }
+  }, [idToken, org]);
 
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      if (!org?.id) {
-        setTable({});
-        setReady(true);
-        return;
-      }
-      setReady(false);
-      try {
-        const raw = await AsyncStorage.getItem(storageKey(org.id));
-        if (!cancelled) setTable(raw ? (JSON.parse(raw) as MappingTable) : {});
-      } catch {
-        if (!cancelled) setTable({});
-      } finally {
-        if (!cancelled) setReady(true);
-      }
-    };
     void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [org?.id]);
-
-  const persist = useCallback(
-    async (next: MappingTable) => {
-      if (!org?.id) return;
-      await AsyncStorage.setItem(storageKey(org.id), JSON.stringify(next));
-    },
-    [org?.id],
-  );
+  }, [load]);
 
   const value = useMemo<MappingContextValue>(
     () => ({
       ready,
-      skuOf: (listingId) => table[listingId],
-      setSku: (listingId, sku) => {
-        setTable((prev) => {
-          const next = { ...prev };
-          const trimmed = sku.trim();
-          if (!trimmed) delete next[listingId];
-          else next[listingId] = trimmed;
-          void persist(next);
-          return next;
+      error,
+      items,
+      skuOf: (listingId) => items.find((m) => m.listingId === listingId)?.sku,
+      saveSku: async (listingId, sku) => {
+        const saved = await upsertMapping(listingId, sku.trim());
+        setItems((prev) => {
+          const rest = prev.filter((m) => m.listingId !== saved.listingId);
+          return [...rest, saved];
         });
+        setError(null);
+        return saved;
       },
-      mappedCount: Object.keys(table).length,
+      refresh: load,
+      mappedCount: items.length,
     }),
-    [ready, table, persist],
+    [ready, error, items, load],
   );
 
   return <MappingContext.Provider value={value}>{children}</MappingContext.Provider>;

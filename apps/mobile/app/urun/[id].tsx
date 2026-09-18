@@ -31,13 +31,16 @@ export default function UrunDetayScreen() {
               <ProductThumb kind={product.thumb} />
               <ChannelBadge />
               <MoneyText value={product.price} />
-              <Row label="Ana SKU" value={product.sku} />
-              <Row label="İlan SKU" value={product.listingSku} />
+              <Row label="listingId" value={product.listingId} />
+              <Row label="Ana SKU" value={product.mapped ? product.sku : 'eşleşmedi'} />
+              <Row label="Pazaryeri adedi" value={String(product.marketplaceStock)} />
               <Row label="Barkod" value={product.barcode || '—'} />
               <Row label="Fiziksel" value={String(product.physical)} />
               <Row label="Rezerve" value={String(product.reserved)} />
               <Row label="Satılabilir" value={String(product.sellable)} />
-              <Text style={styles.note}>Stok ve fiyat yazımı F3. Pazaryeri adedi fiziksel sayılmaz (K02).</Text>
+              <Text style={styles.note}>
+                K02: pazaryeri adedi fiziksel stok sayılmaz. Eşleşmeyince mapped false, sellableStock 0.
+              </Text>
               <Pressable onPress={() => router.push('/(tabs)/esleme')}>
                 <Text style={styles.link}>Eşleştirmeyi düzenle</Text>
               </Pressable>

@@ -25,12 +25,12 @@ function dueLabel(iso: string | null, warn: boolean): { due: string; dueTone: 'w
   };
 }
 
-export function mapApiProduct(item: ProductListItem, index: number, mappedSku?: string): Product {
-  const sku = mappedSku?.trim() || item.sku;
+export function mapApiProduct(item: ProductListItem, index: number): Product {
   return {
     id: item.id,
+    listingId: item.listingId || item.id,
     name: item.title,
-    sku,
+    sku: item.sku,
     listingSku: item.sku,
     barcode: item.barcode,
     price: item.priceTry,
@@ -38,7 +38,9 @@ export function mapApiProduct(item: ProductListItem, index: number, mappedSku?: 
     reserved: item.reservedStock,
     sellable: item.sellableStock,
     stock: item.sellableStock,
-    listing: item.statusLabel || (item.status === 'active' ? 'Yayında' : 'Pasif'),
+    marketplaceStock: item.marketplaceStock,
+    mapped: item.mapped,
+    listing: item.mapped ? item.statusLabel : 'Eşleşmedi',
     channels: { trendyol: true },
     thumb: THUMBS[index % THUMBS.length],
     critical: item.critical,

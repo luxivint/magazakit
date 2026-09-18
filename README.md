@@ -21,7 +21,11 @@ npx expo start --web --port 43131
 - `GET /v1/organizations/current`
 - `GET /v1/shops`
 - `POST /v1/shops/trendyol/connect` — K01 mock; apiKey/apiSecret gönderilmez
-- `GET /v1/products` · `GET /v1/orders` — Bearer; içeri al upsert (T06)
+- `POST /v1/shops/:id/sync` — mock pull, idempotent; katalog senkten önce boş
+- `GET /v1/products` · `GET /v1/orders` — org kapsamı, Bearer
+- `POST /v1/mappings` `{ listingId, sku }` · `GET /v1/mappings`
+
+Eşleşmeyince `mapped: false`, `sellableStock: 0`. `marketplaceStock` fiziksel sayılmaz.
 
 ## Ekranlar
 

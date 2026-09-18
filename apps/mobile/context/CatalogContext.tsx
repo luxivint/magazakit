@@ -1,12 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useAuth } from '@/context/AuthContext';
-import { useMappings } from '@/context/MappingContext';
 import { useShops } from '@/context/ShopContext';
 import type { Order, Product } from '@/data/mock';
-import type { OrderListItem, ProductListItem } from '@/lib/api';
-import { clockNow } from '@/lib/clock';
-import { API_URL, fetchHealth, fetchOrders, fetchProducts } from '@/lib/apiClient';
+import type { OrderListItem, ProductListItem, ShopSyncResult } from '@/lib/api';
+import { API_URL, ApiError, fetchHealth, fetchOrders, fetchProducts, syncShop } from '@/lib/apiClient';
 import { mapApiOrder, mapApiProduct } from '@/lib/mapCatalog';
 
 export type CatalogSource = 'api' | 'none';
@@ -21,18 +19,23 @@ type CatalogContextValue = {
   error: string | null;
   needsShop: boolean;
   lastSync: string | null;
+  lastIngest: ShopSyncResult | null;
   products: Product[];
   orders: Order[];
   refresh: () => void;
-  ingest: () => Promise<void>;
+  ingest: () => Promise<ShopSyncResult>;
 };
 
 const CatalogContext = createContext<CatalogContextValue | null>(null);
 
+function clockFromIso(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function CatalogProvider({ children }: { children: ReactNode }) {
   const { idToken, org } = useAuth();
-  const { shops, loading: shopsLoading } = useShops();
-  const { skuOf } = useMappings();
+  const { shops, loading: shopsLoading, refresh: refreshShops } = useShops();
   const [source, setSource] = useState<CatalogSource>('none');
   const [apiMock, setApiMock] = useState<boolean | null>(null);
   const [reachable, setReachable] = useState(false);
@@ -41,9 +44,9 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [rawProducts, setRawProducts] = useState<ProductListItem[]>([]);
   const [rawOrders, setRawOrders] = useState<OrderListItem[]>([]);
-  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [lastIngest, setLastIngest] = useState<ShopSyncResult | null>(null);
 
-  const load = useCallback(async (fromIngest = false) => {
+  const load = useCallback(async () => {
     if (!idToken || !org) {
       setRawProducts([]);
       setRawOrders([]);
@@ -51,23 +54,10 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       setReachable(false);
       setError(null);
       setLoading(false);
-      setIngesting(false);
       return;
     }
     if (shopsLoading) {
       setLoading(true);
-      return;
-    }
-    if (fromIngest) setIngesting(true);
-    if (shops.length === 0) {
-      setRawProducts([]);
-      setRawOrders([]);
-      setSource('none');
-      setReachable(false);
-      setError(null);
-      setLoading(false);
-      setIngesting(false);
-      setApiMock(null);
       return;
     }
     setLoading(true);
@@ -83,7 +73,6 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       setApiMock(health.mock ?? productPage.mock);
       setRawProducts(productPage.items);
       setRawOrders(orderPage.items);
-      setLastSync(clockNow());
     } catch (e) {
       setReachable(false);
       setSource('none');
@@ -93,19 +82,16 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       setError(e instanceof Error ? e.message : 'Nest API yanıt vermedi.');
     } finally {
       setLoading(false);
-      setIngesting(false);
     }
-  }, [idToken, org, shops.length, shopsLoading]);
+  }, [idToken, org, shopsLoading]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, shops.length]);
 
-  const products = useMemo(
-    () => rawProducts.map((item, i) => mapApiProduct(item, i, skuOf(item.id))),
-    [rawProducts, skuOf],
-  );
+  const products = useMemo(() => rawProducts.map(mapApiProduct), [rawProducts]);
   const orders = useMemo(() => rawOrders.map(mapApiOrder), [rawOrders]);
+  const lastSync = clockFromIso(lastIngest?.lastSyncAt ?? shops[0]?.lastSyncAt);
 
   const value = useMemo<CatalogContextValue>(
     () => ({
@@ -118,13 +104,32 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       error,
       needsShop: !shopsLoading && shops.length === 0,
       lastSync,
+      lastIngest,
       products,
       orders,
       refresh: () => {
         void load();
       },
       ingest: async () => {
-        await load(true);
+        const shop = shops[0];
+        if (!shop) {
+          throw new ApiError('Önce mağaza bağla.', 400);
+        }
+        setIngesting(true);
+        setError(null);
+        try {
+          const result = await syncShop(shop.id);
+          setLastIngest(result);
+          refreshShops();
+          await load();
+          return result;
+        } catch (e) {
+          const message = e instanceof Error ? e.message : 'İçeri alma tamamlanmış sayılmaz.';
+          setError(message);
+          throw e instanceof Error ? e : new Error(message);
+        } finally {
+          setIngesting(false);
+        }
       },
     }),
     [
@@ -135,11 +140,13 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       ingesting,
       error,
       shopsLoading,
-      shops.length,
+      shops,
       lastSync,
+      lastIngest,
       products,
       orders,
       load,
+      refreshShops,
     ],
   );
 

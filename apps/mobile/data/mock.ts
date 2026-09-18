@@ -34,6 +34,9 @@ export type Product = {
   channels: { trendyol: boolean };
   thumb: ProductThumbKind;
   critical: boolean;
+  mapped: boolean;
+  marketplaceStock: number;
+  listingId: string;
 };
 
 export const STORE_NAME = 'Mağazam';
@@ -122,6 +125,9 @@ export const products: Product[] = [
     channels: { trendyol: true },
     thumb: 'mug',
     critical: false,
+    mapped: false,
+    marketplaceStock: 24,
+    listingId: 'kupa',
   },
   {
     id: 'havlu',
@@ -138,6 +144,9 @@ export const products: Product[] = [
     channels: { trendyol: true },
     thumb: 'towel',
     critical: true,
+    mapped: false,
+    marketplaceStock: 3,
+    listingId: 'havlu',
   },
   {
     id: 'termos',
@@ -154,6 +163,9 @@ export const products: Product[] = [
     channels: { trendyol: true },
     thumb: 'thermos',
     critical: false,
+    mapped: false,
+    marketplaceStock: 18,
+    listingId: 'termos',
   },
   {
     id: 'lamba',
@@ -170,6 +182,9 @@ export const products: Product[] = [
     channels: { trendyol: true },
     thumb: 'lamp',
     critical: false,
+    mapped: false,
+    marketplaceStock: 12,
+    listingId: 'lamba',
   },
 ];
 
