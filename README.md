@@ -1,117 +1,78 @@
-# Mağazam API
+# Mağazam (magazakit)
 
-NestJS for Expo. Firebase project **magazam-app**. No homemade login. No mobile/web UI in this PR. No live HB, GİB, or Redis. Billing offerings only — no processor. F6 is stubs (suppliers, depo transfer, e-fatura taslağı, yazıcı).
+Trendyol satıcısı için stok, sipariş ve paketleme. **Bir clone:** Nest API (`apps/api`) + outbox worker (`apps/worker`) + Expo (`apps/mobile`). Next.js yok. Canlı Trendyol / HB / GİB yok (K01 mock).
 
-## Expo how to call
+Kimlik: **Firebase Auth** (`magazam-app`). Nest `Authorization: Bearer <Firebase ID token>` doğrular. Bundle: `com.luxivint.magazam`.
+
+`.env` gitignore’da. `DATABASE_URL`, Admin SDK JSON, pazaryeri sırları commit edilmez.
+
+## Atakan — Windows / WSL
+
+API, worker ve Metro’yu **WSL** içinde çalıştır. EAS Android’i Windows veya WSL’den `npx eas-cli` ile üret. Yerel iOS Simulator yok; iOS EAS bulutta.
+
+İki terminal (WSL):
+
+```bash
+# repo kökü
+cp .env.example .env
+# DATABASE_URL yazma — boş bırak = bellek. Postgres için gitignored apps/api/.env kullan.
+pnpm install
+pnpm --filter @magazakit/contracts build
+pnpm dev:api          # :43140 — mock outbox drain interval
+```
+
+```bash
+cd apps/mobile
+cp .env.example .env
+# EXPO_PUBLIC_API_URL=http://127.0.0.1:43140  (emülatör / WSL tarayıcı)
+npx expo start        # istersen: --web --port 43131
+```
+
+İsteğe bağlı Postgres + worker:
+
+```bash
+docker compose up -d postgres
+# gitignored apps/api/.env:
+# DATABASE_URL=postgres://magazakit:magazakit@127.0.0.1:5433/magazakit
+pnpm dev:worker       # :43141 — stock_outbox pending → sent/failed (mock TY)
+```
+
+`GET http://127.0.0.1:43140/health` 200 olmalı. Kapalı API’de işlem tamamlanmış sayılmaz.
+
+**Fiziksel telefon:** `127.0.0.1` WSL Nest’e gitmez. `EXPO_PUBLIC_API_URL` olarak telefonun gördüğü host’u yaz (`hostname -I` / `ip.config`). LAN adresi commit etme.
+
+## Expo Go vs EAS
+
+Expo Go’da özel `google-services.json` / native FCM ve kamera eklentisi yok. E-posta girişi ve Metro çalışır; barkod kamerası ve gerçek FCM **EAS development build** ister. Hazırla ekranı SKU/barkod yazarak da paketler.
+
+```bash
+cd apps/mobile
+npx eas-cli@latest login
+npx eas-cli@latest init
+npx eas-cli@latest build --profile development --platform android
+npx expo start --dev-client
+```
+
+Repo’daki `google-services.json` / `GoogleService-Info.plist` açık web SDK + paket adı. SHA uydurma. İlk Android build sonrası EAS keystore SHA’yı Firebase Android uygulamasına ekle.
+
+## Expo → API
 
 ```
 EXPO_PUBLIC_API_URL=http://127.0.0.1:43140
 Authorization: Bearer <Firebase idToken from magazam-app>
 ```
 
-Device: LAN IP, not 127.0.0.1. CORS allows Expo localhost / LAN / `*.expo.dev`.
+CORS: Expo localhost / LAN / `*.expo.dev`.
 
-| Step | Call |
-| --- | --- |
-| Session | `GET /v1/me` |
-| Business (E-14) | `POST /v1/organizations` `{ "name" }` |
-| Current org | `GET /v1/organizations/current` |
-| Device FCM | `POST /v1/devices` `{ "fcmToken" }` — durable when Postgres is on |
-| Shops (E-08) | `GET /v1/shops` |
-| Connect TY (K01 mock) | `POST /v1/shops/trendyol/connect` `{}` — never send real keys |
-| Pull catalog (E-16) | `POST /v1/shops/:id/sync` — idempotent mock upsert |
-| Products / orders | `GET /v1/products`, `GET /v1/orders` — **org-scoped after sync** (empty until sync) |
-| Order detail (E-03) | `GET /v1/orders/:id` |
-| Manual map (E-18) | `POST /v1/mappings` `{ "listingId", "sku" }` |
-| Stock (E-06) | `POST /v1/stock/adjust` `{ "sku", "deltaPhysical", "reason", "idempotencyKey" }` |
-| Ledger (E-21) | `GET /v1/stock/movements` |
-| Channel write intent (T08) | `GET /v1/stock/outbox` — pending → worker/API drain marks `sent`/`failed` (mock TY, **no Redis**, no secrets) |
-| Reserve (T07) | `POST /v1/orders/:id/reserve` `{ "idempotencyKey"? }` |
-| Pack scan (E-12) | `POST /v1/orders/:id/pack/scan` `{ "sku" }` or `{ "barcode" }` |
-| Label (E-60) | `POST /v1/orders/:id/label` → mock `pdfUrl`; print **does not** ship |
-| Ship | `POST /v1/orders/:id/ship` — separate from label |
-| Ops feed (E-09) | `GET /v1/operations` |
-| Returns (E-19 stub) | `GET /v1/returns` · `PATCH /v1/returns/:id/review` `{ decision: approve\|reject }` — **no live TY return write** |
-| Team (E-43 stub) | `GET /v1/team/members` · `POST /v1/team/invites` `{ email }` — e-posta gönderilmez |
-| Reports | `GET /v1/reports/summary` — sipariş adetleri + stok `deltaPhysical`; **kâr yok** |
-| Publish stub | `POST /v1/listings/:id/draft` · `POST /v1/listings/:id/publish` `{ mock: true }` — canlı TY yazılmaz (`liveTyWrite: false`) |
-| Billing offering (F5) | `GET /v1/billing/offering` — 499 / 999 / 1999 ₺, `chargeable: false` |
-| Suppliers (F6) | `GET/POST /v1/suppliers` · `GET/PATCH /v1/suppliers/:id` |
-| Purchase orders (F6) | `GET/POST /v1/purchase-orders` — stub |
-| Warehouses (F6) | `GET /v1/warehouses` (tek varsayılan) · `POST /v1/warehouses/transfers` `{ sku, qty }` stub |
-| E-invoice (F6) | `GET/POST /v1/einvoices` — `gibLive: false` always |
-| Printer (F6) | `GET/PUT /v1/printer` · `POST /v1/printer/test-print` — gönderilmez |
+F0–F2: `/v1/me`, org, shops (Trendyol mock), sync, mappings, products, orders.  
+F3: reserve, pack/scan, label PDF (yazdır ≠ kargo), stock, operations, `POST /v1/devices`.  
+F4/F5 stub: returns, team, reports (kâr yok), listing `mock: true`, billing `chargeable: false`.  
+F6 stub: suppliers, warehouses, einvoices (`gibLive: false`), printer.
 
-Unmapped listings: `mapped: false`, `stockSource: "none"`, `sellableStock: 0`. Unmapped SKU **cannot reserve or ship**. Marketplace `marketplaceStock` is **not** physical stock (K02). `sellable = physical − reserved`. Repeat sync does not duplicate (T06). Same reserve key is a no-op; a second reserve is `CONFLICT`. Same `idempotencyKey` on adjust is one ledger row.
-
-`GET /health` public (`persistence`, `outbox.pending`). Missing Bearer → `401`. Foreign `organizationId` → `403`. Catalog: `GET /v1/docs`.
+Katalog: `GET /v1/docs`. Satılabilir = fiziksel − rezerve. Yazdırma kargolamaz.
 
 ## Persistence
 
-**Default:** in-memory if `DATABASE_URL` is unset (lost on restart).
+`DATABASE_URL` yoksa bellek (restart’ta silinir). Varsa `apps/api/migrations/*.sql` boot’ta uygulanır. URL var ama Postgres kapalıysa uyarı + bellek.
 
-**Postgres:** set `DATABASE_URL` **locally** in gitignored `apps/api/.env` or repo `.env`. Never commit it. Never put a real URL in `.env.example`. On boot the API applies `apps/api/migrations/*.sql` (tracked in `schema_migrations`). If the URL is set but Postgres is down, it logs a warning (never the connection string) and falls back to memory.
-
-### Production-ish run (remote Postgres)
-
-Keep the real URL only in gitignored `.env`. Then:
-
-```bash
-pnpm --filter @magazakit/contracts build
-pnpm dev:api      # :43140 — also drains outbox on an interval (memory or Postgres)
-pnpm dev:worker   # :43141 — drains pending stock_outbox via mock Trendyol (K01)
-```
-
-`GET /health` → `"persistence":"postgres"`, `"outbox": { "pending": N, "channel": "trendyol", "mock": true }`.
-
-Worker `GET http://127.0.0.1:43141/health` reports the same pending count when it can see Postgres. Channel writes stay mock; TRENDYOL_API_KEY is never stored or logged. No Redis.
-
-### Local docker Postgres
-
-```bash
-# put DATABASE_URL only in gitignored apps/api/.env (or .env) — never commit
-docker compose up -d postgres
-pnpm install
-pnpm --filter @magazakit/contracts build
-pnpm dev:api
-pnpm dev:worker
-```
-
-Do not commit `.env`, `apps/api/.env`, service-account JSON, or any real `DATABASE_URL`.
-
-### Tables (`001_f3_core.sql`)
-
-| Table | Holds |
-| --- | --- |
-| `schema_migrations` | Applied SQL filenames |
-| `organizations` | İşletme, keyed by Firebase `owner_uid` |
-| `shops` | Mock Trendyol shop + sync checkpoint |
-| `devices` | Durable FCM tokens (`POST /v1/devices`) |
-| `listings` | Products after `POST /v1/shops/:id/sync` |
-| `org_orders` | Orders after sync; reservation/pack/label/ship flags in `payload` |
-| `listing_mappings` | Manual listing → master SKU |
-| `sku_stock` | Physical + reserved (sellable = physical − reserved) |
-| `stock_movements` | Immutable ledger (idempotency key unique per org) |
-| `stock_outbox` | Intended channel stock writes; drain marks `sent`/`failed` (mock TY) |
-| `operations` | `GET /v1/operations` feed |
-| `org_returns` | İade listesi + inceleme stub |
-| `org_members` | Org üyeleri (sahip) |
-| `org_invites` | E-posta davet kaydı (gönderilmez) |
-| `listing_drafts` | Yayın taslağı / mock_live |
-| `org_suppliers` | Tedarikçi CRUD lite |
-| `purchase_orders` | Mal girişi sipariş stub |
-| `warehouses` | Tek varsayılan depo + overflow stub |
-| `warehouse_transfers` | Transfer kaydı (WMS yok) |
-| `einvoice_drafts` | E-fatura taslağı (`gibLive` false) |
-| `printer_settings` | Termal ayar stub |
-
-F4 SQL: `002_f4_stubs.sql`. F6 SQL: `003_f6_stubs.sql`. Worker (`pnpm dev:worker`) is health-only.
-
-## Run (memory)
-
-```bash
-cp .env.example .env
-pnpm install
-pnpm --filter @magazakit/contracts build
-pnpm dev:api
-```
+Worker `GET http://127.0.0.1:43141/health` pending outbox sayar. `TRENDYOL_API_KEY` git’te yok; loglanmaz. Redis yok.

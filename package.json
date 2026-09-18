@@ -5,12 +5,17 @@
   "scripts": {
     "dev:api": "pnpm --filter @magazakit/api start:dev",
     "dev:worker": "pnpm --filter @magazakit/worker start:dev",
+    "dev:mobile": "pnpm --filter magazam-mobile start",
     "start:api": "pnpm --filter @magazakit/api start",
     "start:worker": "pnpm --filter @magazakit/worker start",
+    "build": "turbo run build",
     "build:api": "pnpm --filter @magazakit/contracts build && pnpm --filter @magazakit/api build",
     "test:api": "pnpm --filter @magazakit/api test && pnpm --filter @magazakit/api test:e2e",
     "test:worker": "pnpm --filter @magazakit/worker test",
     "db:up": "docker compose up -d postgres"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.8"
   },
   "engines": {
     "node": ">=22"

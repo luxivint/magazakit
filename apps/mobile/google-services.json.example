@@ -1,0 +1,23 @@
+{
+  "project_info": {
+    "project_number": "978990997665",
+    "project_id": "magazam-app",
+    "storage_bucket": "magazam-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:978990997665:android:a0510c36ba5e3a42ded0e0",
+        "android_client_info": {
+          "package_name": "com.luxivint.magazam"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "REPLACE_WITH_CLI"
+        }
+      ]
+    }
+  ]
+}
