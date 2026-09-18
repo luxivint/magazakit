@@ -12,10 +12,10 @@ export type HealthResponse = {
   outbox?: {
     pending: number;
     channel: 'trendyol';
-    mock: true;
+    mock: boolean;
   };
   trendyol?: {
-    mode: 'mock' | 'unconfigured';
+    mode: 'mock' | 'live' | 'unconfigured';
     k01: string;
   };
 };

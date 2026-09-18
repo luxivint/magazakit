@@ -53,6 +53,7 @@ export function catalogSourceLabel(reachable: boolean, apiMock: boolean | null):
 }
 
 export function shopStatusLabel(status: string, fallback: string): string {
+  if (status === 'live_connected') return 'Bağlı (Trendyol)';
   if (status === 'mock_connected') return 'Bağlı (test)';
   return fallback;
 }

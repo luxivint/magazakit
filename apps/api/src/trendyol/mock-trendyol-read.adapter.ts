@@ -5,6 +5,10 @@ import type { TrendyolReadAdapter } from './trendyol-read.adapter';
 export class MockTrendyolReadAdapter implements TrendyolReadAdapter {
   readonly mock = true;
 
+  async probe(): Promise<void> {
+    /* fixture; no network */
+  }
+
   async pullFeed() {
     return mockTrendyolFeed();
   }

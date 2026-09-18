@@ -32,6 +32,7 @@ import {
 } from '@magazakit/contracts';
 import type { IdentityRepository, PersistenceBackend } from './identity.repository';
 import { sellableOf, toProductListItem } from './identity.repository';
+import { K01_NOTE, readTrendyolLiveConfig, trendyolMode } from '../config/trendyol-env';
 import { mockTrendyolOutboxStatus } from '../outbox/mock-trendyol-write';
 import {
   TRENDYOL_READ_ADAPTER,
@@ -124,8 +125,35 @@ export class IdentityStore {
     return this.repo.saveDevice(uid, fcmToken);
   }
 
-  async connectTrendyolMock(uid: string): Promise<ShopStatus> {
+  async connectTrendyolMock(uid: string, sellerId?: string): Promise<ShopStatus> {
     const org = await this.requireOrg(uid);
+    const mode = trendyolMode();
+    if (mode === 'unconfigured') {
+      boom(ErrorCodes.K01_TRENDYOL_UNAVAILABLE, K01_NOTE, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+    if (mode === 'live') {
+      const live = readTrendyolLiveConfig();
+      if (!live) {
+        boom(ErrorCodes.K01_TRENDYOL_UNAVAILABLE, K01_NOTE, HttpStatus.SERVICE_UNAVAILABLE);
+      }
+      const asked = sellerId?.trim();
+      if (asked && asked !== live.sellerId) {
+        boom(
+          ErrorCodes.VALIDATION,
+          'Satıcı ID, sunucudaki TRENDYOL_SELLER_ID ile aynı olmalı. Anahtar telefonda tutulmaz.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (this.trendyol.probe) {
+        await this.trendyol.probe();
+      }
+      return this.repo.upsertTrendyolMockShop(org, {
+        status: 'live_connected',
+        statusLabel: 'Bağlı (Trendyol V2 okuma)',
+        sellerLabel: `Trendyol ${live.sellerId}`,
+        mock: false,
+      });
+    }
     return this.repo.upsertTrendyolMockShop(org);
   }
 
@@ -147,7 +175,8 @@ export class IdentityStore {
     const ordersUpserted = await this.repo.upsertOrders(org.id, feed.orders);
     await this.repo.upsertReturns(org.id, feed.returns ?? []);
     const lastSyncAt = new Date().toISOString();
-    const checkpoint = `mock:${feed.listings.length}:${feed.orders.length}:${lastSyncAt}`;
+    const prefix = this.trendyol.mock ? 'mock' : 'live';
+    const checkpoint = `${prefix}:${feed.listings.length}:${feed.orders.length}:${lastSyncAt}`;
     await this.repo.markShopSynced(shop.id, checkpoint, lastSyncAt);
     return {
       shopId: shop.id,
@@ -156,7 +185,7 @@ export class IdentityStore {
       ordersUpserted,
       checkpoint,
       lastSyncAt,
-      mock: true,
+      mock: this.trendyol.mock,
     };
   }
 
@@ -178,7 +207,7 @@ export class IdentityStore {
       const stock = mapping ? await this.repo.getSkuStock(org.id, mapping.sku) : undefined;
       items.push(toProductListItem(listing, org.id, mapping, stock));
     }
-    return asPreviewList(paginate(items, parsePageQuery({ page, pageSize })), true);
+    return asPreviewList(paginate(items, parsePageQuery({ page, pageSize })), this.trendyol.mock);
   }
 
   async listOrders(
@@ -189,7 +218,7 @@ export class IdentityStore {
   ): Promise<PreviewList<OrderListItem>> {
     const org = await this.assertOrgAccess(uid, organizationId);
     const orders = await this.repo.listOrgOrders(org.id);
-    return asPreviewList(paginate(orders, parsePageQuery({ page, pageSize })), true);
+    return asPreviewList(paginate(orders, parsePageQuery({ page, pageSize })), this.trendyol.mock);
   }
 
   async upsertMapping(uid: string, listingId: string, sku: string): Promise<ListingMapping> {

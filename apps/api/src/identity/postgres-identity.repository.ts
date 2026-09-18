@@ -14,6 +14,7 @@ import type {
   PurchaseOrderStub,
   ReturnListItem,
   ShopStatus,
+  ShopStatusCode,
   StockBalance,
   StockMovement,
   Supplier,
@@ -56,18 +57,20 @@ function rowToOrg(row: Record<string, unknown>): OrganizationSummary {
 }
 
 function rowToShop(row: Record<string, unknown>): ShopStatus {
+  const status = (String(row.status ?? 'mock_connected') as ShopStatusCode) || 'mock_connected';
+  const live = status === 'live_connected';
   return {
     id: String(row.id),
     organizationId: String(row.organization_id),
     channel: 'trendyol',
-    status: 'mock_connected',
-    statusLabel: String(row.status_label ?? 'Bağlı (mock — K01)'),
-    sellerLabel: String(row.seller_label ?? 'Trendyol test mağazası (mock)'),
+    status,
+    statusLabel: String(row.status_label ?? (live ? 'Bağlı (Trendyol V2 okuma)' : 'Bağlı (mock — K01)')),
+    sellerLabel: String(row.seller_label ?? (live ? 'Trendyol' : 'Trendyol test mağazası (mock)')),
     connectedAt: asIso(row.connected_at),
     lastSyncAt: row.last_sync_at ? asIso(row.last_sync_at) : null,
     checkpoint: row.checkpoint ? String(row.checkpoint) : null,
     k01: K01_NOTE,
-    mock: true,
+    mock: !live,
   };
 }
 
@@ -140,16 +143,26 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return row ? String(row.fcm_token) : null;
   }
 
-  async upsertTrendyolMockShop(org: OrganizationSummary): Promise<ShopStatus> {
+  async upsertTrendyolMockShop(
+    org: OrganizationSummary,
+    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>>,
+  ): Promise<ShopStatus> {
     const id = `shop_ty_${org.id}`;
-    const statusLabel = 'Bağlı (mock — K01)';
-    const sellerLabel = 'Trendyol test mağazası (mock)';
+    const live = overlay?.status === 'live_connected' || overlay?.mock === false;
+    const status = overlay?.status ?? (live ? 'live_connected' : 'mock_connected');
+    const statusLabel =
+      overlay?.statusLabel ?? (live ? 'Bağlı (Trendyol V2 okuma)' : 'Bağlı (mock — K01)');
+    const sellerLabel =
+      overlay?.sellerLabel ?? (live ? 'Trendyol' : 'Trendyol test mağazası (mock)');
     const res = await this.pool.query(
       `INSERT INTO shops (id, organization_id, channel, status, status_label, seller_label)
-       VALUES ($1, $2, 'trendyol', 'mock_connected', $3, $4)
-       ON CONFLICT (id) DO UPDATE SET status_label = EXCLUDED.status_label, seller_label = EXCLUDED.seller_label
+       VALUES ($1, $2, 'trendyol', $5, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET
+         status = EXCLUDED.status,
+         status_label = EXCLUDED.status_label,
+         seller_label = EXCLUDED.seller_label
        RETURNING id, organization_id, channel, status, status_label, seller_label, connected_at, last_sync_at, checkpoint`,
-      [id, org.id, statusLabel, sellerLabel],
+      [id, org.id, statusLabel, sellerLabel, status],
     );
     return rowToShop(res.rows[0]);
   }

@@ -70,7 +70,7 @@ export type ShopSyncResult = {
   ordersUpserted: number;
   checkpoint: string;
   lastSyncAt: string;
-  mock: true;
+  mock: boolean;
 };
 
 export type StockBalance = {

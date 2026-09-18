@@ -82,7 +82,7 @@ export type CurrentUserResponse = {
   organization: OrganizationSummary | null;
 };
 
-export type ShopStatusCode = 'mock_connected' | 'k01_blocked';
+export type ShopStatusCode = 'mock_connected' | 'live_connected' | 'k01_blocked';
 
 export type ShopStatus = {
   id: string;
@@ -95,7 +95,7 @@ export type ShopStatus = {
   lastSyncAt: string | null;
   checkpoint: string | null;
   k01: string;
-  mock: true;
+  mock: boolean;
 };
 
 export type ListingMapping = {
@@ -112,7 +112,7 @@ export type ShopSyncResult = {
   ordersUpserted: number;
   checkpoint: string;
   lastSyncAt: string;
-  mock: true;
+  mock: boolean;
 };
 
 export type StockBalance = {

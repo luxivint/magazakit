@@ -5,6 +5,8 @@ export const TRENDYOL_READ_ADAPTER = Symbol('TRENDYOL_READ_ADAPTER');
 
 export interface TrendyolReadAdapter {
   readonly mock: boolean;
+  /** Live: GET approved products page 0. Mock: no-op. */
+  probe?(): Promise<void>;
   pullFeed(): Promise<{
     listings: MockListingSeed[];
     orders: Omit<OrderListItem, 'organizationId'>[];

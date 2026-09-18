@@ -27,7 +27,8 @@ export class MetaController {
         {
           method: 'POST',
           path: '/v1/shops/trendyol/connect',
-          body: { sellerId: 'optional; apiKey/apiSecret ignored and never stored' },
+          body: { sellerId: 'optional; must match TRENDYOL_SELLER_ID when live. apiKey/apiSecret ignored, never stored' },
+          note: 'live: TRENDYOL_USE_MOCK=false + env credentials; GET approved products + v2/orders. No stock write.',
         },
         { method: 'POST', path: '/v1/shops/:id/sync' },
         { method: 'POST', path: '/v1/mappings', body: { listingId: 'string', sku: 'string' } },

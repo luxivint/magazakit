@@ -1,6 +1,6 @@
 # Mağazam (magazakit)
 
-Trendyol satıcısı için stok, sipariş ve paketleme. **Bir clone:** Nest API (`apps/api`) + outbox worker (`apps/worker`) + Expo (`apps/mobile`). Next.js yok. Canlı Trendyol / HB / GİB yok (K01 mock).
+Trendyol satıcısı için stok, sipariş ve paketleme. **Bir clone:** Nest API (`apps/api`) + outbox worker (`apps/worker`) + Expo (`apps/mobile`). Next.js yok. Canlı Trendyol / HB / GİB yok (K01 mock). Nest’te `TRENDYOL_USE_MOCK=false` + satıcı panelinden key/secret olunca **V2 salt okuma** açılır (ürün + sipariş). Stok yazımı hâlâ mock outbox.
 
 Kimlik: **Firebase Auth** (`magazam-app`). Nest `Authorization: Bearer <Firebase ID token>` doğrular. Bundle: `com.luxivint.magazam`.
 
@@ -66,7 +66,20 @@ Authorization: Bearer <Firebase idToken from magazam-app>
 
 CORS: Expo localhost / LAN / `*.expo.dev`.
 
-F0–F2: `/v1/me`, org, shops (Trendyol mock), sync, mappings, products, orders.  
+F0–F2: `/v1/me`, org, shops (Trendyol mock veya V2 live okuma), sync, mappings, products, orders.  
+
+Canlı bağlama (WSL, gitignored `apps/api/.env` veya kök `.env`):
+
+```
+TRENDYOL_USE_MOCK=false
+TRENDYOL_BASE_URL=https://apigw.trendyol.com
+TRENDYOL_SELLER_ID=...
+TRENDYOL_API_KEY=...
+TRENDYOL_API_SECRET=...
+```
+
+Satıcı paneli → Hesap → Entegrasyon Bilgileri. User-Agent `{sellerId} - SelfIntegration`. Anahtar telefona yazılmaz; Expo sadece `sellerId` gönderir. `GET /health` → `trendyol.mode: live`. Stage (`stageapigw`) IP allowlist ister.
+
 F3: reserve, pack/scan, label PDF (yazdır ≠ kargo), stock, operations, `POST /v1/devices`.  
 F4/F5 stub: returns, team, reports (kâr yok), listing `mock: true`, billing `chargeable: false`.  
 F6 stub: suppliers, warehouses, einvoices (`gibLive: false`), printer.

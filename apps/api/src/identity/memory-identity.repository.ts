@@ -29,19 +29,23 @@ import {
   type StoredListing,
 } from './identity.repository';
 
-function mockShop(org: OrganizationSummary, extra?: Partial<ShopStatus>): ShopStatus {
+function mockShop(
+  org: OrganizationSummary,
+  extra?: Partial<ShopStatus>,
+): ShopStatus {
+  const live = extra?.status === 'live_connected' || extra?.mock === false;
   return {
     id: `shop_ty_${org.id}`,
     organizationId: org.id,
     channel: 'trendyol',
-    status: 'mock_connected',
-    statusLabel: 'Bağlı (mock — K01)',
-    sellerLabel: 'Trendyol test mağazası (mock)',
+    status: extra?.status ?? (live ? 'live_connected' : 'mock_connected'),
+    statusLabel: extra?.statusLabel ?? (live ? 'Bağlı (Trendyol V2 okuma)' : 'Bağlı (mock — K01)'),
+    sellerLabel: extra?.sellerLabel ?? (live ? 'Trendyol' : 'Trendyol test mağazası (mock)'),
     connectedAt: extra?.connectedAt ?? new Date().toISOString(),
     lastSyncAt: extra?.lastSyncAt ?? null,
     checkpoint: extra?.checkpoint ?? null,
     k01: K01_NOTE,
-    mock: true,
+    mock: extra?.mock ?? !live,
   };
 }
 
@@ -121,13 +125,17 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return this.fcmByUid.get(uid) ?? null;
   }
 
-  async upsertTrendyolMockShop(org: OrganizationSummary): Promise<ShopStatus> {
+  async upsertTrendyolMockShop(
+    org: OrganizationSummary,
+    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>>,
+  ): Promise<ShopStatus> {
     const existingId = this.shopsByOrg.get(org.id);
     const existing = existingId ? this.shopsById.get(existingId) : undefined;
     const shop = mockShop(org, {
       connectedAt: existing?.connectedAt,
       lastSyncAt: existing?.lastSyncAt ?? null,
       checkpoint: existing?.checkpoint ?? null,
+      ...overlay,
     });
     this.shopsById.set(shop.id, shop);
     this.shopsByOrg.set(org.id, shop.id);

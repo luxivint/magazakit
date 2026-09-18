@@ -46,7 +46,10 @@ export interface IdentityRepository {
   createOrg(uid: string, name: string): Promise<OrganizationSummary>;
   saveDevice(uid: string, fcmToken: string): Promise<void>;
   getDeviceToken(uid: string): Promise<string | null>;
-  upsertTrendyolMockShop(org: OrganizationSummary): Promise<ShopStatus>;
+  upsertTrendyolMockShop(
+    org: OrganizationSummary,
+    overlay?: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock'>>,
+  ): Promise<ShopStatus>;
   listShopsForUid(uid: string): Promise<ShopStatus[]>;
   getShopById(shopId: string): Promise<ShopStatus | null>;
   markShopSynced(shopId: string, checkpoint: string, lastSyncAt: string): Promise<ShopStatus>;

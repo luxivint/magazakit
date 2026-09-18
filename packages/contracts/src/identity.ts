@@ -19,7 +19,7 @@ export type DeviceRegistration = {
 
 export type ShopChannel = 'trendyol';
 
-export type ShopStatusCode = 'mock_connected' | 'k01_blocked';
+export type ShopStatusCode = 'mock_connected' | 'live_connected' | 'k01_blocked';
 
 /** E-08 connected-store row. Secrets are never returned. */
 export type ShopStatus = {
@@ -33,5 +33,5 @@ export type ShopStatus = {
   lastSyncAt: string | null;
   checkpoint: string | null;
   k01: string;
-  mock: true;
+  mock: boolean;
 };

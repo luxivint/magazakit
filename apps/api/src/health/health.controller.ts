@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import type { HealthResponse } from '@magazakit/contracts';
 import { FirebaseAuthService } from '../auth/firebase-auth.service';
 import { Public } from '../auth/public.decorator';
-import { K01_NOTE, trendyolMode } from '../config/trendyol-env';
+import { K01_NOTE, LIVE_READ_NOTE, trendyolMode } from '../config/trendyol-env';
 import { IdentityStore } from '../identity/identity.store';
 
 @Controller()
@@ -24,7 +24,7 @@ export class HealthController {
       service: 'api',
       mock: mode === 'mock',
       persistence: this.identity.backend,
-      outbox: { pending, channel: 'trendyol', mock: true },
+      outbox: { pending, channel: 'trendyol', mock: mode !== 'live' },
       auth: {
         provider: 'firebase',
         projectId,
@@ -37,7 +37,7 @@ export class HealthController {
       },
       trendyol: {
         mode,
-        k01: K01_NOTE,
+        k01: mode === 'live' ? LIVE_READ_NOTE : K01_NOTE,
       },
     };
   }

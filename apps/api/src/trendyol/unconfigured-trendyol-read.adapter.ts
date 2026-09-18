@@ -8,6 +8,10 @@ import type { TrendyolReadAdapter } from './trendyol-read.adapter';
 export class UnconfiguredTrendyolReadAdapter implements TrendyolReadAdapter {
   readonly mock = false;
 
+  async probe(): Promise<void> {
+    throw this.blocked();
+  }
+
   async pullFeed(): Promise<{ listings: never[]; orders: never[]; returns: never[] }> {
     throw this.blocked();
   }

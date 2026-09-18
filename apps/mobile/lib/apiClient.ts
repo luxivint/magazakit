@@ -155,11 +155,11 @@ export async function fetchCurrentOrganization(): Promise<OrganizationSummary | 
   return data.organization;
 }
 
-export async function fetchShops(): Promise<{ items: ShopStatus[]; mock: true }> {
+export async function fetchShops(): Promise<{ items: ShopStatus[]; mock: boolean }> {
   return request('/v1/shops', { headers: await headers() });
 }
 
-/** K01 mock. Never send apiKey/apiSecret. */
+/** Connect Trendyol. Never send apiKey/apiSecret from the phone. */
 export async function connectTrendyolShop(sellerId?: string): Promise<ShopStatus> {
   const body: { sellerId?: string } = {};
   if (sellerId?.trim()) body.sellerId = sellerId.trim();

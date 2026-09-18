@@ -63,7 +63,9 @@ export default function MagazaBaglaScreen() {
             <ChannelBadge />
             <Ionicons name="checkmark-circle" size={22} color={colors.success} />
           </View>
-          <Text style={styles.hint}>Hepsiburada görünür stub; canlı kanal değil. Anahtarlar telefonda kalır, sunucuya gitmez.</Text>
+          <Text style={styles.hint}>
+            Trendyol anahtarları Nest `.env` (WSL) içinde. Telefona yazılan key/secret sunucuya gitmez. Hepsiburada canlı kanal değil.
+          </Text>
           <Pressable style={styles.hbCard} onPress={() => router.push('/(tabs)/hepsiburada')}>
             <View style={styles.hbMark}>
               <Text style={styles.hbText}>hb</Text>
@@ -88,7 +90,7 @@ export default function MagazaBaglaScreen() {
             onChangeText={setSellerId}
             keyboardType="number-pad"
           />
-          <TextField label="API Key" placeholder="Cihazda kalır" value={apiKey} onChangeText={setApiKey} />
+          <TextField label="API Key" placeholder="Nest .env — gönderilmez" value={apiKey} onChangeText={setApiKey} />
           <TextField
             label="API Secret"
             placeholder="••••••••"
