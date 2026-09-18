@@ -1,0 +1,16 @@
+{
+  "name": "magazakit",
+  "private": true,
+  "packageManager": "pnpm@10.33.3",
+  "scripts": {
+    "dev:api": "pnpm --filter @magazakit/api start:dev",
+    "dev:worker": "pnpm --filter @magazakit/worker start:dev",
+    "start:api": "pnpm --filter @magazakit/api start",
+    "start:worker": "pnpm --filter @magazakit/worker start",
+    "build:api": "pnpm --filter @magazakit/contracts build && pnpm --filter @magazakit/api build",
+    "test:api": "pnpm --filter @magazakit/api test && pnpm --filter @magazakit/api test:e2e"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
