@@ -1,3 +1,9 @@
+export type OrderLine = {
+  listingId: string;
+  qty: number;
+  scannedQty: number;
+};
+
 export type Channel = 'trendyol';
 
 export type ProductStatus = 'active' | 'passive';
@@ -41,6 +47,13 @@ export type OrderListItem = {
   cargoDeadlineAt: string | null;
   cargoWarning: boolean;
   createdAt: string;
+  lines: OrderLine[];
+  reserved: boolean;
+  reservationKey: string | null;
+  packed: boolean;
+  labeled: boolean;
+  shipped: boolean;
+  labelUrl: string | null;
 };
 
 export type ListingMapping = {
@@ -57,5 +70,53 @@ export type ShopSyncResult = {
   ordersUpserted: number;
   checkpoint: string;
   lastSyncAt: string;
+  mock: true;
+};
+
+export type StockBalance = {
+  organizationId: string;
+  sku: string;
+  physicalStock: number;
+  reservedStock: number;
+  sellableStock: number;
+};
+
+export type StockMovement = {
+  id: string;
+  organizationId: string;
+  sku: string;
+  deltaPhysical: number;
+  deltaReserved: number;
+  reason: 'adjust' | 'count' | 'reserve' | 'ship';
+  idempotencyKey: string;
+  createdAt: string;
+};
+
+export type OutboxEntry = {
+  id: string;
+  organizationId: string;
+  kind: 'channel_stock_write';
+  channel: 'trendyol';
+  sku: string;
+  intendedQty: number;
+  status: 'pending' | 'unknown' | 'reconciling';
+  createdAt: string;
+};
+
+export type OperationEvent = {
+  id: string;
+  organizationId: string;
+  type: string;
+  title: string;
+  status: 'ok' | 'pending' | 'unknown' | 'reconciling' | 'error';
+  refId: string | null;
+  createdAt: string;
+};
+
+export type LabelResult = {
+  orderId: string;
+  labeled: true;
+  shipped: boolean;
+  pdfUrl: string;
   mock: true;
 };

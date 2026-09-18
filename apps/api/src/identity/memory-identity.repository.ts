@@ -1,12 +1,22 @@
 import type {
   ListingMapping,
+  OperationEvent,
   OrderListItem,
   OrganizationSummary,
+  OutboxEntry,
   ShopStatus,
+  StockBalance,
+  StockMovement,
 } from '@magazakit/contracts';
 import { K01_NOTE } from '../config/trendyol-env';
 import type { MockListingSeed } from '../trendyol/mock-feed';
-import type { IdentityRepository, StoredListing } from './identity.repository';
+import {
+  emptyStock,
+  sellableOf,
+  withOrderDefaults,
+  type IdentityRepository,
+  type StoredListing,
+} from './identity.repository';
 
 function mockShop(org: OrganizationSummary, extra?: Partial<ShopStatus>): ShopStatus {
   return {
@@ -38,6 +48,10 @@ export class MemoryIdentityRepository implements IdentityRepository {
   private readonly listings = new Map<string, StoredListing>();
   private readonly orders = new Map<string, OrderListItem>();
   private readonly mappings = new Map<string, ListingMapping>();
+  private readonly stock = new Map<string, StockBalance>();
+  private readonly movements = new Map<string, StockMovement>();
+  private readonly outbox: OutboxEntry[] = [];
+  private readonly operations: OperationEvent[] = [];
   private seq = 0;
 
   private listingKey(orgId: string, listingId: string): string {
@@ -125,7 +139,9 @@ export class MemoryIdentityRepository implements IdentityRepository {
     orders: Omit<OrderListItem, 'organizationId'>[],
   ): Promise<number> {
     for (const order of orders) {
-      this.orders.set(this.orderKey(orgId, order.id), { ...order, organizationId: orgId });
+      const key = this.orderKey(orgId, order.id);
+      const existing = this.orders.get(key);
+      this.orders.set(key, withOrderDefaults(orgId, order, existing));
     }
     return orders.length;
   }
@@ -157,5 +173,68 @@ export class MemoryIdentityRepository implements IdentityRepository {
 
   async listMappings(orgId: string): Promise<ListingMapping[]> {
     return [...this.mappings.values()].filter((m) => m.organizationId === orgId);
+  }
+
+  async getOrder(orgId: string, orderId: string): Promise<OrderListItem | null> {
+    return this.orders.get(this.orderKey(orgId, orderId)) ?? null;
+  }
+
+  async saveOrder(order: OrderListItem): Promise<OrderListItem> {
+    this.orders.set(this.orderKey(order.organizationId, order.id), order);
+    return order;
+  }
+
+  private stockKey(orgId: string, sku: string): string {
+    return `${orgId}:${sku}`;
+  }
+
+  async getSkuStock(orgId: string, sku: string): Promise<StockBalance> {
+    return this.stock.get(this.stockKey(orgId, sku)) ?? emptyStock(orgId, sku);
+  }
+
+  async setSkuStock(balance: StockBalance): Promise<StockBalance> {
+    const next = {
+      ...balance,
+      sellableStock: sellableOf(balance.physicalStock, balance.reservedStock),
+    };
+    this.stock.set(this.stockKey(balance.organizationId, balance.sku), next);
+    return next;
+  }
+
+  async findMovementByKey(orgId: string, idempotencyKey: string): Promise<StockMovement | null> {
+    return (
+      [...this.movements.values()].find(
+        (m) => m.organizationId === orgId && m.idempotencyKey === idempotencyKey,
+      ) ?? null
+    );
+  }
+
+  async appendMovement(movement: StockMovement): Promise<StockMovement> {
+    this.movements.set(movement.id, movement);
+    return movement;
+  }
+
+  async listMovements(orgId: string): Promise<StockMovement[]> {
+    return [...this.movements.values()]
+      .filter((m) => m.organizationId === orgId)
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }
+
+  async appendOutbox(entry: OutboxEntry): Promise<OutboxEntry> {
+    this.outbox.push(entry);
+    return entry;
+  }
+
+  async listOutbox(orgId: string): Promise<OutboxEntry[]> {
+    return this.outbox.filter((e) => e.organizationId === orgId).reverse();
+  }
+
+  async appendOperation(event: OperationEvent): Promise<OperationEvent> {
+    this.operations.push(event);
+    return event;
+  }
+
+  async listOperations(orgId: string): Promise<OperationEvent[]> {
+    return this.operations.filter((e) => e.organizationId === orgId).slice().reverse();
   }
 }

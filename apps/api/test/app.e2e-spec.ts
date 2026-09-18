@@ -206,4 +206,98 @@ describe('authenticated mock Firebase (e2e)', () => {
       .set({ Authorization: 'Bearer other' })
       .expect(403);
   });
+
+  it('F3 reserve / pack / label / ship / ledger / operations', async () => {
+    const auth = { Authorization: 'Bearer test' };
+    await request(app.getHttpServer()).post('/v1/organizations').set(auth).send({ name: 'Pilot' }).expect(201);
+    const shop = await request(app.getHttpServer())
+      .post('/v1/shops/trendyol/connect')
+      .set(auth)
+      .send({})
+      .expect(201);
+    await request(app.getHttpServer()).post(`/v1/shops/${shop.body.id}/sync`).set(auth).expect(201);
+    await request(app.getHttpServer())
+      .post('/v1/mappings')
+      .set(auth)
+      .send({ listingId: 'ty-p-1001', sku: 'MASTER-TSHIRT' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/v1/mappings')
+      .set(auth)
+      .send({ listingId: 'ty-p-1002', sku: 'MASTER-HOODIE' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/v1/stock/adjust')
+      .set(auth)
+      .send({ sku: 'MASTER-TSHIRT', deltaPhysical: 10, idempotencyKey: 'e2e-t' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/v1/stock/adjust')
+      .set(auth)
+      .send({ sku: 'MASTER-HOODIE', deltaPhysical: 4, idempotencyKey: 'e2e-h' })
+      .expect(201);
+
+    const unmapped = await request(app.getHttpServer())
+      .post('/v1/orders/ty-o-5003/reserve')
+      .set(auth)
+      .send({})
+      .expect(400);
+    expect(unmapped.body.error.code).toBe('UNMAPPED_SKU');
+
+    const reserved = await request(app.getHttpServer())
+      .post('/v1/orders/ty-o-5001/reserve')
+      .set(auth)
+      .send({ idempotencyKey: 'e2e-res' })
+      .expect(201);
+    expect(reserved.body.reserved).toBe(true);
+
+    const again = await request(app.getHttpServer())
+      .post('/v1/orders/ty-o-5001/reserve')
+      .set(auth)
+      .send({ idempotencyKey: 'e2e-other' })
+      .expect(409);
+    expect(again.body.error.code).toBe('CONFLICT');
+
+    await request(app.getHttpServer())
+      .post('/v1/orders/ty-o-5001/pack/scan')
+      .set(auth)
+      .send({ sku: 'MASTER-TSHIRT' })
+      .expect(201);
+    const label = await request(app.getHttpServer())
+      .post('/v1/orders/ty-o-5001/label')
+      .set(auth)
+      .expect(201);
+    expect(label.body.labeled).toBe(true);
+    expect(label.body.shipped).toBe(false);
+
+    const incomplete = await request(app.getHttpServer())
+      .post('/v1/orders/ty-o-5001/ship')
+      .set(auth)
+      .send({})
+      .expect(400);
+    expect(incomplete.body.error.code).toBe('PACK_INCOMPLETE');
+
+    await request(app.getHttpServer())
+      .post('/v1/orders/ty-o-5001/pack/scan')
+      .set(auth)
+      .send({ barcode: '8680001001002' })
+      .expect(201);
+
+    const shipped = await request(app.getHttpServer())
+      .post('/v1/orders/ty-o-5001/ship')
+      .set(auth)
+      .send({})
+      .expect(201);
+    expect(shipped.body.shipped).toBe(true);
+
+    const stock = await request(app.getHttpServer()).get('/v1/stock/MASTER-TSHIRT').set(auth).expect(200);
+    expect(stock.body.physicalStock).toBe(9);
+    expect(stock.body.sellableStock).toBe(9);
+
+    const ops = await request(app.getHttpServer()).get('/v1/operations').set(auth).expect(200);
+    expect(ops.body.items.length).toBeGreaterThan(0);
+    const movements = await request(app.getHttpServer()).get('/v1/stock/movements').set(auth).expect(200);
+    expect(movements.body.items.some((m: { reason: string }) => m.reason === 'ship')).toBe(true);
+  });
 });

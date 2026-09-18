@@ -38,9 +38,11 @@ export class HttpErrorFilter implements ExceptionFilter {
               ? ErrorCodes.VALIDATION
               : status === HttpStatus.UNAUTHORIZED
                 ? ErrorCodes.UNAUTHENTICATED
-                : status === HttpStatus.FORBIDDEN
-                  ? ErrorCodes.FORBIDDEN
-                  : ErrorCodes.INTERNAL;
+                  : status === HttpStatus.FORBIDDEN
+                    ? ErrorCodes.FORBIDDEN
+                    : status === HttpStatus.CONFLICT
+                      ? ErrorCodes.CONFLICT
+                      : ErrorCodes.INTERNAL;
       res.status(status).json(apiError(code, message, requestId));
       return;
     }

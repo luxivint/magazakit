@@ -2,13 +2,23 @@ import { randomUUID } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import type {
   ListingMapping,
+  OperationEvent,
   OrderListItem,
   OrganizationSummary,
+  OutboxEntry,
   ShopStatus,
+  StockBalance,
+  StockMovement,
 } from '@magazakit/contracts';
 import { K01_NOTE } from '../config/trendyol-env';
 import type { MockListingSeed } from '../trendyol/mock-feed';
-import type { IdentityRepository, StoredListing } from './identity.repository';
+import {
+  emptyStock,
+  sellableOf,
+  withOrderDefaults,
+  type IdentityRepository,
+  type StoredListing,
+} from './identity.repository';
 
 type Pool = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -103,6 +113,41 @@ export class PostgresIdentityRepository implements IdentityRepository {
         listing_id TEXT NOT NULL,
         sku TEXT NOT NULL,
         PRIMARY KEY (organization_id, listing_id)
+      );
+      CREATE TABLE IF NOT EXISTS sku_stock (
+        organization_id TEXT NOT NULL REFERENCES organizations (id),
+        sku TEXT NOT NULL,
+        physical INTEGER NOT NULL DEFAULT 0,
+        reserved INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (organization_id, sku)
+      );
+      CREATE TABLE IF NOT EXISTS stock_movements (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        sku TEXT NOT NULL,
+        delta_physical INTEGER NOT NULL,
+        delta_reserved INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (organization_id, idempotency_key)
+      );
+      CREATE TABLE IF NOT EXISTS stock_outbox (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        sku TEXT NOT NULL,
+        intended_qty INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS operations (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL,
+        ref_id TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
     `);
     await this.pool.query(`
@@ -212,12 +257,14 @@ export class PostgresIdentityRepository implements IdentityRepository {
     orders: Omit<OrderListItem, 'organizationId'>[],
   ): Promise<number> {
     for (const order of orders) {
+      const existing = await this.getOrder(orgId, order.id);
+      const merged = withOrderDefaults(orgId, order, existing ?? undefined);
       await this.pool.query(
         `INSERT INTO org_orders (organization_id, order_id, payload)
          VALUES ($1, $2, $3::jsonb)
          ON CONFLICT (organization_id, order_id)
          DO UPDATE SET payload = EXCLUDED.payload`,
-        [orgId, order.id, JSON.stringify(order)],
+        [orgId, order.id, JSON.stringify(merged)],
       );
     }
     return orders.length;
@@ -276,6 +323,165 @@ export class PostgresIdentityRepository implements IdentityRepository {
       stockSource: 'master_sku' as const,
     }));
   }
+
+  async getOrder(orgId: string, orderId: string): Promise<OrderListItem | null> {
+    const res = await this.pool.query(
+      'SELECT payload FROM org_orders WHERE organization_id = $1 AND order_id = $2',
+      [orgId, orderId],
+    );
+    const row = res.rows[0];
+    if (!row) {
+      return null;
+    }
+    return { ...(row.payload as OrderListItem), organizationId: orgId };
+  }
+
+  async saveOrder(order: OrderListItem): Promise<OrderListItem> {
+    await this.pool.query(
+      `INSERT INTO org_orders (organization_id, order_id, payload)
+       VALUES ($1, $2, $3::jsonb)
+       ON CONFLICT (organization_id, order_id)
+       DO UPDATE SET payload = EXCLUDED.payload`,
+      [order.organizationId, order.id, JSON.stringify(order)],
+    );
+    return order;
+  }
+
+  async getSkuStock(orgId: string, sku: string): Promise<StockBalance> {
+    const res = await this.pool.query(
+      'SELECT physical, reserved FROM sku_stock WHERE organization_id = $1 AND sku = $2',
+      [orgId, sku],
+    );
+    const row = res.rows[0];
+    if (!row) {
+      return emptyStock(orgId, sku);
+    }
+    const physicalStock = Number(row.physical);
+    const reservedStock = Number(row.reserved);
+    return {
+      organizationId: orgId,
+      sku,
+      physicalStock,
+      reservedStock,
+      sellableStock: sellableOf(physicalStock, reservedStock),
+    };
+  }
+
+  async setSkuStock(balance: StockBalance): Promise<StockBalance> {
+    await this.pool.query(
+      `INSERT INTO sku_stock (organization_id, sku, physical, reserved)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (organization_id, sku)
+       DO UPDATE SET physical = EXCLUDED.physical, reserved = EXCLUDED.reserved`,
+      [balance.organizationId, balance.sku, balance.physicalStock, balance.reservedStock],
+    );
+    return { ...balance, sellableStock: sellableOf(balance.physicalStock, balance.reservedStock) };
+  }
+
+  async findMovementByKey(orgId: string, idempotencyKey: string): Promise<StockMovement | null> {
+    const res = await this.pool.query(
+      `SELECT id, organization_id, sku, delta_physical, delta_reserved, reason, idempotency_key, created_at
+       FROM stock_movements WHERE organization_id = $1 AND idempotency_key = $2`,
+      [orgId, idempotencyKey],
+    );
+    const row = res.rows[0];
+    return row ? rowToMovement(row) : null;
+  }
+
+  async appendMovement(movement: StockMovement): Promise<StockMovement> {
+    await this.pool.query(
+      `INSERT INTO stock_movements
+        (id, organization_id, sku, delta_physical, delta_reserved, reason, idempotency_key, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz)
+       ON CONFLICT (organization_id, idempotency_key) DO NOTHING`,
+      [
+        movement.id,
+        movement.organizationId,
+        movement.sku,
+        movement.deltaPhysical,
+        movement.deltaReserved,
+        movement.reason,
+        movement.idempotencyKey,
+        movement.createdAt,
+      ],
+    );
+    return (await this.findMovementByKey(movement.organizationId, movement.idempotencyKey)) ?? movement;
+  }
+
+  async listMovements(orgId: string): Promise<StockMovement[]> {
+    const res = await this.pool.query(
+      `SELECT id, organization_id, sku, delta_physical, delta_reserved, reason, idempotency_key, created_at
+       FROM stock_movements WHERE organization_id = $1 ORDER BY created_at DESC`,
+      [orgId],
+    );
+    return res.rows.map(rowToMovement);
+  }
+
+  async appendOutbox(entry: OutboxEntry): Promise<OutboxEntry> {
+    await this.pool.query(
+      `INSERT INTO stock_outbox (id, organization_id, sku, intended_qty, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6::timestamptz)`,
+      [entry.id, entry.organizationId, entry.sku, entry.intendedQty, entry.status, entry.createdAt],
+    );
+    return entry;
+  }
+
+  async listOutbox(orgId: string): Promise<OutboxEntry[]> {
+    const res = await this.pool.query(
+      `SELECT id, organization_id, sku, intended_qty, status, created_at
+       FROM stock_outbox WHERE organization_id = $1 ORDER BY created_at DESC`,
+      [orgId],
+    );
+    return res.rows.map((row) => ({
+      id: String(row.id),
+      organizationId: String(row.organization_id),
+      kind: 'channel_stock_write' as const,
+      channel: 'trendyol' as const,
+      sku: String(row.sku),
+      intendedQty: Number(row.intended_qty),
+      status: row.status as OutboxEntry['status'],
+      createdAt: asIso(row.created_at),
+    }));
+  }
+
+  async appendOperation(event: OperationEvent): Promise<OperationEvent> {
+    await this.pool.query(
+      `INSERT INTO operations (id, organization_id, type, title, status, ref_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz)`,
+      [event.id, event.organizationId, event.type, event.title, event.status, event.refId, event.createdAt],
+    );
+    return event;
+  }
+
+  async listOperations(orgId: string): Promise<OperationEvent[]> {
+    const res = await this.pool.query(
+      `SELECT id, organization_id, type, title, status, ref_id, created_at
+       FROM operations WHERE organization_id = $1 ORDER BY created_at DESC`,
+      [orgId],
+    );
+    return res.rows.map((row) => ({
+      id: String(row.id),
+      organizationId: String(row.organization_id),
+      type: String(row.type),
+      title: String(row.title),
+      status: row.status as OperationEvent['status'],
+      refId: row.ref_id ? String(row.ref_id) : null,
+      createdAt: asIso(row.created_at),
+    }));
+  }
+}
+
+function rowToMovement(row: Record<string, unknown>): StockMovement {
+  return {
+    id: String(row.id),
+    organizationId: String(row.organization_id),
+    sku: String(row.sku),
+    deltaPhysical: Number(row.delta_physical),
+    deltaReserved: Number(row.delta_reserved),
+    reason: row.reason as StockMovement['reason'],
+    idempotencyKey: String(row.idempotency_key),
+    createdAt: asIso(row.created_at),
+  };
 }
 
 export async function tryPostgresRepository(
