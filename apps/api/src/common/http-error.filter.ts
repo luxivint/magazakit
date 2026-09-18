@@ -36,7 +36,11 @@ export class HttpErrorFilter implements ExceptionFilter {
             ? ErrorCodes.NOT_FOUND
             : status === HttpStatus.BAD_REQUEST
               ? ErrorCodes.VALIDATION
-              : ErrorCodes.INTERNAL;
+              : status === HttpStatus.UNAUTHORIZED
+                ? ErrorCodes.UNAUTHENTICATED
+                : status === HttpStatus.FORBIDDEN
+                  ? ErrorCodes.FORBIDDEN
+                  : ErrorCodes.INTERNAL;
       res.status(status).json(apiError(code, message, requestId));
       return;
     }

@@ -1,44 +1,49 @@
-# Mağazam API (F0)
+# Mağazam API
 
-NestJS read slice for **Mağazam**. The product client is Expo (later). This PR does not own `apps/web`.
+NestJS for **Mağazam**. Client is **Expo** (`apps/mobile`). This PR does not own web UI.
 
-K01: no Trendyol test-store credentials. Catalog and orders are an **in-memory mock**. Secrets are not required and must not be committed.
+Auth is **Firebase**. Nest verifies `Authorization: Bearer <Firebase ID token>` with the Admin SDK and stores `uid` on org/device records. There is **no** email/password register or login route.
+
+## Expo
+
+```
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:43140
+Authorization: Bearer <Firebase ID token>
+```
+
+Without `FIREBASE_PROJECT_ID` on the API, `/health` still works; other user routes return `401` `AUTH_NOT_CONFIGURED`.
 
 ## Endpoints
 
-| Method | Path | Notes |
+Public:
+
+| Method | Path |
+| --- | --- |
+| `GET` | `/health` |
+| `GET` | `/v1/docs` |
+
+Authenticated (Firebase Bearer):
+
+| Method | Path | Body |
 | --- | --- | --- |
-| `GET` | `/health` | `{ status, service, mock, trendyol }` |
-| `GET` | `/v1/products` | Paginated product page (`page`, `pageSize`) |
-| `GET` | `/v1/orders` | Paginated order page |
-| `GET` | `/api/preview/products` | Same body as `/v1/products` (`mock: true`) |
-| `GET` | `/api/preview/orders` | Same body as `/v1/orders` |
-| `GET` | worker `/health` | Empty process, no queue |
+| `GET` | `/v1/me` | |
+| `POST` | `/v1/organizations` | `{ "name": "..." }` |
+| `GET` | `/v1/organizations/current` | |
+| `POST` | `/v1/devices` | `{ "fcmToken": "..." }` in-memory |
+| `GET` | `/v1/products` | query `page`, `pageSize`, optional `organizationId` |
+| `GET` | `/v1/orders` | same |
+| `GET` | `/api/preview/products` | same as products (`mock: true`) |
+| `GET` | `/api/preview/orders` | same as orders |
 
-Error envelope: `{ error: { code, message }, requestId }`. `x-request-id` is echoed.
-
-Not in F0: billing, Hepsiburada, WMS, stock write, webhooks.
+Foreign `organizationId` → `403`. Catalog/orders remain K01 **mock** (no Trendyol secrets).
 
 ## Run
 
 ```bash
-cp .env.example .env   # keys stay empty
+cp .env.example .env
 pnpm install
 pnpm --filter @magazakit/contracts build
 pnpm dev:api           # http://127.0.0.1:43140
-pnpm dev:worker        # optional http://127.0.0.1:43141
 ```
 
-Postgres is **not** used by the mock. Optional Compose for later slices:
-
-```bash
-docker compose up -d postgres
-```
-
-`TRENDYOL_USE_MOCK=false` without a live client returns `503` + `K01_TRENDYOL_UNAVAILABLE`. Do not put real keys in env files.
-
-## Layout
-
-- `apps/api` — NestJS
-- `apps/worker` — health-only process
-- `packages/contracts` — error, pagination, product/order types
+Optional: `pnpm dev:worker` (`:43141/health`), `docker compose up -d postgres` (unused in this slice).
