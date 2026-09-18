@@ -9,14 +9,10 @@ export function PushRegistrar() {
 
   useEffect(() => {
     if (!idToken || !user) return;
-    let cancelled = false;
-    void (async () => {
-      await syncPushDevice();
-      if (cancelled) return;
-    })();
-    return () => {
-      cancelled = true;
-    };
+    const timer = setTimeout(() => {
+      void syncPushDevice();
+    }, 2000);
+    return () => clearTimeout(timer);
   }, [idToken, user?.uid]);
 
   return null;

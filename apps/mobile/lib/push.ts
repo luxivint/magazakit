@@ -35,8 +35,12 @@ export async function registerForPush(): Promise<SavedPushToken> {
     const existing = await Notifications.getPermissionsAsync();
     let status = existing.status;
     if (status !== 'granted') {
-      const asked = await Notifications.requestPermissionsAsync();
-      status = asked.status;
+      if (Platform.OS === 'web' && typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+        status = 'denied';
+      } else {
+        const asked = await Notifications.requestPermissionsAsync();
+        status = asked.status;
+      }
     }
     saved.permission = status;
 
