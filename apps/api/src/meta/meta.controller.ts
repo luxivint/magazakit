@@ -29,6 +29,7 @@ export class MetaController {
         { method: 'POST', path: '/v1/shops/:id/sync' },
         { method: 'POST', path: '/v1/mappings', body: { listingId: 'string', sku: 'string' } },
         { method: 'GET', path: '/v1/mappings' },
+        { method: 'GET', path: '/v1/products' },
         { method: 'GET', path: '/v1/orders' },
         { method: 'GET', path: '/api/preview/products' },
         { method: 'GET', path: '/api/preview/orders' },
