@@ -9,6 +9,7 @@
     "start:worker": "pnpm --filter @magazakit/worker start",
     "build:api": "pnpm --filter @magazakit/contracts build && pnpm --filter @magazakit/api build",
     "test:api": "pnpm --filter @magazakit/api test && pnpm --filter @magazakit/api test:e2e",
+    "test:worker": "pnpm --filter @magazakit/worker test",
     "db:up": "docker compose up -d postgres"
   },
   "engines": {

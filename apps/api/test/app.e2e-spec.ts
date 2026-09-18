@@ -11,6 +11,7 @@ describe('public API (e2e)', () => {
 
   beforeEach(async () => {
     process.env.TRENDYOL_USE_MOCK = 'true';
+    process.env.OUTBOX_DRAIN_INTERVAL_MS = '0';
     delete process.env.FIREBASE_PROJECT_ID;
     delete process.env.DATABASE_URL;
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -32,6 +33,8 @@ describe('public API (e2e)', () => {
     expect(res.body.auth.projectId).toBe('magazam-app');
     expect(res.body.auth.configured).toBe(true);
     expect(res.body.persistence).toBe('memory');
+    expect(res.body.outbox.pending).toBe(0);
+    expect(res.body.outbox.mock).toBe(true);
     expect(res.headers['x-request-id']).toBeDefined();
   });
 
@@ -65,6 +68,7 @@ describe('authenticated mock Firebase (e2e)', () => {
   beforeEach(async () => {
     process.env.TRENDYOL_USE_MOCK = 'true';
     process.env.FIREBASE_PROJECT_ID = 'magazam-app';
+    process.env.OUTBOX_DRAIN_INTERVAL_MS = '0';
     delete process.env.DATABASE_URL;
     const firebaseAuth: Pick<
       FirebaseAuthService,

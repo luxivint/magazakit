@@ -14,7 +14,10 @@ export class MetaController {
         header: 'Authorization: Bearer <Firebase ID token from magazam-app>',
         note: 'Homemade register/login yok. Nest Admin SDK verifyIdToken (aud = magazam-app). Service account JSON commit edilmez. Cloud/prod: GOOGLE_APPLICATION_CREDENTIALS.',
       },
-      public: [{ method: 'GET', path: '/health' }, { method: 'GET', path: '/v1/docs' }],
+      public: [
+        { method: 'GET', path: '/health', note: 'outbox.pending count; persistence' },
+        { method: 'GET', path: '/v1/docs' },
+      ],
       authenticated: [
         { method: 'GET', path: '/v1/me' },
         { method: 'POST', path: '/v1/organizations', body: { name: 'string' } },
@@ -47,7 +50,7 @@ export class MetaController {
           body: { sku: 'string', deltaPhysical: 1, reason: 'adjust|count', idempotencyKey: 'required' },
         },
         { method: 'GET', path: '/v1/stock/movements' },
-        { method: 'GET', path: '/v1/stock/outbox' },
+        { method: 'GET', path: '/v1/stock/outbox', note: 'pending|sent|failed; mock TY drain' },
         { method: 'GET', path: '/v1/stock/:sku' },
         { method: 'GET', path: '/v1/operations' },
         { method: 'GET', path: '/v1/returns' },

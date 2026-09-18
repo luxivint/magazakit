@@ -9,6 +9,11 @@ export type HealthResponse = {
     credential: 'adc' | 'project-id-only' | 'none';
   };
   persistence: 'memory' | 'postgres';
+  outbox?: {
+    pending: number;
+    channel: 'trendyol';
+    mock: true;
+  };
   trendyol?: {
     mode: 'mock' | 'unconfigured';
     k01: string;

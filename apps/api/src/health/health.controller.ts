@@ -14,15 +14,17 @@ export class HealthController {
 
   @Public()
   @Get('health')
-  getHealth(): HealthResponse {
+  async getHealth(): Promise<HealthResponse> {
     const mode = trendyolMode();
     const configured = this.firebaseAuth.isConfigured();
     const projectId = this.firebaseAuth.projectId();
+    const pending = await this.identity.countPendingOutbox();
     return {
       status: 'ok',
       service: 'api',
       mock: mode === 'mock',
       persistence: this.identity.backend,
+      outbox: { pending, channel: 'trendyol', mock: true },
       auth: {
         provider: 'firebase',
         projectId,

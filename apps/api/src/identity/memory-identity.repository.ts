@@ -260,6 +260,23 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return this.outbox.filter((e) => e.organizationId === orgId).reverse();
   }
 
+  async listPendingOutbox(): Promise<OutboxEntry[]> {
+    return this.outbox.filter((e) => e.status === 'pending');
+  }
+
+  async countPendingOutbox(): Promise<number> {
+    return this.outbox.filter((e) => e.status === 'pending').length;
+  }
+
+  async updateOutboxStatus(id: string, status: OutboxEntry['status']): Promise<boolean> {
+    const entry = this.outbox.find((e) => e.id === id);
+    if (!entry || entry.status !== 'pending') {
+      return false;
+    }
+    entry.status = status;
+    return true;
+  }
+
   async appendOperation(event: OperationEvent): Promise<OperationEvent> {
     this.operations.push(event);
     return event;

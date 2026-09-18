@@ -25,7 +25,7 @@ Device: LAN IP, not 127.0.0.1. CORS allows Expo localhost / LAN / `*.expo.dev`.
 | Manual map (E-18) | `POST /v1/mappings` `{ "listingId", "sku" }` |
 | Stock (E-06) | `POST /v1/stock/adjust` `{ "sku", "deltaPhysical", "reason", "idempotencyKey" }` |
 | Ledger (E-21) | `GET /v1/stock/movements` |
-| Channel write intent (T08) | `GET /v1/stock/outbox` — recorded; **no Redis** yet |
+| Channel write intent (T08) | `GET /v1/stock/outbox` — pending → worker/API drain marks `sent`/`failed` (mock TY, **no Redis**, no secrets) |
 | Reserve (T07) | `POST /v1/orders/:id/reserve` `{ "idempotencyKey"? }` |
 | Pack scan (E-12) | `POST /v1/orders/:id/pack/scan` `{ "sku" }` or `{ "barcode" }` |
 | Label (E-60) | `POST /v1/orders/:id/label` → mock `pdfUrl`; print **does not** ship |
@@ -44,7 +44,7 @@ Device: LAN IP, not 127.0.0.1. CORS allows Expo localhost / LAN / `*.expo.dev`.
 
 Unmapped listings: `mapped: false`, `stockSource: "none"`, `sellableStock: 0`. Unmapped SKU **cannot reserve or ship**. Marketplace `marketplaceStock` is **not** physical stock (K02). `sellable = physical − reserved`. Repeat sync does not duplicate (T06). Same reserve key is a no-op; a second reserve is `CONFLICT`. Same `idempotencyKey` on adjust is one ledger row.
 
-`GET /health` public (`persistence`: `memory` or `postgres`). Missing Bearer → `401`. Foreign `organizationId` → `403`. Catalog: `GET /v1/docs`.
+`GET /health` public (`persistence`, `outbox.pending`). Missing Bearer → `401`. Foreign `organizationId` → `403`. Catalog: `GET /v1/docs`.
 
 ## Persistence
 
@@ -52,18 +52,30 @@ Unmapped listings: `mapped: false`, `stockSource: "none"`, `sellableStock: 0`. U
 
 **Postgres:** set `DATABASE_URL` **locally** in gitignored `apps/api/.env` or repo `.env`. Never commit it. Never put a real URL in `.env.example`. On boot the API applies `apps/api/migrations/*.sql` (tracked in `schema_migrations`). If the URL is set but Postgres is down, it logs a warning (never the connection string) and falls back to memory.
 
-### Run with Postgres
+### Production-ish run (remote Postgres)
+
+Keep the real URL only in gitignored `.env`. Then:
+
+```bash
+pnpm --filter @magazakit/contracts build
+pnpm dev:api      # :43140 — also drains outbox on an interval (memory or Postgres)
+pnpm dev:worker   # :43141 — drains pending stock_outbox via mock Trendyol (K01)
+```
+
+`GET /health` → `"persistence":"postgres"`, `"outbox": { "pending": N, "channel": "trendyol", "mock": true }`.
+
+Worker `GET http://127.0.0.1:43141/health` reports the same pending count when it can see Postgres. Channel writes stay mock; TRENDYOL_API_KEY is never stored or logged. No Redis.
+
+### Local docker Postgres
 
 ```bash
 # put DATABASE_URL only in gitignored apps/api/.env (or .env) — never commit
-# optional local docker:
 docker compose up -d postgres
 pnpm install
 pnpm --filter @magazakit/contracts build
 pnpm dev:api
+pnpm dev:worker
 ```
-
-`GET /health` → `"persistence":"postgres"`.
 
 Do not commit `.env`, `apps/api/.env`, service-account JSON, or any real `DATABASE_URL`.
 
@@ -80,7 +92,7 @@ Do not commit `.env`, `apps/api/.env`, service-account JSON, or any real `DATABA
 | `listing_mappings` | Manual listing → master SKU |
 | `sku_stock` | Physical + reserved (sellable = physical − reserved) |
 | `stock_movements` | Immutable ledger (idempotency key unique per org) |
-| `stock_outbox` | Intended channel stock writes (no Redis) |
+| `stock_outbox` | Intended channel stock writes; drain marks `sent`/`failed` (mock TY) |
 | `operations` | `GET /v1/operations` feed |
 | `org_returns` | İade listesi + inceleme stub |
 | `org_members` | Org üyeleri (sahip) |

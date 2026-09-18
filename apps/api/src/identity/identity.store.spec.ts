@@ -81,6 +81,11 @@ describe('IdentityStore F3 fulfillment', () => {
     expect(first.outbox.kind).toBe('channel_stock_write');
     expect(first.outbox.intendedQty).toBe(10);
     expect(first.outbox.status).toBe('pending');
+    expect(await s.countPendingOutbox()).toBeGreaterThan(0);
+    const drained = await s.drainOutbox();
+    expect(drained.sent).toBeGreaterThan(0);
+    expect(await s.countPendingOutbox()).toBe(0);
+    expect((await s.listOutbox('uid-a')).items.some((e) => e.status === 'sent')).toBe(true);
 
     const replay = await s.adjustStock('uid-a', {
       sku: 'MASTER-TSHIRT',

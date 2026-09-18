@@ -112,6 +112,13 @@ importers:
         version: 8.70.0(eslint@9.39.5)(typescript@5.9.3)
 
   apps/worker:
+    dependencies:
+      dotenv:
+        specifier: ^18.0.0
+        version: 18.0.0
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

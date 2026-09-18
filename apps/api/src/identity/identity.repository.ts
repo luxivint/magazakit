@@ -66,6 +66,9 @@ export interface IdentityRepository {
   listMovements(orgId: string): Promise<StockMovement[]>;
   appendOutbox(entry: OutboxEntry): Promise<OutboxEntry>;
   listOutbox(orgId: string): Promise<OutboxEntry[]>;
+  listPendingOutbox(): Promise<OutboxEntry[]>;
+  countPendingOutbox(): Promise<number>;
+  updateOutboxStatus(id: string, status: OutboxEntry['status']): Promise<boolean>;
   appendOperation(event: OperationEvent): Promise<OperationEvent>;
   listOperations(orgId: string): Promise<OperationEvent[]>;
   upsertReturns(orgId: string, returns: Omit<ReturnListItem, 'organizationId'>[]): Promise<number>;

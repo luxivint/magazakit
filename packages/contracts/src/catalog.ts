@@ -99,7 +99,7 @@ export type OutboxEntry = {
   channel: 'trendyol';
   sku: string;
   intendedQty: number;
-  status: 'pending' | 'unknown' | 'reconciling';
+  status: 'pending' | 'unknown' | 'reconciling' | 'sent' | 'failed';
   createdAt: string;
 };
 

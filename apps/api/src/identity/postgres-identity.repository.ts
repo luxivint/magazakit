@@ -393,6 +393,36 @@ export class PostgresIdentityRepository implements IdentityRepository {
     }));
   }
 
+  async listPendingOutbox(): Promise<OutboxEntry[]> {
+    const res = await this.pool.query(
+      `SELECT id, organization_id, sku, intended_qty, status, created_at
+       FROM stock_outbox WHERE status = 'pending' ORDER BY created_at ASC`,
+    );
+    return res.rows.map((row) => ({
+      id: String(row.id),
+      organizationId: String(row.organization_id),
+      kind: 'channel_stock_write' as const,
+      channel: 'trendyol' as const,
+      sku: String(row.sku),
+      intendedQty: Number(row.intended_qty),
+      status: 'pending' as const,
+      createdAt: asIso(row.created_at),
+    }));
+  }
+
+  async countPendingOutbox(): Promise<number> {
+    const res = await this.pool.query(`SELECT count(*)::int AS n FROM stock_outbox WHERE status = 'pending'`);
+    return Number(res.rows[0]?.n ?? 0);
+  }
+
+  async updateOutboxStatus(id: string, status: OutboxEntry['status']): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE stock_outbox SET status = $2 WHERE id = $1 AND status = 'pending'`,
+      [id, status],
+    );
+    return ((res as { rowCount?: number }).rowCount ?? 0) > 0;
+  }
+
   async appendOperation(event: OperationEvent): Promise<OperationEvent> {
     await this.pool.query(
       `INSERT INTO operations (id, organization_id, type, title, status, ref_id, created_at)

@@ -32,6 +32,7 @@ import {
 } from '@magazakit/contracts';
 import type { IdentityRepository, PersistenceBackend } from './identity.repository';
 import { sellableOf, toProductListItem } from './identity.repository';
+import { mockTrendyolOutboxStatus } from '../outbox/mock-trendyol-write';
 import {
   TRENDYOL_READ_ADAPTER,
   type TrendyolReadAdapter,
@@ -229,6 +230,41 @@ export class IdentityStore {
   async listOutbox(uid: string): Promise<{ items: OutboxEntry[] }> {
     const org = await this.requireOrg(uid);
     return { items: await this.repo.listOutbox(org.id) };
+  }
+
+  countPendingOutbox(): Promise<number> {
+    return this.repo.countPendingOutbox();
+  }
+
+  /**
+   * K01 mock drain: pending → sent|failed. Never reads marketplace secrets.
+   */
+  async drainOutbox(): Promise<{ sent: number; failed: number }> {
+    const pending = await this.repo.listPendingOutbox();
+    let sent = 0;
+    let failed = 0;
+    for (const entry of pending) {
+      const status = mockTrendyolOutboxStatus(entry.intendedQty);
+      const claimed = await this.repo.updateOutboxStatus(entry.id, status);
+      if (!claimed) {
+        continue;
+      }
+      if (status === 'sent') {
+        sent += 1;
+      } else {
+        failed += 1;
+      }
+      await this.op(
+        entry.organizationId,
+        'channel_stock_write',
+        status === 'sent'
+          ? `Mock TY stok yazıldı ${entry.sku} → ${entry.intendedQty} (K01, sır yok)`
+          : `Mock TY stok yazımı başarısız ${entry.sku}`,
+        status === 'sent' ? 'ok' : 'error',
+        entry.id,
+      );
+    }
+    return { sent, failed };
   }
 
   async getSkuStock(uid: string, sku: string): Promise<StockBalance> {

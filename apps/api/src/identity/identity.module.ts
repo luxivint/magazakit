@@ -10,6 +10,7 @@ import { IdentityStore } from './identity.store';
 import { MappingsController } from './mappings.controller';
 import { MeController } from './me.controller';
 import { ShopsController } from './shops.controller';
+import { OutboxDrainService } from '../outbox/outbox-drain.service';
 
 @Module({
   imports: [TrendyolModule],
@@ -21,6 +22,7 @@ import { ShopsController } from './shops.controller';
         new IdentityStore(await createIdentityRepository(), trendyol),
       inject: [TRENDYOL_READ_ADAPTER],
     },
+    OutboxDrainService,
   ],
   exports: [IdentityStore],
 })
