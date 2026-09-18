@@ -21,7 +21,7 @@ export default function UrunDetayScreen() {
         <Pressable style={styles.back} onPress={() => router.back()} accessibilityLabel="Geri">
           <Ionicons name="chevron-back" size={22} color={colors.white} />
         </Pressable>
-        <Text style={styles.kicker}>Ürün · salt okunur</Text>
+        <Text style={styles.kicker}>Ürün</Text>
         <Text style={styles.title}>{product?.name ?? 'Ürün bulunamadı'}</Text>
       </SafeAreaView>
       <PorcelainSheet>
@@ -31,7 +31,7 @@ export default function UrunDetayScreen() {
               <ProductThumb kind={product.thumb} />
               <ChannelBadge />
               <MoneyText value={product.price} />
-              <Row label="listingId" value={product.listingId} />
+              <Row label="İlan" value={product.listingId} />
               <Row label="Ana SKU" value={product.mapped ? product.sku : 'eşleşmedi'} />
               <Row label="Pazaryeri adedi" value={String(product.marketplaceStock)} />
               <Row label="Barkod" value={product.barcode || '—'} />
@@ -39,7 +39,7 @@ export default function UrunDetayScreen() {
               <Row label="Rezerve" value={String(product.reserved)} />
               <Row label="Satılabilir" value={String(product.sellable)} />
               <Text style={styles.note}>
-                K02: pazaryeri adedi fiziksel stok sayılmaz. Eşleşmeyince mapped false, sellableStock 0.
+                Pazaryeri adedi fiziksel stok sayılmaz. Eşleşmeyince satılabilir sıfırdır.
               </Text>
               <Pressable onPress={() => router.push('/(tabs)/esleme')}>
                 <Text style={styles.link}>Eşleştirmeyi düzenle</Text>

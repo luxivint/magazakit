@@ -79,7 +79,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       setApiMock(null);
       setRawProducts([]);
       setRawOrders([]);
-      setError(e instanceof Error ? e.message : 'Nest API yanıt vermedi.');
+      setError(e instanceof Error ? e.message : 'Sunucu yanıt vermedi.');
     } finally {
       setLoading(false);
     }

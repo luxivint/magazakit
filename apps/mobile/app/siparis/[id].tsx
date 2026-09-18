@@ -19,11 +19,11 @@ import {
   type LabelResult,
   type OrderListItem,
 } from '@/lib/apiClient';
-import { colors, fonts, radii, space } from '@/theme/tokens';
+import { colors, fonts, space } from '@/theme/tokens';
 
 function LabelPdfFrame({ uri }: { uri: string }) {
   if (Platform.OS !== 'web') {
-    return <Text style={styles.meta}>PDF mockup hazır. Yazdır ≠ kargolandı.</Text>;
+    return <Text style={styles.meta}>Kargo etiketi hazır. Yazdırınca kargolanmış sayılmaz.</Text>;
   }
   return createElement('iframe', {
     src: uri,
@@ -131,8 +131,8 @@ export default function HazirlaScreen() {
       setPdfUri(uri);
       setPrintNote(
         created.shipped
-          ? 'Hata: yazdırma kargolandı yapmamalı.'
-          : 'Etiket yazdırıldı. Sipariş kargolandı değil. POST /ship çağrılmadı.',
+          ? 'Hata: yazdırma siparişi kargoda yapmamalı.'
+          : 'Etiket yazdırıldı. Sipariş kargoda değil.',
       );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Yazdırma kargolandı sayılmaz.');
@@ -149,7 +149,7 @@ export default function HazirlaScreen() {
         <Pressable style={styles.back} onPress={() => router.back()} accessibilityLabel="Geri">
           <Ionicons name="chevron-back" size={22} color={colors.white} />
         </Pressable>
-        <Text style={styles.kicker}>E-12 · paket ≠ sipariş · yazdır ≠ kargo</Text>
+        <Text style={styles.kicker}>Siparişi hazırla</Text>
         <Text style={styles.title}>{order?.number ?? 'Sipariş'}</Text>
         <Text style={styles.lead}>
           {order ? `${order.customer} · ${order.qty} adet` : 'Katalogda yok — içeri al.'}
@@ -159,28 +159,28 @@ export default function HazirlaScreen() {
       <PorcelainSheet>
         <ScrollView contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
           {error ? <ConfigBanner text={error} /> : null}
-          {conflict ? <ConfigBanner text={`CONFLICT · ${conflict}`} /> : null}
+          {conflict ? <ConfigBanner text={conflict} /> : null}
 
           <Text style={styles.section}>1. Rezerve</Text>
           <Text style={styles.body}>
-            satılabilir = fiziksel − rezerve. Eşlenmemiş ilan rezervelenemez / kargolanamaz. İkinci anahtar → 409.
+            Satılabilir stok, fiziksel eksi rezervedir. Eşleşmeyen ürün rezerve edilemez ve kargolanamaz.
           </Text>
           <Button
-            label={reserved ? 'Tekrar rezerve (CONFLICT)' : 'Stoğu rezerve et'}
+            label="Stoğu rezerve et"
             loading={busy && !packed}
             onPress={() => void onReserve()}
           />
 
           <Text style={styles.section}>2. Barkod / SKU</Text>
           <Text style={styles.body}>
-            POST /pack/scan. Örnek: {scanHint || 'önce eşleştir'}
+            Kamerayla oku; web’de yaz. {scanHint ? `Örnek: ${scanHint}` : 'Önce ürünü eşleştir.'}
           </Text>
           <TextField
             label="SKU veya barkod"
             value={sku}
             onChangeText={setSku}
             autoCapitalize="characters"
-            placeholder="MASTER-SKU veya barkod"
+            placeholder="SKU veya barkod"
           />
           <Button
             label={packed ? 'Paket tamam' : 'Tara ve eşle'}
@@ -192,9 +192,9 @@ export default function HazirlaScreen() {
           />
 
           <Text style={styles.section}>3. Kargo etiketi</Text>
-          <Text style={styles.body}>POST /label + GET /label.pdf. Yazdırma POST /ship çağırmaz.</Text>
+          <Text style={styles.body}>Etiketi yazdırmak siparişi kargoda yapmaz.</Text>
           {pdfUri ? <LabelPdfFrame uri={pdfUri} /> : null}
-          {label && !pdfUri ? <Text style={styles.meta}>PDF: {label.pdfUrl}</Text> : null}
+          {label && !pdfUri ? <Text style={styles.meta}>Etiket hazır.</Text> : null}
           {printNote ? <Text style={styles.ok}>{printNote}</Text> : null}
           <Button
             label="Etiketi yazdır"

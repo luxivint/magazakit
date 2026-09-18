@@ -11,7 +11,6 @@ import { ConfigBanner } from '@/components/ui/ConfigBanner';
 import { PeachAlert } from '@/components/ui/PeachAlert';
 import { useCatalog } from '@/context/CatalogContext';
 import { useShops } from '@/context/ShopContext';
-import { API_URL } from '@/lib/api';
 import { colors, fonts, space } from '@/theme/tokens';
 
 export default function IcerikAlScreen() {
@@ -28,17 +27,16 @@ export default function IcerikAlScreen() {
         </Pressable>
         <BrandMark />
         <Text style={styles.headline}>Ürünleri içeri al</Text>
-        <Text style={styles.lead}>POST /v1/shops/:id/sync — mock, idempotent. Liste senkten sonra dolar.</Text>
+        <Text style={styles.lead}>Ürün ve siparişleri mağazandan çek. Listeler bundan sonra dolar.</Text>
       </SafeAreaView>
       <PorcelainSheet>
         <ScrollView contentContainerStyle={styles.sheet}>
-          {shop?.mock ? <PeachAlert text="K01 mock — gerçek Trendyol anahtarı yok" /> : null}
+          {shop?.mock ? <PeachAlert text="Test bağlantısı — gerçek Trendyol anahtarı yok." /> : null}
           <Text style={styles.section}>Kaynak</Text>
           <Text style={styles.body}>
-            {shop ? `${shop.sellerLabel} · ${shop.id}` : 'Bağlı mağaza yok'}. Bearer Firebase ID token. GET {API_URL}
-            /v1/products ve /v1/orders org kapsamında; senkten önce boş.
+            {shop ? shop.sellerLabel : 'Bağlı mağaza yok'}. Senkten önce ürün ve sipariş listesi boştur.
           </Text>
-          <Text style={styles.meta}>Son senk: {shop?.lastSyncAt ?? catalog.lastSync ?? 'henüz yok'}</Text>
+          <Text style={styles.meta}>Son eşitleme: {shop?.lastSyncAt ?? catalog.lastSync ?? 'henüz yok'}</Text>
           <Text style={styles.meta}>
             {catalog.products.length} ürün · {catalog.orders.length} sipariş
             {catalog.lastIngest
@@ -61,7 +59,7 @@ export default function IcerikAlScreen() {
               void catalog
                 .ingest()
                 .then((r) => {
-                  setNote(`Upsert ${r.productsUpserted} ürün, ${r.ordersUpserted} sipariş. ${r.checkpoint}`);
+                  setNote(`${r.productsUpserted} ürün, ${r.ordersUpserted} sipariş alındı.`);
                   router.replace('/(tabs)/urunler');
                 })
                 .catch(() => undefined);

@@ -22,6 +22,19 @@ import {
 } from '@/lib/apiClient';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
+function reasonTr(reason: StockMovement['reason']): string {
+  switch (reason) {
+    case 'count':
+      return 'Sayım';
+    case 'reserve':
+      return 'Rezerve';
+    case 'ship':
+      return 'Kargo';
+    default:
+      return 'Düzeltme';
+  }
+}
+
 export default function StokScreen() {
   const catalog = useCatalog();
   const { idToken } = useAuth();
@@ -59,7 +72,7 @@ export default function StokScreen() {
       const live = await fetchSkuStock(sku);
       setBalances((prev) => ({ ...prev, [sku]: live }));
       setNote(
-        `${sku}: fiz ${live.physicalStock} − rez ${live.reservedStock} = sat ${live.sellableStock}. Yerel kayıt ≠ kanal teyidi.`,
+        `${sku}: fiziksel ${live.physicalStock}, rezerve ${live.reservedStock}, satılabilir ${live.sellableStock}. Pazaryeri henüz teyit etmedi.`,
       );
       catalog.refresh();
       await loadLedger();
@@ -80,7 +93,7 @@ export default function StokScreen() {
         <StoreBar />
         <View style={styles.heroPad}>
           <Text style={styles.title}>Stok</Text>
-          <Text style={styles.sub}>satılabilir = fiziksel − rezerve. Pazar adedi fiziksel değil.</Text>
+          <Text style={styles.sub}>Satılabilir stok, fiziksel eksi rezervedir. Pazaryeri adedi fiziksel değildir.</Text>
         </View>
       </SafeAreaView>
       <PorcelainSheet>
@@ -91,7 +104,7 @@ export default function StokScreen() {
         ) : catalog.products.length === 0 ? (
           <EmptyState
             title="Katalog boş"
-            body="İçeri al, sonra eşleştir. Pazar adedi fiziksel sayılmaz."
+            body="İçeri al, sonra eşleştir. Pazaryeri adedi fiziksel sayılmaz."
             primary="İçeri al"
             onPrimary={() => router.push('/(tabs)/icerik-al')}
           />
@@ -111,8 +124,8 @@ export default function StokScreen() {
                     <ChannelBadge />
                   </View>
                   <Text style={styles.meta}>
-                    {p.mapped ? `SKU ${p.sku}` : 'eşleşmedi'} · Fiz {physical} · Rez {reserved} · Sat {sellable} ·
-                    Pazar {p.marketplaceStock}
+                    {p.mapped ? `SKU ${p.sku}` : 'eşleşmedi'} · Fiziksel {physical} · Rezerve {reserved} ·
+                    Satılabilir {sellable} · Pazar {p.marketplaceStock}
                   </Text>
                   {p.mapped ? (
                     <View style={styles.actions}>
@@ -130,21 +143,21 @@ export default function StokScreen() {
                       />
                     </View>
                   ) : (
-                    <Text style={styles.warn}>Eşlemeden fiziksel stok yazılmaz. Rezerve / kargo yok.</Text>
+                    <Text style={styles.warn}>Eşleşmeyen ürüne stok yazılmaz; rezerve ve kargo yok.</Text>
                   )}
                 </View>
               );
             })}
             <Text style={styles.section}>Hareketler</Text>
             {movements.length === 0 ? (
-              <Text style={styles.meta}>Henüz hareket yok. +1 / −1 ledger yazar.</Text>
+              <Text style={styles.meta}>Henüz hareket yok.</Text>
             ) : (
               movements.slice(0, 12).map((m) => (
                 <View key={m.id} style={styles.move}>
                   <Text style={styles.name}>
-                    {m.sku} · {m.reason} · fiz {m.deltaPhysical > 0 ? '+' : ''}
-                    {m.deltaPhysical} rez {m.deltaReserved > 0 ? '+' : ''}
-                    {m.deltaReserved}
+                    {m.sku} · {reasonTr(m.reason)} · fiziksel {m.deltaPhysical > 0 ? '+' : ''}
+                    {m.deltaPhysical}
+                    {m.deltaReserved ? ` · rezerve ${m.deltaReserved > 0 ? '+' : ''}${m.deltaReserved}` : ''}
                   </Text>
                   <Text style={styles.meta}>
                     {new Date(m.createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}

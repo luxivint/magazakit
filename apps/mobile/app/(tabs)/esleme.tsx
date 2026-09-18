@@ -58,21 +58,21 @@ export default function EslemeScreen() {
         <StoreBar />
         <View style={styles.heroPad}>
           <Text style={styles.title}>Eşleştirme</Text>
-          <Text style={styles.sub}>POST /v1/mappings · ilan → ana SKU. Öneri motoru yok.</Text>
+          <Text style={styles.sub}>İlanı ana SKU’ya bağla. Öneri yok.</Text>
         </View>
       </SafeAreaView>
       <PorcelainSheet>
         {catalog.products.length === 0 ? (
           <EmptyState
             title="Önce içeri al"
-            body="GET /v1/products senkten önce boş. Eşleştirme ilan ister."
+            body="Önce ürünleri içeri al. Eşleştirme ilan ister."
             primary="İçeri al"
             onPrimary={() => router.push('/(tabs)/icerik-al')}
           />
         ) : (
           <ScrollView contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
             <Text style={styles.k02}>
-              K02: pazaryeri adedi fiziksel stok değildir. Eşleşmeyince mapped false, satılabilir 0.
+              Pazaryeri adedi fiziksel stok değildir. Eşleşmeyince satılabilir sıfırdır.
             </Text>
             {mapError ? <ConfigBanner text={mapError} /> : null}
             {formError ? <ConfigBanner text={formError} /> : null}
@@ -80,7 +80,7 @@ export default function EslemeScreen() {
               <View key={p.listingId} style={styles.card}>
                 <Text style={styles.name}>{p.name}</Text>
                 <Text style={styles.meta}>
-                  listingId {p.listingId} · pazar {p.marketplaceStock} · {p.mapped ? `SKU ${p.sku}` : 'eşleşmedi'}
+                  İlan {p.listingId} · pazar {p.marketplaceStock} · {p.mapped ? `SKU ${p.sku}` : 'eşleşmedi'}
                 </Text>
                 <TextField
                   label="Ana SKU"
@@ -94,7 +94,7 @@ export default function EslemeScreen() {
                 />
               </View>
             ))}
-            {saved ? <Text style={styles.ok}>Nest’e yazıldı. Öneri üretilmedi.</Text> : null}
+            {saved ? <Text style={styles.ok}>Eşleştirme kaydedildi.</Text> : null}
             <Button label="Eşleştirmeyi kaydet" onPress={() => void save()} loading={busy} />
           </ScrollView>
         )}

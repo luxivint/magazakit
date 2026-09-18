@@ -14,6 +14,7 @@ import { SearchField } from '@/components/ui/SearchField';
 import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { SyncFooter } from '@/components/ui/SyncFooter';
 import { useCatalog } from '@/context/CatalogContext';
+import { catalogSourceLabel } from '@/lib/mapCatalog';
 import { formatCount } from '@/lib/money';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
@@ -26,7 +27,7 @@ export default function UrunlerScreen() {
   const catalog = useCatalog();
   const [tab, setTab] = useState('all');
   const products = catalog.products;
-  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'Nest yok';
+  const sourceLabel = catalogSourceLabel(catalog.reachable, catalog.apiMock);
 
   const visible = useMemo(() => {
     if (tab === 'critical') return products.filter((p) => p.critical);
@@ -89,7 +90,7 @@ export default function UrunlerScreen() {
         ) : products.length === 0 ? (
           <EmptyState
             title="Henüz ürün yok"
-            body="İçeri al, Nest GET /v1/products çağırır. Boş liste bağlantı hatası değildir."
+            body="İçeri alınınca ürünler gelir. Boş liste hata değildir."
             primary="İçeri al"
             secondary="Eşleştir"
             onPrimary={() => router.push('/(tabs)/icerik-al')}

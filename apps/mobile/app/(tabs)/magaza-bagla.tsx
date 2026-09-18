@@ -13,6 +13,7 @@ import { TextField } from '@/components/ui/TextField';
 import { useAuth } from '@/context/AuthContext';
 import { useShops } from '@/context/ShopContext';
 import { ApiError } from '@/lib/apiClient';
+import { shopStatusLabel } from '@/lib/mapCatalog';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
 export default function MagazaBaglaScreen() {
@@ -32,7 +33,7 @@ export default function MagazaBaglaScreen() {
       void apiKey;
       void apiSecret;
       const shop = await connectMock(sellerId);
-      setResult(`${shop.statusLabel}. Anahtar gönderilmedi. ${shop.k01}`);
+      setResult(`${shopStatusLabel(shop.status, shop.statusLabel)}. Anahtar gönderilmedi.`);
     } catch (e) {
       setResult(e instanceof ApiError ? e.message : 'Bağlantı denendi sayılmaz.');
     } finally {
@@ -62,7 +63,7 @@ export default function MagazaBaglaScreen() {
             <ChannelBadge />
             <Ionicons name="checkmark-circle" size={22} color={colors.success} />
           </View>
-          <Text style={styles.hint}>Hepsiburada F4’e kadar gizli. API Key/Secret Nest’e gitmez (K01 mock).</Text>
+          <Text style={styles.hint}>Hepsiburada yakında. Anahtarlar telefonda kalır, sunucuya gitmez.</Text>
           <TextField
             label="Mağaza adı"
             placeholder="Ayşe Home"

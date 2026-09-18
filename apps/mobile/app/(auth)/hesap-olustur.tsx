@@ -66,7 +66,7 @@ export default function HesapOlusturScreen() {
         <ScrollView contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
           <Text style={styles.section}>Hesap bilgileri</Text>
           {!configured ? (
-            <ConfigBanner text="Firebase yapılandırılmadı. Kayıt Firebase Auth e-posta/şifre ile yapılır; Nest’e şifre gitmez." />
+            <ConfigBanner text="Kayıt yapılandırması eksik. E-posta ile hesap açılamaz." />
           ) : null}
           <TextField
             label="Ad soyad"

@@ -34,8 +34,9 @@ F3 (`sellable = physical − reserved`; eşlenmemiş rezerve/kargo yok; yazdır 
 - `POST /v1/orders/:id/label` · `GET /v1/orders/:id/label.pdf` — yazdırma `POST /ship` çağırmaz
 - `POST /v1/stock/adjust` `{ sku, deltaPhysical, reason, idempotencyKey }`
 - `GET /v1/stock/movements` · `GET /v1/stock/:sku`
+- `POST /v1/devices` `{ fcmToken }` — bildirim izni sonrası, mümkünse
 - `GET /v1/operations`
 
 ## Ekranlar
 
-… E-03/E-12/E-60 Hazırla · E-06 Stok · E-09 İşlem merkezi. HB, fatura, ekip yok.
+Özet, siparişler, ürünler, Hazırla, Stok, İşlem merkezi. HB, fatura, ekip yok.

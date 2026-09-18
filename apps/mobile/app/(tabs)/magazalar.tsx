@@ -12,6 +12,7 @@ import { PeachAlert } from '@/components/ui/PeachAlert';
 import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
 import { useShops } from '@/context/ShopContext';
+import { shopStatusLabel } from '@/lib/mapCatalog';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
 export default function MagazalarScreen() {
@@ -31,7 +32,7 @@ export default function MagazalarScreen() {
           <Text style={styles.sub}>Satış kanallarını tek yerde.</Text>
           <View style={styles.counts}>
             <Text style={styles.count}>{authorized} bağlı mağaza</Text>
-            <Text style={styles.countMuted}>{shops.length ? `${shops.length} mock · K01` : '1 işlem uyarısı'}</Text>
+            <Text style={styles.countMuted}>{shops.length ? `${shops.length} mağaza` : '1 işlem uyarısı'}</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -50,14 +51,14 @@ export default function MagazalarScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.sheet}>
-            <PeachAlert text="Bekleyen işlemi incele — K01 Trendyol okuma yok" />
+            <PeachAlert text="Trendyol henüz canlı okumuyor." />
             <Text style={styles.section}>Bağlı mağazalar</Text>
             {shops.length === 0 ? (
               <View style={styles.emptyCard}>
                 <ChannelBadge />
                 <Text style={styles.emptyTitle}>Trendyol bağlı değil</Text>
                 <Text style={styles.emptyBody}>
-                  {orgName ?? 'İşletme'} için henüz yetkili mağaza yok. Nest mock bağlansa da K01 atlanmaz.
+                  {orgName ?? 'İşletme'} için henüz yetkili mağaza yok.
                 </Text>
               </View>
             ) : (
@@ -65,8 +66,7 @@ export default function MagazalarScreen() {
                 <View key={shop.id} style={styles.emptyCard}>
                   <ChannelBadge />
                   <Text style={styles.emptyTitle}>{shop.sellerLabel}</Text>
-                  <Text style={styles.emptyBody}>{shop.statusLabel}</Text>
-                  <Text style={styles.emptyBody}>{shop.k01}</Text>
+                  <Text style={styles.emptyBody}>{shopStatusLabel(shop.status, shop.statusLabel)}</Text>
                 </View>
               ))
             )}

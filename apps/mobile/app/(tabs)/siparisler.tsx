@@ -14,6 +14,7 @@ import { SearchField } from '@/components/ui/SearchField';
 import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { SyncFooter } from '@/components/ui/SyncFooter';
 import { useCatalog } from '@/context/CatalogContext';
+import { catalogSourceLabel } from '@/lib/mapCatalog';
 import { formatCount } from '@/lib/money';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
@@ -28,7 +29,7 @@ export default function SiparislerScreen() {
   const catalog = useCatalog();
   const [tab, setTab] = useState('all');
   const orders = catalog.orders;
-  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'Nest yok';
+  const sourceLabel = catalogSourceLabel(catalog.reachable, catalog.apiMock);
   const due = orders.filter((o) => o.dueTone === 'warn').length;
 
   const visible = useMemo(() => {
@@ -85,7 +86,7 @@ export default function SiparislerScreen() {
           <ScrollView contentContainerStyle={styles.sheet}>
             <EmptyState
               title="Henüz sipariş yok"
-              body="GET /v1/orders boş döndü. Bu bir bağlantı hatası değil."
+              body="İçeri alınınca siparişler gelir. Boş liste hata değildir."
               primary="İçeri al"
               onPrimary={() => router.push('/(tabs)/icerik-al')}
             />

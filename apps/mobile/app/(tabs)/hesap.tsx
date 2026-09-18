@@ -7,14 +7,13 @@ import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
 import { StoreBar } from '@/components/shell/StoreBar';
 import { initials, useAuth } from '@/context/AuthContext';
 import { useShops } from '@/context/ShopContext';
-import { API_URL } from '@/lib/api';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
 export default function HesapScreen() {
   const { user, org, orgName, configured, apiError, signOut } = useAuth();
   const { shops } = useShops();
   const name = user?.name ?? 'Hesap';
-  const shopHint = shops.length ? `${shops.length} mock · K01` : 'bağlı değil';
+  const shopHint = shops.length ? `${shops.length} mağaza` : 'bağlı değil';
 
   return (
     <View style={styles.root}>
@@ -65,9 +64,7 @@ export default function HesapScreen() {
 
           <Text style={styles.section}>Oturum</Text>
           <Text style={styles.rowHint}>
-            {configured
-              ? `Firebase Auth · Nest ${API_URL}`
-              : 'Firebase yapılandırılmadı.'}
+            {configured ? 'Oturum açık.' : 'Giriş yapılandırması eksik.'}
           </Text>
           {apiError ? <Text style={styles.apiErr}>{apiError}</Text> : null}
           <Pressable

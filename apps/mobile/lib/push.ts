@@ -3,6 +3,8 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { registerDevice } from '@/lib/apiClient';
+
 const TOKEN_KEY = 'magazam.push.token.v1';
 
 export type SavedPushToken = {
@@ -22,44 +24,56 @@ export async function loadSavedPushToken(): Promise<SavedPushToken | null> {
   }
 }
 
-/** Request OS permission and persist Expo/FCM token. Does not send notifications. */
+/** Request OS permission and persist Expo/FCM token. Does not open a ticket inbox. */
 export async function registerForPush(): Promise<SavedPushToken> {
-  if (Platform.OS === 'web') {
-    const saved: SavedPushToken = {
-      permission: 'denied',
-      savedAt: new Date().toISOString(),
-    };
-    await AsyncStorage.setItem(TOKEN_KEY, JSON.stringify(saved));
-    return saved;
-  }
-
-  const existing = await Notifications.getPermissionsAsync();
-  let status = existing.status;
-  if (status !== 'granted') {
-    const asked = await Notifications.requestPermissionsAsync();
-    status = asked.status;
-  }
-
   const saved: SavedPushToken = {
-    permission: status,
+    permission: 'undetermined',
     savedAt: new Date().toISOString(),
   };
 
-  if (status === 'granted' && Device.isDevice) {
-    try {
-      const expo = await Notifications.getExpoPushTokenAsync();
-      saved.expo = expo.data;
-    } catch {
-      // Expo projectId yoksa native token yine alınabilir
+  try {
+    const existing = await Notifications.getPermissionsAsync();
+    let status = existing.status;
+    if (status !== 'granted') {
+      const asked = await Notifications.requestPermissionsAsync();
+      status = asked.status;
     }
-    try {
-      const device = await Notifications.getDevicePushTokenAsync();
-      saved.device = typeof device.data === 'string' ? device.data : JSON.stringify(device.data);
-    } catch {
-      // google-services yoksa Expo Go'da FCM token gelmez
+    saved.permission = status;
+
+    if (status === 'granted') {
+      if (Platform.OS !== 'web') {
+        try {
+          const expo = await Notifications.getExpoPushTokenAsync();
+          saved.expo = expo.data;
+        } catch {
+          /* projectId yoksa native token yine denenebilir */
+        }
+      }
+      if (Platform.OS === 'web' || Device.isDevice) {
+        try {
+          const device = await Notifications.getDevicePushTokenAsync();
+          saved.device = typeof device.data === 'string' ? device.data : JSON.stringify(device.data);
+        } catch {
+          /* web / Expo Go’da FCM token gelmeyebilir */
+        }
+      }
     }
+  } catch {
+    saved.permission = 'denied';
   }
 
   await AsyncStorage.setItem(TOKEN_KEY, JSON.stringify(saved));
   return saved;
+}
+
+/** Ask permission, then POST /v1/devices { fcmToken } when a token exists. */
+export async function syncPushDevice(): Promise<void> {
+  const saved = await registerForPush();
+  const fcmToken = saved.device || saved.expo;
+  if (!fcmToken) return;
+  try {
+    await registerDevice(fcmToken);
+  } catch {
+    /* lite: kayıt olmazsa uygulama durmaz */
+  }
 }

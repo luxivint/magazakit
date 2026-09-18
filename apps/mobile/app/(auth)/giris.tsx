@@ -65,7 +65,7 @@ export default function GirisScreen() {
           <Text style={styles.hello}>Hoş geldin</Text>
           <Text style={styles.sub}>Devam etmek için hesabına giriş yap.</Text>
           {!configured ? (
-            <ConfigBanner text="Firebase yapılandırılmadı. EXPO_PUBLIC_FIREBASE_* değerlerini .env dosyasına yaz; Nest e-posta/şifre kullanılmaz." />
+            <ConfigBanner text="Giriş yapılandırması eksik. E-posta ile giriş kullanılamaz." />
           ) : null}
           <TextField
             label="E-posta"

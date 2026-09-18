@@ -54,6 +54,16 @@ async function headers(json = false, extra?: Record<string, string>): Promise<He
   return h;
 }
 
+function cleanApiMessage(message: string): string {
+  return message
+    .replace(/\s*\((?:T|E)-?\d+\)/gi, '')
+    .replace(/\bCONFLICT\b[:·.\s]*/gi, '')
+    .replace(/\b(?:GET|POST|PUT|PATCH|DELETE)\s+\/v1\/\S+/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+\./g, '.')
+    .trim();
+}
+
 async function parseError(res: Response): Promise<never> {
   let message = `API ${res.status}`;
   let code: string | undefined;
@@ -67,17 +77,18 @@ async function parseError(res: Response): Promise<never> {
   } catch {
     /* ignore */
   }
+  message = cleanApiMessage(message);
   if (res.status === 0 || res.status >= 500) {
-    message = 'Nest API yanıt vermedi. İşlem tamamlanmış sayılmaz.';
+    message = 'Sunucu yanıt vermedi. İşlem tamamlanmış sayılmaz.';
   }
   if (res.status === 401) {
     message = message || 'Oturum doğrulanamadı. Tekrar giriş yap.';
   }
   if (res.status === 409) {
     message =
-      message && message !== `API ${res.status}`
+      message && !message.startsWith('API ')
         ? message
-        : 'Bu işlem zaten yapıldı. İkinci rezervasyon yok.';
+        : 'Bu sipariş zaten rezerve. İkinci rezervasyon yok.';
   }
   throw new ApiError(message, res.status, code);
 }
@@ -87,7 +98,7 @@ async function request<T>(path: string, init?: RequestInit & { signal?: AbortSig
   try {
     res = await fetch(`${API_URL}${path}`, init);
   } catch {
-    throw new ApiError('Nest API’ye bağlanılamadı. İşlem tamamlanmış sayılmaz.', 0);
+    throw new ApiError('Sunucuya bağlanılamadı. İşlem tamamlanmış sayılmaz.', 0);
   }
   if (!res.ok) await parseError(res);
   return res.json() as Promise<T>;
@@ -202,7 +213,7 @@ export async function fetchOrderLabelPdf(orderId: string): Promise<Blob> {
       headers: await headers(false, { Accept: 'application/pdf' }),
     });
   } catch {
-    throw new ApiError('Nest API’ye bağlanılamadı. İşlem tamamlanmış sayılmaz.', 0);
+    throw new ApiError('Sunucuya bağlanılamadı. İşlem tamamlanmış sayılmaz.', 0);
   }
   if (!res.ok) await parseError(res);
   return res.blob();
@@ -231,4 +242,12 @@ export async function adjustStock(
 
 export async function fetchOperations(): Promise<{ items: OperationItem[] }> {
   return request('/v1/operations', { headers: await headers() });
+}
+
+export async function registerDevice(fcmToken: string): Promise<{ uid: string; stored: true }> {
+  return request('/v1/devices', {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify({ fcmToken }),
+  });
 }

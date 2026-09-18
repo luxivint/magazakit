@@ -12,6 +12,23 @@ import { useAuth } from '@/context/AuthContext';
 import { ApiError, fetchOperations, type OperationItem } from '@/lib/apiClient';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
+function typeTr(type: string): string {
+  switch (type) {
+    case 'reserve':
+      return 'Rezerve';
+    case 'pack_scan':
+      return 'Paket';
+    case 'label':
+      return 'Etiket';
+    case 'ship':
+      return 'Kargo';
+    case 'channel_stock_write':
+      return 'Kanal stok';
+    default:
+      return 'İşlem';
+  }
+}
+
 function statusTr(status: OperationItem['status']): string {
   switch (status) {
     case 'ok':
@@ -67,7 +84,7 @@ export default function IslemScreen() {
         <StoreBar />
         <View style={styles.heroPad}>
           <Text style={styles.title}>İşlem merkezi</Text>
-          <Text style={styles.sub}>GET /v1/operations. Timeout başarısız değildir.</Text>
+          <Text style={styles.sub}>Bekleyen işlem başarısız değildir.</Text>
         </View>
       </SafeAreaView>
       <PorcelainSheet>
@@ -91,11 +108,11 @@ export default function IslemScreen() {
               <View key={op.id} style={styles.card}>
                 <Text style={styles.name}>{op.title}</Text>
                 <Text style={styles.meta}>
-                  {op.type} · {statusTr(op.status)} ·{' '}
+                  {typeTr(op.type)} · {statusTr(op.status)} ·{' '}
                   {new Date(op.createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                 </Text>
                 {op.status === 'unknown' || op.status === 'reconciling' || op.status === 'pending' ? (
-                  <Text style={styles.hint}>Bekleme ≠ başarısız.</Text>
+                  <Text style={styles.hint}>Beklemede — henüz başarısız değil.</Text>
                 ) : null}
               </View>
             ))}

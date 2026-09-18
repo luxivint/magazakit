@@ -47,6 +47,16 @@ export function mapApiProduct(item: ProductListItem, index: number): Product {
   };
 }
 
+export function catalogSourceLabel(reachable: boolean, apiMock: boolean | null): string {
+  if (!reachable) return 'bağlı değil';
+  return apiMock ? 'test mağazası' : 'mağaza';
+}
+
+export function shopStatusLabel(status: string, fallback: string): string {
+  if (status === 'mock_connected') return 'Bağlı (test)';
+  return fallback;
+}
+
 export function mapApiOrder(item: OrderListItem, index: number): Order {
   const due = dueLabel(item.cargoDeadlineAt, item.cargoWarning);
   return {

@@ -18,6 +18,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import { CatalogProvider } from '@/context/CatalogContext';
 import { MappingProvider } from '@/context/MappingContext';
 import { ShopProvider } from '@/context/ShopContext';
+import { PushRegistrar } from '@/components/shell/PushRegistrar';
 import { colors } from '@/theme/tokens';
 import * as Notifications from 'expo-notifications';
 
@@ -67,6 +68,7 @@ export default function RootLayout() {
           <ShopProvider>
             <MappingProvider>
               <CatalogProvider>
+                <PushRegistrar />
                 <View style={styles.frame}>
                   <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.graphite } }}>
                     <Stack.Screen name="index" />

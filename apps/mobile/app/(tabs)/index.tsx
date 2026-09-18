@@ -15,13 +15,14 @@ import { Sparkline } from '@/components/ui/Sparkline';
 import { StatusDot } from '@/components/ui/StatusBadge';
 import { SyncFooter } from '@/components/ui/SyncFooter';
 import { useCatalog } from '@/context/CatalogContext';
+import { catalogSourceLabel } from '@/lib/mapCatalog';
 import { formatCount } from '@/lib/money';
 import { colors, fonts, space } from '@/theme/tokens';
 
 export default function OzetScreen() {
   const catalog = useCatalog();
   const recentOrders = catalog.orders.slice(0, 2);
-  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'Nest yok';
+  const sourceLabel = catalogSourceLabel(catalog.reachable, catalog.apiMock);
   const sales = catalog.orders.reduce((sum, o) => sum + o.amount, 0);
   const toPrepare = catalog.orders.filter((o) => o.status === 'hazirlanacak').length;
   const inTransit = catalog.orders.filter((o) => o.status === 'kargoda').length;
@@ -48,7 +49,7 @@ export default function OzetScreen() {
             <Sparkline points={spark} />
           </View>
           <Text style={styles.delta}>
-            {catalog.orders.length === 0 ? 'İçeri alınan sipariş yok' : 'Nest listesi · tahmini kazanç yok'}
+            {catalog.orders.length === 0 ? 'İçeri alınan sipariş yok' : 'Tahmini kazanç yok'}
           </Text>
           <View style={styles.subMetric}>
             <Text style={styles.subValue}>{formatCount(catalog.orders.length)}</Text>
@@ -83,7 +84,7 @@ export default function OzetScreen() {
               body={
                 catalog.needsShop
                   ? 'Trendyol bağla, sonra içeri al. Örnek satış gösterilmez.'
-                  : 'GET /v1/orders henüz sipariş döndürmedi.'
+                  : 'İçeri alınınca siparişler burada görünür.'
               }
               primary={catalog.needsShop ? 'Mağaza bağla' : 'İçeri al'}
               onPrimary={() => router.push(catalog.needsShop ? '/(tabs)/magaza-bagla' : '/(tabs)/icerik-al')}
@@ -93,7 +94,7 @@ export default function OzetScreen() {
           <ScrollView contentContainerStyle={styles.sheetPad} showsVerticalScrollIndicator={false}>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>Operasyon</Text>
-              <Text style={styles.sectionMeta}>Nest</Text>
+              <Text style={styles.sectionMeta}>Bugün</Text>
             </View>
             {due > 0 ? <PeachAlert text={`${due} siparişin kargo süresi doluyor`} /> : null}
             <View style={styles.ops}>

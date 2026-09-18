@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setApiError(null);
     } catch (e) {
       setOrg(null);
-      setApiError(e instanceof ApiError ? e.message : 'Nest API yanıt vermedi.');
+      setApiError(e instanceof ApiError ? e.message : 'Sunucu yanıt vermedi.');
     }
   };
 
@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const current = await fetchCurrentOrganization();
           const next = current ?? created;
           if (!next) {
-            throw new ApiError('İşletme oluşturuldu denemez: Nest current boş döndü.', 500);
+            throw new ApiError('İşletme oluşturulamadı. Tekrar dene.', 500);
           }
           setOrg(next);
           setApiError(null);
