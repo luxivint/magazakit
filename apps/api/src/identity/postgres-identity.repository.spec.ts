@@ -22,7 +22,9 @@ describe('PostgresIdentityRepository durability', () => {
       }
     }
     if (!repo) {
-      pending('Postgres not reachable. docker compose up -d postgres and set DATABASE_URL.');
+      console.warn(
+        'Skipping Postgres durability test (docker compose up -d postgres; set DATABASE_URL).',
+      );
       return;
     }
 

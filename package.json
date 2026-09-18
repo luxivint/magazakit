@@ -17,6 +17,16 @@
   "devDependencies": {
     "turbo": "^2.5.8"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@firebase/util",
+      "@nestjs/core",
+      "@parcel/watcher",
+      "esbuild",
+      "protobufjs",
+      "unrs-resolver"
+    ]
+  },
   "engines": {
     "node": ">=22"
   }
