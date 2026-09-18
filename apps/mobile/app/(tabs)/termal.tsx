@@ -95,7 +95,7 @@ export default function TermalScreen() {
         <StoreBar />
         <View style={styles.heroPad}>
           <Text style={styles.title}>Termal yazıcı</Text>
-          <Text style={styles.sub}>Ayar kaydı. Test mock; kâğıda basılmaz.</Text>
+          <Text style={styles.sub}>Ayar kaydı. Test kâğıda basılmaz.</Text>
         </View>
       </SafeAreaView>
       <PorcelainSheet>
@@ -126,7 +126,7 @@ export default function TermalScreen() {
             <TextField label="Adres (isteğe bağlı)" value={host} onChangeText={setHost} placeholder="bağlı değil" />
             <Button label="Kaydet" variant="ghost" loading={busy} onPress={() => void save()} />
             <Button label="Test yazdır" variant="lime" loading={busy} onPress={() => void test()} />
-            <Text style={styles.meta}>POST test-print mock. Termal yazıcıya gönderilmez.</Text>
+            <Text style={styles.meta}>Test yazdırma denemesi. Termal yazıcıya gönderilmez.</Text>
           </ScrollView>
         )}
       </PorcelainSheet>

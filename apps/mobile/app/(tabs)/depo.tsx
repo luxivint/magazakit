@@ -101,7 +101,7 @@ export default function DepoScreen() {
               </View>
             ))}
             {!primary ? <Text style={styles.meta}>Depo yok.</Text> : null}
-            <Text style={styles.section}>Transfer stub</Text>
+            <Text style={styles.section}>Transfer taslağı</Text>
             <TextField label="SKU" value={sku} onChangeText={setSku} placeholder="Ana SKU" />
             <TextField
               label="Adet"
@@ -111,7 +111,7 @@ export default function DepoScreen() {
               keyboardType="number-pad"
             />
             <Button label="Transfer iste" loading={busy} onPress={() => void transfer()} />
-            <Text style={styles.meta}>Transfer toplam stok yaratmaz. Fiziksel hareket F3 defterinde.</Text>
+            <Text style={styles.meta}>Transfer toplam stok yaratmaz. Fiziksel hareket stok defterinde.</Text>
           </ScrollView>
         )}
       </PorcelainSheet>
