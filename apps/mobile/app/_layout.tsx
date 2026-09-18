@@ -17,6 +17,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '@/context/AuthContext';
 import { CatalogProvider } from '@/context/CatalogContext';
 import { DemoStateProvider } from '@/context/DemoStateContext';
+import { ShopProvider } from '@/context/ShopContext';
 import { colors } from '@/theme/tokens';
 import * as Notifications from 'expo-notifications';
 
@@ -63,17 +64,19 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <CatalogProvider>
-            <DemoStateProvider>
-              <View style={styles.frame}>
-                <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.graphite } }}>
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="(tabs)" />
-                </Stack>
-              </View>
-            </DemoStateProvider>
-          </CatalogProvider>
+          <ShopProvider>
+            <CatalogProvider>
+              <DemoStateProvider>
+                <View style={styles.frame}>
+                  <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.graphite } }}>
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(tabs)" />
+                  </Stack>
+                </View>
+              </DemoStateProvider>
+            </CatalogProvider>
+          </ShopProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

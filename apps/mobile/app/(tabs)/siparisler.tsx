@@ -30,7 +30,9 @@ export default function SiparislerScreen() {
   const catalog = useCatalog();
   const [tab, setTab] = useState('hazirlanacak');
   const orders = catalog.orders;
-  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'yerel örnek';
+  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'Nest yok';
+  const blocked = state === 'sample' && !!catalog.error;
+  const loading = state === 'loading' || (state === 'sample' && catalog.loading);
 
   const visible = useMemo(() => {
     if (tab === 'all') return orders;
@@ -61,18 +63,18 @@ export default function SiparislerScreen() {
       </SafeAreaView>
 
       <PorcelainSheet>
-        {state === 'loading' ? (
+        {loading ? (
           <View style={styles.sheet}>
             <Text style={styles.loadingLabel}>Siparişler yükleniyor…</Text>
             <OrderSkeleton />
             <OrderSkeleton />
             <OrderSkeleton />
           </View>
-        ) : state === 'error' ? (
+        ) : state === 'error' || blocked ? (
           <ScrollView contentContainerStyle={styles.sheet}>
             <ErrorState
               title="Siparişler yüklenemedi"
-              body="Sunucudan yanıt alınamadı. Biraz sonra yeniden deneyebilirsin. Bu durum sipariş olmadığı anlamına gelmez."
+              body={catalog.error ?? 'Sunucudan yanıt alınamadı. Bu durum sipariş olmadığı anlamına gelmez.'}
             onRetry={() => {
               setState('sample');
               catalog.refresh();

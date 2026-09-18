@@ -2,27 +2,26 @@
 
 Trendyol satıcısı için stok, sipariş ve paketleme. **Expo / React Native** (`apps/mobile`). Next.js yok.
 
-Kimlik: **Firebase Auth** projesi `magazam-app` (e-posta/şifre + Google). Web SDK config uygulamada gömülü (public). Paket/bundle: `com.luxivint.magazam`. FCM jetonu sonra.
-
-Nest katalog isteklerinde `Authorization: Bearer <idToken>`. Bu PR `apps/api` yazmaz.
+Kimlik: **Firebase Auth** (`magazam-app`). Nest’e `Authorization: Bearer <Firebase ID token>`.
 
 ## Çalıştırma
 
 ```bash
 cd apps/mobile
 npm install
-npx expo start
+npx expo start --web --port 43131
 ```
 
-Web: `npx expo start --web`  
-Windows: Expo Go veya EAS.
+`EXPO_PUBLIC_API_URL` — web/emülatör `http://127.0.0.1:43140`; fiziksel cihaz için Nest’in LAN IP’si. Nest kapalıysa işlem tamamlanmış sayılmaz.
 
-Google native için isteğe bağlı `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`. Web’de Firebase popup yeter.
+## Nest (PR 2)
 
-## Nest katalog (PR 2)
-
-`EXPO_PUBLIC_API_URL` varsayılan `http://127.0.0.1:43140`. Yoksa yerel örnek.
+- `GET /v1/me`
+- `POST /v1/organizations` `{ name }`
+- `GET /v1/organizations/current`
+- `GET /v1/shops`
+- `POST /v1/shops/trendyol/connect` — K01 mock; apiKey/apiSecret gönderilmez
 
 ## Ekranlar
 
-E-13 Giriş · E-22 Hesap oluştur · E-14 İşletme · E-11 Hesap. HB, kâr, +ürün, ekip, fatura gizli.
+E-13 Giriş · E-22 Hesap oluştur · E-14 İşletme (ad + sahip) · E-11 Hesap lite · E-08 Mağazalarım · E-15 Trendyol bağla.

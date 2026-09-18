@@ -50,10 +50,11 @@ export function MagazamTabBar({
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       {state.routes.map((route, index) => {
+        if (!ICONS[route.name]) return null;
         const focused = state.index === index;
         const options = descriptors[route.key].options;
         const label = LABELS[route.name] ?? options.title ?? route.name;
-        const icon = ICONS[route.name] ?? 'ellipse-outline';
+        const icon = ICONS[route.name];
 
         const onPress = () => {
           const event = navigation.emit({

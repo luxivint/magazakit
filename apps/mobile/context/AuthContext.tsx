@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -14,10 +13,10 @@ import {
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 
+import { ApiError, createOrganization, fetchCurrentOrganization, fetchMe } from '@/lib/apiClient';
 import { firebaseErrorTr, getFirebaseAuth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
 import { googleWebClientId } from '@/lib/firebaseConfig';
-
-const orgKey = (uid: string) => `magazam.org.${uid}`;
+import type { OrganizationSummary } from '@/lib/api';
 
 export type SessionUser = {
   uid: string;
@@ -29,13 +28,16 @@ type AuthContextValue = {
   ready: boolean;
   configured: boolean;
   user: SessionUser | null;
+  org: OrganizationSummary | null;
   orgName: string | null;
   idToken: string | null;
+  apiError: string | null;
+  refreshMe: () => Promise<void>;
   signInEmail: (email: string, password: string) => Promise<void>;
   signUpEmail: (name: string, email: string, password: string) => Promise<void>;
   signInGoogle: (idToken?: string, accessToken?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  setOrg: (name: string) => Promise<void>;
+  createOrg: (name: string) => Promise<OrganizationSummary>;
   signOut: () => Promise<void>;
 };
 
@@ -53,8 +55,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const configured = isFirebaseConfigured();
   const [ready, setReady] = useState(!configured);
   const [user, setUser] = useState<SessionUser | null>(null);
-  const [orgName, setOrgName] = useState<string | null>(null);
+  const [org, setOrg] = useState<OrganizationSummary | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  const loadIdentity = async (firebaseUser: User) => {
+    setUser(toSession(firebaseUser));
+    setIdToken(await firebaseUser.getIdToken());
+    try {
+      const [me, current] = await Promise.all([fetchMe(), fetchCurrentOrganization()]);
+      setOrg(current ?? me.organization);
+      setApiError(null);
+    } catch (e) {
+      setOrg(null);
+      setApiError(e instanceof ApiError ? e.message : 'Nest API yanıt vermedi.');
+    }
+  };
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -65,24 +81,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, async (next) => {
       if (!next) {
         setUser(null);
-        setOrgName(null);
+        setOrg(null);
         setIdToken(null);
+        setApiError(null);
         setReady(true);
         return;
       }
-      setUser(toSession(next));
-      setIdToken(await next.getIdToken());
-      const stored = await AsyncStorage.getItem(orgKey(next.uid));
-      setOrgName(stored);
+      await loadIdentity(next);
       setReady(true);
     });
   }, []);
 
   const requireAuth = () => {
     const auth = getFirebaseAuth();
-    if (!auth) {
-      throw new Error('Firebase yapılandırılmadı');
-    }
+    if (!auth) throw new Error('Firebase yapılandırılmadı');
     return auth;
   };
 
@@ -91,8 +103,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ready,
       configured,
       user,
-      orgName,
+      org,
+      orgName: org?.name ?? null,
       idToken,
+      apiError,
+      refreshMe: async () => {
+        const current = getFirebaseAuth()?.currentUser;
+        if (current) await loadIdentity(current);
+      },
       signInEmail: async (email, password) => {
         try {
           await signInWithEmailAndPassword(requireAuth(), email.trim(), password);
@@ -112,13 +130,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const auth = requireAuth();
         try {
           if (idTokenArg) {
-            const cred = GoogleAuthProvider.credential(idTokenArg, accessToken);
-            await signInWithCredential(auth, cred);
+            await signInWithCredential(auth, GoogleAuthProvider.credential(idTokenArg, accessToken));
             return;
           }
-          if (Platform.OS === 'web' && googleWebClientId()) {
+          if (Platform.OS === 'web') {
             await signInWithPopup(auth, googleProvider());
             return;
+          }
+          if (!googleWebClientId()) {
+            throw new Error('Google girişi için EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID gerekir.');
           }
           throw new Error('Google girişi için EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID gerekir.');
         } catch (e) {
@@ -133,21 +153,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error(firebaseErrorTr((e as { code?: string }).code ?? ''));
         }
       },
-      setOrg: async (name) => {
-        if (!user) return;
-        const trimmed = name.trim();
-        await AsyncStorage.setItem(orgKey(user.uid), trimmed);
-        setOrgName(trimmed);
+      createOrg: async (name) => {
+        try {
+          const created = await createOrganization(name.trim());
+          const current = await fetchCurrentOrganization();
+          const next = current ?? created;
+          if (!next) {
+            throw new ApiError('İşletme oluşturuldu denemez: Nest current boş döndü.', 500);
+          }
+          setOrg(next);
+          setApiError(null);
+          return next;
+        } catch (e) {
+          setOrg(null);
+          const message = e instanceof ApiError ? e.message : 'İşletme oluşturulamadı.';
+          setApiError(message);
+          throw e instanceof Error ? e : new Error(message);
+        }
       },
       signOut: async () => {
         const auth = getFirebaseAuth();
         if (auth) await firebaseSignOut(auth);
         setUser(null);
-        setOrgName(null);
+        setOrg(null);
         setIdToken(null);
+        setApiError(null);
       },
     }),
-    [ready, configured, user, orgName, idToken],
+    [ready, configured, user, org, idToken, apiError],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

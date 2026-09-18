@@ -1,35 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
 import { StoreBar } from '@/components/shell/StoreBar';
 import { initials, useAuth } from '@/context/AuthContext';
-import { useCatalog } from '@/context/CatalogContext';
-import { useDemoState, type DemoState } from '@/context/DemoStateContext';
-import { loadSavedPushToken, registerForPush, type SavedPushToken } from '@/lib/push';
+import { useShops } from '@/context/ShopContext';
+import { API_URL } from '@/lib/api';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
-const STATES: { key: DemoState; label: string }[] = [
-  { key: 'sample', label: 'Örnek' },
-  { key: 'empty', label: 'Boş' },
-  { key: 'loading', label: 'Yükleniyor' },
-  { key: 'error', label: 'Hata' },
-];
-
 export default function HesapScreen() {
-  const { user, orgName, configured, signOut } = useAuth();
-  const { state, setState } = useDemoState();
-  const catalog = useCatalog();
-  const [push, setPush] = useState<SavedPushToken | null>(null);
-
-  useEffect(() => {
-    void loadSavedPushToken().then(setPush);
-  }, []);
-
+  const { user, org, orgName, configured, apiError, signOut } = useAuth();
+  const { shops } = useShops();
   const name = user?.name ?? 'Hesap';
+  const shopHint = shops.length ? `${shops.length} mock · K01` : 'bağlı değil';
 
   return (
     <View style={styles.root}>
@@ -43,7 +28,8 @@ export default function HesapScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.profileName}>{name}</Text>
-              <Text style={styles.profileMeta}>{orgName ? 'işletme sahibi' : 'işletme yok'}</Text>
+              <Text style={styles.profileMeta}>{org ? 'işletme sahibi' : 'işletme yok'}</Text>
+              {user?.email ? <Text style={styles.profileMeta}>{user.email}</Text> : null}
             </View>
           </View>
           {orgName ? (
@@ -58,32 +44,20 @@ export default function HesapScreen() {
         <ScrollView contentContainerStyle={styles.sheet}>
           <Text style={styles.section}>İşletme</Text>
           <Row icon="business-outline" label="İşletme bilgileri" value={orgName ?? '—'} />
-          <Row icon="storefront-outline" label="Mağazalarım" value="1 bağlı · Trendyol" />
-
-          <Text style={styles.section}>Bildirim</Text>
-          <Pressable
-            style={styles.row}
-            onPress={() => {
-              void registerForPush().then(setPush);
-            }}>
-            <Ionicons name="notifications-outline" size={18} color={colors.ink} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Bildirim izni</Text>
-              <Text style={styles.rowHint}>
-                {push?.permission === 'granted'
-                  ? 'İzin verildi. Jeton kaydedildi, bildirim gönderilmez.'
-                  : 'İzin iste; FCM/Expo jetonu sonra Nest’e yazılacak. Destek talebi yok.'}
-              </Text>
-            </View>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/magazalar')}>
+            <Ionicons name="storefront-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Mağazalarım</Text>
+            <Text style={styles.rowValue}>{shopHint}</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.muted} />
           </Pressable>
 
           <Text style={styles.section}>Oturum</Text>
           <Text style={styles.rowHint}>
             {configured
-              ? 'Firebase Auth. Nest isteklerinde Authorization: Bearer idToken.'
+              ? `Firebase Auth · Nest ${API_URL}`
               : 'Firebase yapılandırılmadı.'}
           </Text>
+          {apiError ? <Text style={styles.apiErr}>{apiError}</Text> : null}
           <Pressable
             style={styles.logout}
             onPress={() => {
@@ -92,23 +66,6 @@ export default function HesapScreen() {
             <Ionicons name="log-out-outline" size={18} color="#C45C4A" />
             <Text style={styles.logoutText}>Çıkış yap</Text>
           </Pressable>
-
-          <Text style={styles.section}>Önizleme</Text>
-          <Text style={styles.rowHint}>
-            {catalog.reachable
-              ? `Nest ${catalog.apiMock ? 'mock' : 'canlı'} · ${catalog.apiUrl}`
-              : `Nest yok · yerel örnek · ${catalog.apiUrl}`}
-          </Text>
-          <View style={styles.chips}>
-            {STATES.map((item) => (
-              <Pressable
-                key={item.key}
-                onPress={() => setState(item.key)}
-                style={[styles.chip, state === item.key && styles.chipOn]}>
-                <Text style={[styles.chipText, state === item.key && styles.chipTextOn]}>{item.label}</Text>
-              </Pressable>
-            ))}
-          </View>
         </ScrollView>
       </PorcelainSheet>
     </View>
@@ -169,23 +126,7 @@ const styles = StyleSheet.create({
   rowLabel: { flex: 1, fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
   rowValue: { fontFamily: fonts.medium, fontSize: 12, color: colors.muted },
   rowHint: { fontFamily: fonts.regular, fontSize: 12, color: colors.muted, lineHeight: 18 },
-  logout: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-  },
+  apiErr: { fontFamily: fonts.medium, fontSize: 13, color: '#C45C4A' },
+  logout: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   logoutText: { fontFamily: fonts.semibold, fontSize: 15, color: '#C45C4A' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radii.pill,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.sheetLine,
-  },
-  chipOn: { backgroundColor: colors.lime, borderColor: colors.lime },
-  chipText: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink },
-  chipTextOn: { color: colors.graphite },
 });

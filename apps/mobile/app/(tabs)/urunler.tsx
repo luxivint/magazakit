@@ -28,7 +28,9 @@ export default function UrunlerScreen() {
   const catalog = useCatalog();
   const [tab, setTab] = useState('all');
   const products = catalog.products;
-  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'yerel örnek';
+  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'Nest yok';
+  const blocked = state === 'sample' && !!catalog.error;
+  const loading = state === 'loading' || (state === 'sample' && catalog.loading);
 
   const visible = useMemo(() => {
     if (tab === 'critical') return products.filter((p) => p.critical);
@@ -45,7 +47,9 @@ export default function UrunlerScreen() {
           <View style={styles.titleRow}>
             <View>
               <Text style={styles.title}>Ürünler</Text>
-              <Text style={styles.count}>{formatCount(state === 'empty' ? 0 : products.length)} ürün</Text>
+              <Text style={styles.count}>
+                {formatCount(state === 'empty' || blocked ? 0 : products.length)} ürün
+              </Text>
             </View>
           </View>
           <View style={styles.searchRow}>
@@ -63,16 +67,16 @@ export default function UrunlerScreen() {
       </SafeAreaView>
 
       <PorcelainSheet>
-        {state === 'loading' ? (
+        {loading ? (
           <View style={styles.sheet}>
             <OrderSkeleton />
             <OrderSkeleton />
             <OrderSkeleton />
           </View>
-        ) : state === 'error' ? (
+        ) : state === 'error' || blocked ? (
           <ErrorState
             title="Ürünler yüklenemedi"
-            body="Katalog okunamadı. Bu ekran boş katalog anlamına gelmez; yeniden dene."
+            body={catalog.error ?? 'Katalog okunamadı. Bu ekran boş katalog anlamına gelmez; yerel örnek başarı sayılmaz.'}
             onRetry={() => {
               setState('sample');
               catalog.refresh();

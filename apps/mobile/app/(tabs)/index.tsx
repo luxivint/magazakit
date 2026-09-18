@@ -23,7 +23,9 @@ export default function OzetScreen() {
   const { state, setState } = useDemoState();
   const catalog = useCatalog();
   const recentOrders = catalog.orders.slice(0, 2);
-  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'yerel örnek';
+  const sourceLabel = catalog.reachable ? (catalog.apiMock ? 'Nest mock' : 'Nest') : 'Nest yok';
+  const blocked = state === 'sample' && !!catalog.error;
+  const loading = state === 'loading' || (state === 'sample' && catalog.loading);
 
   return (
     <View style={styles.root}>
@@ -40,7 +42,7 @@ export default function OzetScreen() {
           </View>
           <Text style={styles.kicker}>Toplam satış</Text>
           <View style={styles.metricRow}>
-            <MoneyText value={state === 'empty' ? 0 : summary.sales} size="display" onDark digits={0} />
+            <MoneyText value={state === 'empty' || blocked ? 0 : summary.sales} size="display" onDark digits={0} />
             <Sparkline points={state === 'empty' ? [8, 8, 8, 8, 8] : sparkline} />
           </View>
           <Text style={styles.delta}>
@@ -59,17 +61,17 @@ export default function OzetScreen() {
       </SafeAreaView>
 
       <PorcelainSheet>
-        {state === 'loading' ? (
+        {loading ? (
           <View style={styles.sheetPad}>
             <Skeleton width="40%" height={16} />
             <Skeleton width="100%" height={44} radius={22} />
             <Skeleton width="100%" height={64} radius={16} />
             <Skeleton width="100%" height={72} radius={16} />
           </View>
-        ) : state === 'error' ? (
+        ) : state === 'error' || blocked ? (
           <ErrorState
             title="Özet yüklenemedi"
-            body="Sunucudan yanıt alınamadı. Biraz sonra yeniden deneyebilirsin."
+            body={catalog.error ?? 'Sunucudan yanıt alınamadı. Yerel örnek başarı sayılmaz.'}
             onRetry={() => {
               setState('sample');
               catalog.refresh();
@@ -81,7 +83,7 @@ export default function OzetScreen() {
               <Text style={styles.sectionTitle}>Operasyon</Text>
               <Text style={styles.sectionMeta}>Bugün</Text>
             </View>
-            {state === 'empty' ? (
+            {state === 'empty' || recentOrders.length === 0 ? (
               <EmptyState
                 title="Bugün işlem yok"
                 body="Bağlı Trendyol mağazasında henüz sipariş veya uyarı görünmüyor."

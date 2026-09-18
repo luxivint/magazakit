@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { orders as localOrders, products as localProducts, type Order, type Product } from '@/data/mock';
+import { useAuth } from '@/context/AuthContext';
+import type { Order, Product } from '@/data/mock';
 import { API_URL, fetchHealth, fetchOrders, fetchProducts } from '@/lib/apiClient';
 import { mapApiOrder, mapApiProduct } from '@/lib/mapCatalog';
 
-export type CatalogSource = 'api' | 'local';
+export type CatalogSource = 'api' | 'none';
 
 type CatalogContextValue = {
   source: CatalogSource;
@@ -21,44 +22,54 @@ type CatalogContextValue = {
 const CatalogContext = createContext<CatalogContextValue | null>(null);
 
 export function CatalogProvider({ children }: { children: ReactNode }) {
-  const [source, setSource] = useState<CatalogSource>('local');
+  const { idToken, org } = useAuth();
+  const [source, setSource] = useState<CatalogSource>('none');
   const [apiMock, setApiMock] = useState<boolean | null>(null);
   const [reachable, setReachable] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [products, setProducts] = useState<Product[]>(localProducts);
-  const [orders, setOrders] = useState<Order[]>(localOrders);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [tick, setTick] = useState(0);
 
   const load = useCallback(async () => {
+    if (!idToken) {
+      setProducts([]);
+      setOrders([]);
+      setSource('none');
+      setReachable(false);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 2500);
     try {
-      const health = await fetchHealth(ac.signal);
-      const [productPage, orderPage] = await Promise.all([fetchProducts(), fetchOrders()]);
+      const health = await fetchHealth();
+      const [productPage, orderPage] = await Promise.all([
+        fetchProducts(org?.id),
+        fetchOrders(org?.id),
+      ]);
       setReachable(true);
       setSource('api');
       setApiMock(health.mock ?? productPage.mock);
       setProducts(productPage.items.map(mapApiProduct));
       setOrders(orderPage.items.map(mapApiOrder));
-    } catch {
+    } catch (e) {
       setReachable(false);
-      setSource('local');
+      setSource('none');
       setApiMock(null);
-      setProducts(localProducts);
-      setOrders(localOrders);
-      setError('Nest API yanıt vermedi; yerel örnek kullanılıyor.');
+      setProducts([]);
+      setOrders([]);
+      setError(e instanceof Error ? e.message : 'Nest API yanıt vermedi.');
     } finally {
-      clearTimeout(timer);
       setLoading(false);
     }
-  }, []);
+  }, [idToken, org?.id, tick]);
 
   useEffect(() => {
     void load();
-  }, [load, tick]);
+  }, [load]);
 
   const value = useMemo<CatalogContextValue>(
     () => ({

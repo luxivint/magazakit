@@ -7,29 +7,36 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
 import { BrandMark } from '@/components/ui/BrandMark';
 import { Button } from '@/components/ui/Button';
-import { ChannelBadge } from '@/components/ui/ChannelBadge';
+import { ConfigBanner } from '@/components/ui/ConfigBanner';
 import { TextField } from '@/components/ui/TextField';
 import { useAuth } from '@/context/AuthContext';
-import { colors, fonts, radii, space } from '@/theme/tokens';
+import { API_URL } from '@/lib/api';
+import { colors, fonts, space } from '@/theme/tokens';
 
 export default function IsletmeScreen() {
-  const { user, orgName, setOrg } = useAuth();
-  const [name, setName] = useState(orgName ?? '');
+  const { user, org, apiError, createOrg } = useAuth();
+  const [name, setName] = useState('');
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
 
   if (!user) return <Redirect href="/(auth)/giris" />;
-  if (orgName) return <Redirect href="/(tabs)" />;
+  if (org) return <Redirect href="/(tabs)/magazalar" />;
 
   const submit = async () => {
     if (name.trim().length < 2) {
       setError('İşletme adı zorunlu.');
       return;
     }
+    setError(undefined);
     setBusy(true);
-    await setOrg(name);
-    setBusy(false);
-    router.replace('/(tabs)');
+    try {
+      await createOrg(name);
+      router.replace('/(tabs)/magazalar');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'İşletme oluşturulamadı.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -52,6 +59,7 @@ export default function IsletmeScreen() {
       <PorcelainSheet>
         <View style={styles.sheet}>
           <Text style={styles.section}>İşletme bilgileri</Text>
+          {apiError ? <ConfigBanner text={`${apiError} (${API_URL})`} /> : null}
           <TextField
             label="İşletme adı"
             placeholder="Görünen işletme adı"
@@ -61,12 +69,7 @@ export default function IsletmeScreen() {
             error={error}
           />
           <Text style={styles.meta}>Sahip: {user.name}</Text>
-          <Text style={styles.section}>Pazaryeri</Text>
-          <Text style={styles.hint}>v1 yalnız Trendyol. Hepsiburada F4’e kadar gizli.</Text>
-          <View style={styles.channel}>
-            <ChannelBadge />
-            <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-          </View>
+          <Text style={styles.hint}>Hacim anketi ve Hepsiburada bu adımda yok.</Text>
           <Button
             label="Kaydet ve devam et"
             trailing="arrow-forward"
@@ -114,15 +117,5 @@ const styles = StyleSheet.create({
   sheet: { padding: space.xl, gap: 12 },
   section: { fontFamily: fonts.bold, fontSize: 18, color: colors.ink },
   meta: { fontFamily: fonts.medium, fontSize: 13, color: colors.muted },
-  hint: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, marginTop: -4 },
-  channel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.white,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.sheetLine,
-    padding: 14,
-  },
+  hint: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
 });

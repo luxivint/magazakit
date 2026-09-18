@@ -1,4 +1,11 @@
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:43140').replace(/\/$/, '');
+/** Web/emulator: http://127.0.0.1:43140. Physical device: LAN IP of the Nest host. */
+export const API_URL = (
+  process.env.EXPO_PUBLIC_API_URL ??
+  process.env.EXPO_PUBLIC_API_BASE_URL ??
+  'http://127.0.0.1:43140'
+).replace(/\/$/, '');
+
+export const API_BASE_URL = API_URL;
 
 export type ProductListItem = {
   id: string;
@@ -44,26 +51,28 @@ export type HealthResponse = {
   mock?: boolean;
 };
 
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: { Accept: 'application/json' },
-  });
-  if (!res.ok) {
-    throw new Error(`API ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
+export type OrganizationSummary = {
+  id: string;
+  name: string;
+  ownerUid: string;
+};
 
-export async function fetchHealth(signal?: AbortSignal): Promise<HealthResponse> {
-  const res = await fetch(`${API_URL}/health`, { signal, headers: { Accept: 'application/json' } });
-  if (!res.ok) throw new Error(`health ${res.status}`);
-  return res.json() as Promise<HealthResponse>;
-}
+export type CurrentUserResponse = {
+  uid: string;
+  email: string | null;
+  organization: OrganizationSummary | null;
+};
 
-export async function fetchProducts(): Promise<PreviewList<ProductListItem>> {
-  return getJson('/v1/products');
-}
+export type ShopStatusCode = 'mock_connected' | 'k01_blocked';
 
-export async function fetchOrders(): Promise<PreviewList<OrderListItem>> {
-  return getJson('/v1/orders');
-}
+export type ShopStatus = {
+  id: string;
+  organizationId: string;
+  channel: 'trendyol';
+  status: ShopStatusCode;
+  statusLabel: string;
+  sellerLabel: string;
+  connectedAt: string;
+  k01: string;
+  mock: true;
+};

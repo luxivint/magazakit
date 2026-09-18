@@ -6,7 +6,7 @@ import { colors } from '@/theme/tokens';
 export default function AuthLayout() {
   const { ready, user, orgName } = useAuth();
   if (!ready) return null;
-  if (user && orgName) return <Redirect href="/(tabs)" />;
+  if (user && orgName) return <Redirect href="/(tabs)/magazalar" />;
 
   return (
     <Stack
