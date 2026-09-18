@@ -38,6 +38,11 @@ export default function TabLayout() {
         <Tabs.Screen name="raporlar" options={{ href: null, title: 'Raporlar' }} />
         <Tabs.Screen name="yayin" options={{ href: null, title: 'Katalog yayın' }} />
         <Tabs.Screen name="abonelik" options={{ href: null, title: 'Abonelik' }} />
+        <Tabs.Screen name="alislar" options={{ href: null, title: 'Alışlar' }} />
+        <Tabs.Screen name="depo" options={{ href: null, title: 'Depo' }} />
+        <Tabs.Screen name="e-fatura" options={{ href: null, title: 'E-fatura' }} />
+        <Tabs.Screen name="termal" options={{ href: null, title: 'Termal yazıcı' }} />
+        <Tabs.Screen name="hepsiburada" options={{ href: null, title: 'Hepsiburada' }} />
         <Tabs.Screen name="yardim" options={{ href: null, title: 'Yardım' }} />
         <Tabs.Screen name="iki-faktor" options={{ href: null, title: 'İki adımlı doğrulama' }} />
       </Tabs>

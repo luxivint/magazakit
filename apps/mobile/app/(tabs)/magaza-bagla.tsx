@@ -63,7 +63,17 @@ export default function MagazaBaglaScreen() {
             <ChannelBadge />
             <Ionicons name="checkmark-circle" size={22} color={colors.success} />
           </View>
-          <Text style={styles.hint}>Hepsiburada yakında. Anahtarlar telefonda kalır, sunucuya gitmez.</Text>
+          <Text style={styles.hint}>Hepsiburada görünür stub; canlı kanal değil. Anahtarlar telefonda kalır, sunucuya gitmez.</Text>
+          <Pressable style={styles.hbCard} onPress={() => router.push('/(tabs)/hepsiburada')}>
+            <View style={styles.hbMark}>
+              <Text style={styles.hbText}>hb</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.hbTitle}>Hepsiburada</Text>
+              <Text style={styles.hint}>Canlı değil. Bağlantı tamamlanmış sayılmaz.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
           <TextField
             label="Mağaza adı"
             placeholder="Ayşe Home"
@@ -128,5 +138,25 @@ const styles = StyleSheet.create({
     borderColor: colors.sheetLine,
   },
   hint: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, marginTop: -4 },
+  hbCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.white,
+    borderRadius: radii.card,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.sheetLine,
+  },
+  hbMark: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#E31E24',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hbText: { fontFamily: fonts.bold, fontSize: 11, color: colors.white },
+  hbTitle: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
   skip: { textAlign: 'center', fontFamily: fonts.medium, fontSize: 13, color: colors.muted, paddingVertical: 8 },
 });

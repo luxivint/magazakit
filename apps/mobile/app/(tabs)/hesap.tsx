@@ -85,6 +85,36 @@ export default function HesapScreen() {
             <Text style={styles.rowValue}>sihirbaz</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.muted} />
           </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/alislar')}>
+            <Ionicons name="cart-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Alışlar</Text>
+            <Text style={styles.rowValue}>stub</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/depo')}>
+            <Ionicons name="home-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Depo</Text>
+            <Text style={styles.rowValue}>tek depo</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/e-fatura')}>
+            <Ionicons name="document-text-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>E-fatura</Text>
+            <Text style={styles.rowValue}>GİB yok</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/termal')}>
+            <Ionicons name="print-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Termal yazıcı</Text>
+            <Text style={styles.rowValue}>test stub</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable style={styles.row} onPress={() => router.push('/(tabs)/hepsiburada')}>
+            <Ionicons name="storefront-outline" size={18} color={colors.ink} />
+            <Text style={styles.rowLabel}>Hepsiburada</Text>
+            <Text style={styles.rowValue}>canlı değil</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
 
           <Text style={styles.section}>Hesap</Text>
           <Pressable style={styles.row} onPress={() => router.push('/(tabs)/abonelik')}>

@@ -21,6 +21,13 @@ import {
   type ListingDraft,
   type BillingOffering,
   type BillingOfferingResponse,
+  type Supplier,
+  type PurchaseOrderStub,
+  type Warehouse,
+  type WarehouseTransfer,
+  type EinvoiceDraft,
+  type PrinterSettings,
+  type PrinterTestResult,
 } from '@/lib/api';
 import { getIdToken } from '@/lib/firebase';
 
@@ -47,6 +54,13 @@ export type {
   ListingDraft,
   BillingOffering,
   BillingOfferingResponse,
+  Supplier,
+  PurchaseOrderStub,
+  Warehouse,
+  WarehouseTransfer,
+  EinvoiceDraft,
+  PrinterSettings,
+  PrinterTestResult,
 };
 
 export class ApiError extends Error {
@@ -325,5 +339,96 @@ export async function publishListing(listingId: string): Promise<ListingDraft> {
     method: 'POST',
     headers: await headers(true),
     body: JSON.stringify({ mock: true }),
+  });
+}
+
+export async function fetchSuppliers(): Promise<{ items: Supplier[] }> {
+  return request('/v1/suppliers', { headers: await headers() });
+}
+
+export async function fetchSupplier(id: string): Promise<Supplier> {
+  return request(`/v1/suppliers/${encodeURIComponent(id)}`, { headers: await headers() });
+}
+
+export async function createSupplier(body: { name: string; note?: string }): Promise<Supplier> {
+  return request('/v1/suppliers', {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchSupplier(
+  id: string,
+  body: { name?: string; note?: string | null },
+): Promise<Supplier> {
+  return request(`/v1/suppliers/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: await headers(true),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchPurchaseOrders(): Promise<{ items: PurchaseOrderStub[]; stub: true }> {
+  return request('/v1/purchase-orders', { headers: await headers() });
+}
+
+export async function createPurchaseOrder(body: {
+  supplierId: string;
+  sku?: string;
+  qty?: number;
+}): Promise<PurchaseOrderStub> {
+  return request('/v1/purchase-orders', {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchWarehouses(): Promise<{ items: Warehouse[] }> {
+  return request('/v1/warehouses', { headers: await headers() });
+}
+
+export async function createWarehouseTransfer(body: {
+  sku: string;
+  qty: number;
+  fromWarehouseId?: string;
+  toWarehouseId?: string;
+}): Promise<WarehouseTransfer> {
+  return request('/v1/warehouses/transfers', {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchEinvoices(): Promise<{ items: EinvoiceDraft[]; gibLive: false }> {
+  return request('/v1/einvoices', { headers: await headers() });
+}
+
+export async function createEinvoice(orderId?: string): Promise<EinvoiceDraft> {
+  return request('/v1/einvoices', {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify(orderId ? { orderId } : {}),
+  });
+}
+
+export async function fetchPrinter(): Promise<PrinterSettings> {
+  return request('/v1/printer', { headers: await headers() });
+}
+
+export async function savePrinter(body: { name?: string; host?: string | null }): Promise<PrinterSettings> {
+  return request('/v1/printer', {
+    method: 'PUT',
+    headers: await headers(true),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function testPrinter(): Promise<PrinterTestResult> {
+  return request('/v1/printer/test-print', {
+    method: 'POST',
+    headers: await headers(),
   });
 }

@@ -45,6 +45,14 @@ F4/F5 (Bearer; kâr uydurulmaz; ödeme yok):
 - `GET/POST /v1/listings/:id/draft` · `POST /v1/listings/:id/publish` `{ mock: true }`
 - `GET /v1/billing/offering` — 499/999/1999, `chargeable: false`
 
+F6 (Bearer; GİB canlı değil; yazıcı mock):
+
+- `GET/POST /v1/suppliers` `{ name, note? }` · `GET/PATCH /v1/suppliers/:id`
+- `GET/POST /v1/purchase-orders` `{ supplierId, sku?, qty? }` — taslak, stok artmaz
+- `GET /v1/warehouses` · `POST /v1/warehouses/transfers` `{ sku, qty }`
+- `GET/POST /v1/einvoices` — `gibLive: false`
+- `GET/PUT /v1/printer` · `POST /v1/printer/test-print` — `printed: false`, mock
+
 ## Ekranlar
 
-Özet, siparişler, ürünler, Hazırla, Stok, İşlem merkezi, İadeler, Ekip, Raporlar, Katalog yayın, Abonelik. HB canlı kanal değil; kâr ve ödeme yok.
+Özet, siparişler, ürünler, Hazırla, Stok, İşlem merkezi, İadeler, Ekip, Raporlar, Katalog yayın, Abonelik, Alışlar, Depo, E-fatura, Termal, Hepsiburada stub. HB canlı kanal değil; kâr, ödeme, GİB ve WMS yok.
