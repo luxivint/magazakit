@@ -5,3 +5,4 @@ export * from './catalog';
 export * from './preview';
 export * from './identity';
 export * from './ops';
+export * from './f6';

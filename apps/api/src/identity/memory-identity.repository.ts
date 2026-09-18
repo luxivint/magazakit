@@ -1,4 +1,5 @@
 import type {
+  EinvoiceDraft,
   ListingDraft,
   ListingMapping,
   OperationEvent,
@@ -7,10 +8,15 @@ import type {
   OrgMember,
   OrganizationSummary,
   OutboxEntry,
+  PrinterSettings,
+  PurchaseOrderStub,
   ReturnListItem,
   ShopStatus,
   StockBalance,
   StockMovement,
+  Supplier,
+  Warehouse,
+  WarehouseTransfer,
 } from '@magazakit/contracts';
 import { K01_NOTE } from '../config/trendyol-env';
 import type { MockListingSeed } from '../trendyol/mock-feed';
@@ -60,6 +66,12 @@ export class MemoryIdentityRepository implements IdentityRepository {
   private readonly members = new Map<string, OrgMember>();
   private readonly invites = new Map<string, OrgInvite>();
   private readonly drafts = new Map<string, ListingDraft>();
+  private readonly suppliers = new Map<string, Supplier>();
+  private readonly purchaseOrders: PurchaseOrderStub[] = [];
+  private readonly warehouses = new Map<string, Warehouse>();
+  private readonly transfers: WarehouseTransfer[] = [];
+  private readonly einvoices: EinvoiceDraft[] = [];
+  private readonly printers = new Map<string, PrinterSettings>();
   private seq = 0;
 
   private listingKey(orgId: string, listingId: string): string {
@@ -320,5 +332,64 @@ export class MemoryIdentityRepository implements IdentityRepository {
       liveTyWrite: false,
     });
     return { ...draft, liveTyWrite: false };
+  }
+
+  async listSuppliers(orgId: string): Promise<Supplier[]> {
+    return [...this.suppliers.values()].filter((s) => s.organizationId === orgId);
+  }
+
+  async getSupplier(orgId: string, supplierId: string): Promise<Supplier | null> {
+    return this.suppliers.get(this.orderKey(orgId, supplierId)) ?? null;
+  }
+
+  async saveSupplier(supplier: Supplier): Promise<Supplier> {
+    this.suppliers.set(this.orderKey(supplier.organizationId, supplier.id), supplier);
+    return supplier;
+  }
+
+  async listPurchaseOrders(orgId: string): Promise<PurchaseOrderStub[]> {
+    return this.purchaseOrders.filter((p) => p.organizationId === orgId);
+  }
+
+  async savePurchaseOrder(po: PurchaseOrderStub): Promise<PurchaseOrderStub> {
+    this.purchaseOrders.push(po);
+    return po;
+  }
+
+  async listWarehouses(orgId: string): Promise<Warehouse[]> {
+    return [...this.warehouses.values()].filter((w) => w.organizationId === orgId);
+  }
+
+  async saveWarehouse(warehouse: Warehouse): Promise<Warehouse> {
+    this.warehouses.set(this.orderKey(warehouse.organizationId, warehouse.id), warehouse);
+    return warehouse;
+  }
+
+  async listTransfers(orgId: string): Promise<WarehouseTransfer[]> {
+    return this.transfers.filter((t) => t.organizationId === orgId).slice().reverse();
+  }
+
+  async saveTransfer(transfer: WarehouseTransfer): Promise<WarehouseTransfer> {
+    this.transfers.push(transfer);
+    return transfer;
+  }
+
+  async listEinvoices(orgId: string): Promise<EinvoiceDraft[]> {
+    return this.einvoices.filter((e) => e.organizationId === orgId).slice().reverse();
+  }
+
+  async saveEinvoice(draft: EinvoiceDraft): Promise<EinvoiceDraft> {
+    const stored = { ...draft, gibLive: false as const };
+    this.einvoices.push(stored);
+    return stored;
+  }
+
+  async getPrinter(orgId: string): Promise<PrinterSettings | null> {
+    return this.printers.get(orgId) ?? null;
+  }
+
+  async savePrinter(settings: PrinterSettings): Promise<PrinterSettings> {
+    this.printers.set(settings.organizationId, settings);
+    return settings;
   }
 }

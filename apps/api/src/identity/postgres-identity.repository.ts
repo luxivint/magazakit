@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import type {
+  EinvoiceDraft,
   ListingDraft,
   ListingMapping,
   OperationEvent,
@@ -9,10 +10,15 @@ import type {
   OrgMember,
   OrganizationSummary,
   OutboxEntry,
+  PrinterSettings,
+  PurchaseOrderStub,
   ReturnListItem,
   ShopStatus,
   StockBalance,
   StockMovement,
+  Supplier,
+  Warehouse,
+  WarehouseTransfer,
 } from '@magazakit/contracts';
 import { K01_NOTE } from '../config/trendyol-env';
 import type { MockListingSeed } from '../trendyol/mock-feed';
@@ -561,6 +567,113 @@ export class PostgresIdentityRepository implements IdentityRepository {
       [draft.organizationId, draft.listingId, JSON.stringify(stored)],
     );
     return stored;
+  }
+
+  async listSuppliers(orgId: string): Promise<Supplier[]> {
+    return this.listJson<Supplier>('org_suppliers', 'supplier_id', orgId);
+  }
+
+  async getSupplier(orgId: string, supplierId: string): Promise<Supplier | null> {
+    return this.getJson<Supplier>('org_suppliers', 'supplier_id', orgId, supplierId);
+  }
+
+  async saveSupplier(supplier: Supplier): Promise<Supplier> {
+    return this.saveJson('org_suppliers', 'supplier_id', supplier.organizationId, supplier.id, supplier);
+  }
+
+  async listPurchaseOrders(orgId: string): Promise<PurchaseOrderStub[]> {
+    return this.listJson<PurchaseOrderStub>('purchase_orders', 'po_id', orgId);
+  }
+
+  async savePurchaseOrder(po: PurchaseOrderStub): Promise<PurchaseOrderStub> {
+    return this.saveJson('purchase_orders', 'po_id', po.organizationId, po.id, po);
+  }
+
+  async listWarehouses(orgId: string): Promise<Warehouse[]> {
+    return this.listJson<Warehouse>('warehouses', 'warehouse_id', orgId);
+  }
+
+  async saveWarehouse(warehouse: Warehouse): Promise<Warehouse> {
+    return this.saveJson('warehouses', 'warehouse_id', warehouse.organizationId, warehouse.id, warehouse);
+  }
+
+  async listTransfers(orgId: string): Promise<WarehouseTransfer[]> {
+    const res = await this.pool.query(
+      'SELECT payload FROM warehouse_transfers WHERE organization_id = $1 ORDER BY id DESC',
+      [orgId],
+    );
+    return res.rows.map((row) => ({ ...(row.payload as WarehouseTransfer), stub: true as const }));
+  }
+
+  async saveTransfer(transfer: WarehouseTransfer): Promise<WarehouseTransfer> {
+    await this.pool.query(
+      'INSERT INTO warehouse_transfers (id, organization_id, payload) VALUES ($1, $2, $3::jsonb)',
+      [transfer.id, transfer.organizationId, JSON.stringify({ ...transfer, stub: true })],
+    );
+    return { ...transfer, stub: true };
+  }
+
+  async listEinvoices(orgId: string): Promise<EinvoiceDraft[]> {
+    const items = await this.listJson<EinvoiceDraft>('einvoice_drafts', 'invoice_id', orgId);
+    return items.map((i) => ({ ...i, gibLive: false as const }));
+  }
+
+  async saveEinvoice(draft: EinvoiceDraft): Promise<EinvoiceDraft> {
+    const stored = { ...draft, gibLive: false as const };
+    return this.saveJson('einvoice_drafts', 'invoice_id', draft.organizationId, draft.id, stored);
+  }
+
+  async getPrinter(orgId: string): Promise<PrinterSettings | null> {
+    const res = await this.pool.query('SELECT payload FROM printer_settings WHERE organization_id = $1', [
+      orgId,
+    ]);
+    const row = res.rows[0];
+    return row ? (row.payload as PrinterSettings) : null;
+  }
+
+  async savePrinter(settings: PrinterSettings): Promise<PrinterSettings> {
+    await this.pool.query(
+      `INSERT INTO printer_settings (organization_id, payload)
+       VALUES ($1, $2::jsonb)
+       ON CONFLICT (organization_id) DO UPDATE SET payload = EXCLUDED.payload`,
+      [settings.organizationId, JSON.stringify(settings)],
+    );
+    return settings;
+  }
+
+  private async listJson<T>(table: string, idCol: string, orgId: string): Promise<T[]> {
+    const res = await this.pool.query(
+      `SELECT payload FROM ${table} WHERE organization_id = $1`,
+      [orgId],
+    );
+    void idCol;
+    return res.rows.map((row) => row.payload as T);
+  }
+
+  private async getJson<T>(table: string, idCol: string, orgId: string, id: string): Promise<T | null> {
+    const res = await this.pool.query(
+      `SELECT payload FROM ${table} WHERE organization_id = $1 AND ${idCol} = $2`,
+      [orgId, id],
+    );
+    const row = res.rows[0];
+    return row ? (row.payload as T) : null;
+  }
+
+  private async saveJson<T>(
+    table: string,
+    idCol: string,
+    orgId: string,
+    id: string,
+    payload: T,
+  ): Promise<T> {
+    await this.pool.query(
+      `INSERT INTO ${table} (organization_id, ${idCol}, payload)
+       VALUES ($1, $2, $3::jsonb)
+       ON CONFLICT (organization_id, ${idCol})
+       DO UPDATE SET payload = EXCLUDED.payload`,
+      [orgId, id, JSON.stringify(payload)],
+    );
+    return payload;
   }
 }
 

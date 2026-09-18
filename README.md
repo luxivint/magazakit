@@ -1,6 +1,6 @@
 # Mağazam API
 
-NestJS for Expo. Firebase project **magazam-app**. No homemade login. No mobile/web UI in this PR. F6 (WMS / extra marketplaces) is not in this slice. Billing has **offerings only** — no processor, no card tokens.
+NestJS for Expo. Firebase project **magazam-app**. No homemade login. No mobile/web UI in this PR. No live HB, GİB, or Redis. Billing offerings only — no processor. F6 is stubs (suppliers, depo transfer, e-fatura taslağı, yazıcı).
 
 ## Expo how to call
 
@@ -36,6 +36,11 @@ Device: LAN IP, not 127.0.0.1. CORS allows Expo localhost / LAN / `*.expo.dev`.
 | Reports | `GET /v1/reports/summary` — sipariş adetleri + stok `deltaPhysical`; **kâr yok** |
 | Publish stub | `POST /v1/listings/:id/draft` · `POST /v1/listings/:id/publish` `{ mock: true }` — canlı TY yazılmaz (`liveTyWrite: false`) |
 | Billing offering (F5) | `GET /v1/billing/offering` — 499 / 999 / 1999 ₺, `chargeable: false` |
+| Suppliers (F6) | `GET/POST /v1/suppliers` · `GET/PATCH /v1/suppliers/:id` |
+| Purchase orders (F6) | `GET/POST /v1/purchase-orders` — stub |
+| Warehouses (F6) | `GET /v1/warehouses` (tek varsayılan) · `POST /v1/warehouses/transfers` `{ sku, qty }` stub |
+| E-invoice (F6) | `GET/POST /v1/einvoices` — `gibLive: false` always |
+| Printer (F6) | `GET/PUT /v1/printer` · `POST /v1/printer/test-print` — gönderilmez |
 
 Unmapped listings: `mapped: false`, `stockSource: "none"`, `sellableStock: 0`. Unmapped SKU **cannot reserve or ship**. Marketplace `marketplaceStock` is **not** physical stock (K02). `sellable = physical − reserved`. Repeat sync does not duplicate (T06). Same reserve key is a no-op; a second reserve is `CONFLICT`. Same `idempotencyKey` on adjust is one ledger row.
 
@@ -81,8 +86,14 @@ Do not commit `.env`, `apps/api/.env`, service-account JSON, or any real `DATABA
 | `org_members` | Org üyeleri (sahip) |
 | `org_invites` | E-posta davet kaydı (gönderilmez) |
 | `listing_drafts` | Yayın taslağı / mock_live |
+| `org_suppliers` | Tedarikçi CRUD lite |
+| `purchase_orders` | Mal girişi sipariş stub |
+| `warehouses` | Tek varsayılan depo + overflow stub |
+| `warehouse_transfers` | Transfer kaydı (WMS yok) |
+| `einvoice_drafts` | E-fatura taslağı (`gibLive` false) |
+| `printer_settings` | Termal ayar stub |
 
-F4 SQL: `apps/api/migrations/002_f4_stubs.sql`. Worker (`pnpm dev:worker`) is health-only.
+F4 SQL: `002_f4_stubs.sql`. F6 SQL: `003_f6_stubs.sql`. Worker (`pnpm dev:worker`) is health-only.
 
 ## Run (memory)
 

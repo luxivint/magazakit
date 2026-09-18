@@ -1,4 +1,5 @@
 import type {
+  EinvoiceDraft,
   ListingDraft,
   ListingMapping,
   OperationEvent,
@@ -7,11 +8,16 @@ import type {
   OrgMember,
   OrganizationSummary,
   OutboxEntry,
+  PrinterSettings,
   ProductListItem,
+  PurchaseOrderStub,
   ReturnListItem,
   ShopStatus,
   StockBalance,
   StockMovement,
+  Supplier,
+  Warehouse,
+  WarehouseTransfer,
 } from '@magazakit/contracts';
 import type { MockListingSeed } from '../trendyol/mock-feed';
 
@@ -73,6 +79,19 @@ export interface IdentityRepository {
   saveInvite(invite: OrgInvite): Promise<OrgInvite>;
   getListingDraft(orgId: string, listingId: string): Promise<ListingDraft | null>;
   saveListingDraft(draft: ListingDraft): Promise<ListingDraft>;
+  listSuppliers(orgId: string): Promise<Supplier[]>;
+  getSupplier(orgId: string, supplierId: string): Promise<Supplier | null>;
+  saveSupplier(supplier: Supplier): Promise<Supplier>;
+  listPurchaseOrders(orgId: string): Promise<PurchaseOrderStub[]>;
+  savePurchaseOrder(po: PurchaseOrderStub): Promise<PurchaseOrderStub>;
+  listWarehouses(orgId: string): Promise<Warehouse[]>;
+  saveWarehouse(warehouse: Warehouse): Promise<Warehouse>;
+  listTransfers(orgId: string): Promise<WarehouseTransfer[]>;
+  saveTransfer(transfer: WarehouseTransfer): Promise<WarehouseTransfer>;
+  listEinvoices(orgId: string): Promise<EinvoiceDraft[]>;
+  saveEinvoice(draft: EinvoiceDraft): Promise<EinvoiceDraft>;
+  getPrinter(orgId: string): Promise<PrinterSettings | null>;
+  savePrinter(settings: PrinterSettings): Promise<PrinterSettings>;
 }
 
 export function toProductListItem(

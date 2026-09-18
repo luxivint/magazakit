@@ -22,6 +22,13 @@ import {
   type OrgInvite,
   type OrgMember,
   type ReturnListItem,
+  type EinvoiceDraft,
+  type PrinterSettings,
+  type PrinterTestResult,
+  type PurchaseOrderStub,
+  type Supplier,
+  type Warehouse,
+  type WarehouseTransfer,
 } from '@magazakit/contracts';
 import type { IdentityRepository, PersistenceBackend } from './identity.repository';
 import { sellableOf, toProductListItem } from './identity.repository';
@@ -779,6 +786,195 @@ export class IdentityStore {
       mock: true,
       liveTyWrite: false,
       updatedAt: listing.id ? nowIso() : nowIso(),
+    };
+  }
+
+  async listSuppliers(uid: string): Promise<{ items: Supplier[] }> {
+    const org = await this.requireOrg(uid);
+    return { items: await this.repo.listSuppliers(org.id) };
+  }
+
+  async getSupplier(uid: string, supplierId: string): Promise<Supplier> {
+    const org = await this.requireOrg(uid);
+    const item = await this.repo.getSupplier(org.id, supplierId);
+    if (!item) {
+      boom(ErrorCodes.NOT_FOUND, 'Tedarikçi bulunamadı.', HttpStatus.NOT_FOUND);
+    }
+    return item;
+  }
+
+  async saveSupplier(uid: string, body: { id?: string; name?: string; note?: string | null }): Promise<Supplier> {
+    const org = await this.requireOrg(uid);
+    const name = body.name?.trim();
+    if (!name && !body.id) {
+      boom(ErrorCodes.VALIDATION, 'name gerekli.', HttpStatus.BAD_REQUEST);
+    }
+    if (body.id) {
+      const existing = await this.repo.getSupplier(org.id, body.id);
+      if (!existing) {
+        boom(ErrorCodes.NOT_FOUND, 'Tedarikçi bulunamadı.', HttpStatus.NOT_FOUND);
+      }
+      return this.repo.saveSupplier({
+        ...existing,
+        name: name || existing.name,
+        note: body.note === undefined ? existing.note : body.note,
+      });
+    }
+    const supplier: Supplier = {
+      id: newId('sup'),
+      organizationId: org.id,
+      name: name as string,
+      note: body.note?.trim() || null,
+      createdAt: nowIso(),
+    };
+    return this.repo.saveSupplier(supplier);
+  }
+
+  async listPurchaseOrders(uid: string): Promise<{ items: PurchaseOrderStub[]; stub: true }> {
+    const org = await this.requireOrg(uid);
+    return { items: await this.repo.listPurchaseOrders(org.id), stub: true };
+  }
+
+  async createPurchaseOrder(
+    uid: string,
+    body: { supplierId?: string; sku?: string; qty?: number },
+  ): Promise<PurchaseOrderStub> {
+    const org = await this.requireOrg(uid);
+    const supplierId = body.supplierId?.trim();
+    if (!supplierId) {
+      boom(ErrorCodes.VALIDATION, 'supplierId gerekli.', HttpStatus.BAD_REQUEST);
+    }
+    const supplier = await this.repo.getSupplier(org.id, supplierId);
+    if (!supplier) {
+      boom(ErrorCodes.NOT_FOUND, 'Tedarikçi bulunamadı.', HttpStatus.NOT_FOUND);
+    }
+    const po: PurchaseOrderStub = {
+      id: newId('po'),
+      organizationId: org.id,
+      supplierId,
+      sku: body.sku?.trim() || null,
+      qty: Number.isFinite(body.qty) ? Number(body.qty) : 0,
+      status: 'draft',
+      stub: true,
+      createdAt: nowIso(),
+    };
+    return this.repo.savePurchaseOrder(po);
+  }
+
+  async listWarehouses(uid: string): Promise<{ items: Warehouse[] }> {
+    const org = await this.requireOrg(uid);
+    let items = await this.repo.listWarehouses(org.id);
+    if (items.length === 0) {
+      const def: Warehouse = {
+        id: `wh_default_${org.id}`,
+        organizationId: org.id,
+        name: 'Ana depo',
+        isDefault: true,
+      };
+      await this.repo.saveWarehouse(def);
+      items = [def];
+    }
+    return { items };
+  }
+
+  async transferStock(
+    uid: string,
+    body: { fromWarehouseId?: string; toWarehouseId?: string; sku?: string; qty?: number },
+  ): Promise<WarehouseTransfer> {
+    const org = await this.requireOrg(uid);
+    const listed = await this.listWarehouses(uid);
+    let warehouses = listed.items;
+    const fromId = body.fromWarehouseId?.trim() || warehouses.find((w) => w.isDefault)?.id;
+    let toId = body.toWarehouseId?.trim();
+    if (!toId) {
+      let overflow = warehouses.find((w) => !w.isDefault);
+      if (!overflow) {
+        overflow = {
+          id: `wh_overflow_${org.id}`,
+          organizationId: org.id,
+          name: 'Transfer hedef (stub)',
+          isDefault: false,
+        };
+        await this.repo.saveWarehouse(overflow);
+        warehouses = [...warehouses, overflow];
+      }
+      toId = overflow.id;
+    }
+    const sku = body.sku?.trim();
+    const qty = Number(body.qty);
+    if (!fromId || !toId || !sku || !Number.isFinite(qty) || qty <= 0) {
+      boom(ErrorCodes.VALIDATION, 'sku ve pozitif qty gerekli.', HttpStatus.BAD_REQUEST);
+    }
+    if (fromId === toId) {
+      boom(ErrorCodes.VALIDATION, 'Kaynak ve hedef depo aynı olamaz.', HttpStatus.BAD_REQUEST);
+    }
+    if (!warehouses.some((w) => w.id === fromId) || !warehouses.some((w) => w.id === toId)) {
+      boom(ErrorCodes.NOT_FOUND, 'Depo bulunamadı.', HttpStatus.NOT_FOUND);
+    }
+    const transfer: WarehouseTransfer = {
+      id: newId('xfer'),
+      organizationId: org.id,
+      fromWarehouseId: fromId,
+      toWarehouseId: toId,
+      sku,
+      qty,
+      stub: true,
+      createdAt: nowIso(),
+    };
+    await this.repo.saveTransfer(transfer);
+    await this.op(org.id, 'warehouse_transfer', `Depo transfer stub ${sku} x${qty}`, 'ok', transfer.id);
+    return transfer;
+  }
+
+  async listEinvoices(uid: string): Promise<{ items: EinvoiceDraft[]; gibLive: false }> {
+    const org = await this.requireOrg(uid);
+    const items = (await this.repo.listEinvoices(org.id)).map((i) => ({ ...i, gibLive: false as const }));
+    return { items, gibLive: false };
+  }
+
+  async createEinvoice(uid: string, body: { orderId?: string }): Promise<EinvoiceDraft> {
+    const org = await this.requireOrg(uid);
+    const draft: EinvoiceDraft = {
+      id: newId('ein'),
+      organizationId: org.id,
+      orderId: body.orderId?.trim() || null,
+      status: 'draft',
+      gibLive: false,
+      createdAt: nowIso(),
+    };
+    return this.repo.saveEinvoice(draft);
+  }
+
+  async getPrinter(uid: string): Promise<PrinterSettings> {
+    const org = await this.requireOrg(uid);
+    return (
+      (await this.repo.getPrinter(org.id)) ?? {
+        organizationId: org.id,
+        name: 'Varsayılan termal (stub)',
+        host: null,
+      }
+    );
+  }
+
+  async savePrinter(uid: string, body: { name?: string; host?: string | null }): Promise<PrinterSettings> {
+    const org = await this.requireOrg(uid);
+    const prev = await this.getPrinter(uid);
+    return this.repo.savePrinter({
+      organizationId: org.id,
+      name: body.name?.trim() || prev.name,
+      host: body.host === undefined ? prev.host : body.host,
+    });
+  }
+
+  async testPrint(uid: string): Promise<PrinterTestResult> {
+    const org = await this.requireOrg(uid);
+    await this.getPrinter(uid);
+    await this.op(org.id, 'printer_test', 'Test yazdırma stub (gönderilmedi)', 'ok', org.id);
+    return {
+      ok: true,
+      printed: false,
+      mock: true,
+      note: 'Termal yazıcıya gönderilmedi.',
     };
   }
 }

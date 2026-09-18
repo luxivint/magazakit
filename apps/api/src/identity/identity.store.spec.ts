@@ -243,3 +243,25 @@ describe('IdentityStore F4 stubs', () => {
     expect(mockLive.liveTyWrite).toBe(false);
   });
 });
+
+describe('IdentityStore F6 stubs', () => {
+  it('suppliers, PO, default warehouse transfer, einvoice gibLive false, printer test', async () => {
+    const s = new IdentityStore(new MemoryIdentityRepository(), new MockTrendyolReadAdapter());
+    await s.createOrg('uid-a', 'Mağazam');
+    const sup = await s.saveSupplier('uid-a', { name: 'Tekstil A.Ş.' });
+    const patched = await s.saveSupplier('uid-a', { id: sup.id, note: 'stub' });
+    expect(patched.note).toBe('stub');
+    const po = await s.createPurchaseOrder('uid-a', { supplierId: sup.id, sku: 'X', qty: 2 });
+    expect(po.stub).toBe(true);
+    const wh = await s.listWarehouses('uid-a');
+    expect(wh.items.some((w) => w.isDefault)).toBe(true);
+    const xfer = await s.transferStock('uid-a', { sku: 'X', qty: 1 });
+    expect(xfer.stub).toBe(true);
+    const invoice = await s.createEinvoice('uid-a', { orderId: 'ty-o-5001' });
+    expect(invoice.gibLive).toBe(false);
+    expect((await s.listEinvoices('uid-a')).gibLive).toBe(false);
+    const test = await s.testPrint('uid-a');
+    expect(test.printed).toBe(false);
+    expect(test.mock).toBe(true);
+  });
+});

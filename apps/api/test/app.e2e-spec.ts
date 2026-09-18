@@ -356,4 +356,31 @@ describe('authenticated mock Firebase (e2e)', () => {
     expect(offering.body.processor).toBeNull();
     expect(offering.body.items.map((p: { priceTry: number }) => p.priceTry)).toEqual([499, 999, 1999]);
   });
+
+  it('F6 suppliers, warehouses, einvoice, printer stubs', async () => {
+    const auth = { Authorization: 'Bearer test' };
+    await request(app.getHttpServer()).post('/v1/organizations').set(auth).send({ name: 'F6' }).expect(201);
+    const sup = await request(app.getHttpServer())
+      .post('/v1/suppliers')
+      .set(auth)
+      .send({ name: 'Tedarikçi' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/v1/purchase-orders')
+      .set(auth)
+      .send({ supplierId: sup.body.id, qty: 3 })
+      .expect(201);
+    const wh = await request(app.getHttpServer()).get('/v1/warehouses').set(auth).expect(200);
+    expect(wh.body.items[0].isDefault).toBe(true);
+    const xfer = await request(app.getHttpServer())
+      .post('/v1/warehouses/transfers')
+      .set(auth)
+      .send({ sku: 'SKU', qty: 1 })
+      .expect(201);
+    expect(xfer.body.stub).toBe(true);
+    const inv = await request(app.getHttpServer()).post('/v1/einvoices').set(auth).send({}).expect(201);
+    expect(inv.body.gibLive).toBe(false);
+    const print = await request(app.getHttpServer()).post('/v1/printer/test-print').set(auth).expect(201);
+    expect(print.body.printed).toBe(false);
+  });
 });
