@@ -159,26 +159,72 @@ export type OperationItem = {
 
 export type ReturnItem = {
   id: string;
-  orderNumber?: string;
-  customerName?: string;
-  status?: string;
-  statusLabel?: string;
-  reason?: string | null;
-  createdAt?: string;
+  organizationId: string;
+  orderId: string;
+  orderNumber: string;
+  channel: 'trendyol';
+  reason: string;
+  status: 'open' | 'reviewing' | 'approved' | 'rejected';
+  statusLabel: string;
+  reviewNote: string | null;
+  tyWrite: false;
+  createdAt: string;
 };
 
-export type TeamMember = {
-  id: string;
+export type OrgMember = {
+  organizationId: string;
+  uid: string | null;
   email: string;
-  name?: string;
-  role?: string;
-  status?: string;
+  role: 'owner' | 'staff';
+  status: 'active' | 'invited';
 };
 
-export type BillingPlan = {
+export type OrgInvite = {
+  id: string;
+  organizationId: string;
+  email: string;
+  role: 'staff';
+  status: 'pending';
+  emailSent: false;
+  createdAt: string;
+};
+
+export type OpsReport = {
+  organizationId: string;
+  orderCounts: {
+    total: number;
+    created: number;
+    picking: number;
+    shipped: number;
+    delivered: number;
+    cancelled: number;
+  };
+  stockDeltaPhysical: number;
+  note: 'Kâr hesaplanmaz; maliyet ve komisyon yok.';
+};
+
+export type ListingDraft = {
+  listingId: string;
+  organizationId: string;
+  state: 'draft' | 'mock_live';
+  title: string;
+  priceTry: number;
+  mock: boolean;
+  liveTyWrite: false;
+  updatedAt: string;
+};
+
+export type BillingOffering = {
   id: string;
   name: string;
   priceTry: number;
-  period?: string;
-  blurb?: string;
+  period: 'month' | 'ay';
+  chargeable: false;
+};
+
+export type BillingOfferingResponse = {
+  items: BillingOffering[];
+  chargeable: false;
+  processor: null;
+  note: string;
 };

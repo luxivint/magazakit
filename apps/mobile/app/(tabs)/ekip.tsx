@@ -8,40 +8,43 @@ import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
 import { StoreBar } from '@/components/shell/StoreBar';
 import { Button } from '@/components/ui/Button';
 import { ConfigBanner } from '@/components/ui/ConfigBanner';
-import { EmptyState, ErrorState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/EmptyState';
 import { TextField } from '@/components/ui/TextField';
 import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
-import { ApiError, fetchTeam, inviteTeamMember, type TeamMember } from '@/lib/apiClient';
+import { ApiError, fetchTeam, fetchTeamMembers, inviteTeamMember, type OrgInvite, type OrgMember } from '@/lib/apiClient';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
-const ROLES = ['Depo', 'Muhasebe', 'Yönetici'] as const;
+function roleTr(role: OrgMember['role'] | OrgInvite['role']): string {
+  return role === 'owner' ? 'Sahip' : 'Ekip';
+}
 
 export default function EkipScreen() {
   const { idToken } = useAuth();
-  const [items, setItems] = useState<TeamMember[]>([]);
-  const [source, setSource] = useState<'api' | 'missing' | null>(null);
+  const [members, setMembers] = useState<OrgMember[]>([]);
+  const [invites, setInvites] = useState<OrgInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<(typeof ROLES)[number]>('Depo');
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!idToken) {
-      setItems([]);
+      setMembers([]);
+      setInvites([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const page = await fetchTeam();
-      setItems(page.items);
-      setSource(page.source);
+      const [team, roster] = await Promise.all([fetchTeam(), fetchTeamMembers()]);
+      setMembers(roster.members.length ? roster.members : team.members);
+      setInvites(roster.invites.length ? roster.invites : team.invites);
       setError(null);
     } catch (e) {
-      setItems([]);
+      setMembers([]);
+      setInvites([]);
       setError(e instanceof ApiError ? e.message : 'Ekip yüklenemedi.');
     } finally {
       setLoading(false);
@@ -61,8 +64,10 @@ export default function EkipScreen() {
     setBusy(true);
     setBanner(null);
     try {
-      await inviteTeamMember(value, role);
-      setBanner('Davet kaydedildi.');
+      const saved = await inviteTeamMember(value);
+      setBanner(
+        saved.emailSent ? 'Davet e-postası gitti.' : `Davet kaydedildi (${saved.email}). E-posta gönderilmedi.`,
+      );
       setEmail('');
       await load();
     } catch (e) {
@@ -81,7 +86,7 @@ export default function EkipScreen() {
         <StoreBar />
         <View style={styles.heroPad}>
           <Text style={styles.title}>Ekip</Text>
-          <Text style={styles.sub}>Davet gönder. Rol matrisi yok.</Text>
+          <Text style={styles.sub}>Davet e-posta ile kaydedilir. Rol matrisi yok.</Text>
         </View>
       </SafeAreaView>
       <PorcelainSheet>
@@ -102,32 +107,25 @@ export default function EkipScreen() {
               placeholder="kisi@ornek.com"
               keyboardType="email-address"
             />
-            <View style={styles.roles}>
-              {ROLES.map((r) => (
-                <Pressable key={r} style={[styles.role, role === r && styles.roleOn]} onPress={() => setRole(r)}>
-                  <Text style={[styles.roleText, role === r && styles.roleTextOn]}>{r}</Text>
-                </Pressable>
-              ))}
-            </View>
             <Button label="Davet gönder" loading={busy} onPress={() => void invite()} />
             <Text style={styles.section}>Üyeler</Text>
-            {items.length === 0 ? (
-              source === 'missing' ? (
-                <EmptyState
-                  title="Ekip defteri yok"
-                  body="Sunucu henüz ekip listesini açmadı. Davet yazılır, uydurma üye yok."
-                  primary="Yenile"
-                  onPrimary={() => void load()}
-                />
-              ) : (
-                <Text style={styles.meta}>Henüz üye yok.</Text>
-              )
+            {members.map((m) => (
+              <View key={`${m.uid ?? m.email}-${m.role}`} style={styles.card}>
+                <Text style={styles.name}>{m.email || 'İşletme sahibi'}</Text>
+                <Text style={styles.meta}>
+                  {roleTr(m.role)} · {m.status === 'active' ? 'aktif' : 'davet'}
+                </Text>
+              </View>
+            ))}
+            <Text style={styles.section}>Bekleyen davet</Text>
+            {invites.length === 0 ? (
+              <Text style={styles.meta}>Bekleyen davet yok.</Text>
             ) : (
-              items.map((m) => (
-                <View key={m.id} style={styles.card}>
-                  <Text style={styles.name}>{m.name || m.email}</Text>
+              invites.map((inv) => (
+                <View key={inv.id} style={styles.card}>
+                  <Text style={styles.name}>{inv.email}</Text>
                   <Text style={styles.meta}>
-                    {m.role ?? 'Rol yok'} · {m.status ?? 'davet'}
+                    {roleTr(inv.role)} · bekliyor · e-posta {inv.emailSent ? 'gitti' : 'gönderilmedi'}
                   </Text>
                 </View>
               ))
@@ -158,16 +156,4 @@ const styles = StyleSheet.create({
     borderColor: colors.sheetLine,
     gap: 4,
   },
-  roles: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  role: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.sheetLine,
-    backgroundColor: colors.white,
-  },
-  roleOn: { backgroundColor: colors.graphite, borderColor: colors.graphite },
-  roleText: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink },
-  roleTextOn: { color: colors.white },
 });

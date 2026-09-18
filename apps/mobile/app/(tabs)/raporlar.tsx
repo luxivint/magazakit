@@ -1,33 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
 import { StoreBar } from '@/components/shell/StoreBar';
 import { ErrorState } from '@/components/ui/EmptyState';
+import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
-import { useCatalog } from '@/context/CatalogContext';
-import { ApiError, fetchReports } from '@/lib/apiClient';
+import { ApiError, fetchReportSummary, type OpsReport } from '@/lib/apiClient';
 import { formatCount } from '@/lib/money';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
 export default function RaporlarScreen() {
   const { idToken } = useAuth();
-  const catalog = useCatalog();
-  const [remote, setRemote] = useState<{ orderCount: number; stockGap: number } | null>(null);
+  const [report, setReport] = useState<OpsReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const local = useMemo(() => {
-    const orderCount = catalog.orders.length;
-    const stockGap = catalog.products.reduce((sum, p) => {
-      if (!p.mapped) return sum;
-      return sum + Math.abs(p.marketplaceStock - p.sellable);
-    }, 0);
-    return { orderCount, stockGap };
-  }, [catalog.orders, catalog.products]);
 
   const load = useCallback(async () => {
     if (!idToken) {
@@ -36,11 +26,10 @@ export default function RaporlarScreen() {
     }
     setLoading(true);
     try {
-      const page = await fetchReports();
-      setRemote(page);
+      setReport(await fetchReportSummary());
       setError(null);
     } catch (e) {
-      setRemote(null);
+      setReport(null);
       setError(e instanceof ApiError ? e.message : 'Rapor yüklenemedi.');
     } finally {
       setLoading(false);
@@ -51,10 +40,6 @@ export default function RaporlarScreen() {
     void load();
   }, [load]);
 
-  const orderCount = remote?.orderCount ?? local.orderCount;
-  const stockGap = remote?.stockGap ?? local.stockGap;
-  const fromApi = remote != null;
-
   return (
     <View style={styles.root}>
       <SafeAreaView edges={['top']} style={styles.hero}>
@@ -64,26 +49,32 @@ export default function RaporlarScreen() {
         <StoreBar />
         <View style={styles.heroPad}>
           <Text style={styles.title}>Raporlar</Text>
-          <Text style={styles.sub}>Sipariş adedi ve stok farkı. Kâr ve komisyon yok.</Text>
+          <Text style={styles.sub}>Sipariş adedi ve stok farkı. Kâr yok.</Text>
         </View>
       </SafeAreaView>
       <PorcelainSheet>
-        {error && !catalog.reachable ? (
-          <ErrorState title="Rapor yüklenemedi" body={error} onRetry={() => void load()} />
+        {loading ? (
+          <View style={styles.sheet}>
+            <OrderSkeleton />
+          </View>
+        ) : error || !report ? (
+          <ErrorState title="Rapor yüklenemedi" body={error ?? 'Özet yok.'} onRetry={() => void load()} />
         ) : (
           <ScrollView contentContainerStyle={styles.sheet}>
-            {loading ? <Text style={styles.meta}>Rapor kontrol ediliyor…</Text> : null}
             <View style={styles.card}>
               <Text style={styles.kicker}>Sipariş adedi</Text>
-              <Text style={styles.metric}>{formatCount(orderCount)}</Text>
-              <Text style={styles.meta}>{fromApi ? 'Sunucu özeti' : 'Katalogdaki siparişler'}</Text>
+              <Text style={styles.metric}>{formatCount(report.orderCounts.total)}</Text>
+              <Text style={styles.meta}>
+                Hazırlık {report.orderCounts.picking} · kargo {report.orderCounts.shipped}
+              </Text>
             </View>
             <View style={styles.card}>
               <Text style={styles.kicker}>Stok farkı</Text>
-              <Text style={styles.metric}>{formatCount(stockGap)}</Text>
-              <Text style={styles.meta}>
-                Pazaryeri adedi eksi satılabilir (eşli SKU). Tahmini kazanç yok.
+              <Text style={styles.metric}>
+                {report.stockDeltaPhysical > 0 ? '+' : ''}
+                {formatCount(report.stockDeltaPhysical)}
               </Text>
+              <Text style={styles.meta}>Fiziksel stok hareketleri toplamı. {report.note}</Text>
             </View>
           </ScrollView>
         )}

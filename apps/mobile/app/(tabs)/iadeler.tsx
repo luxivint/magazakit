@@ -18,7 +18,6 @@ import { colors, fonts, radii, space } from '@/theme/tokens';
 export default function IadelerScreen() {
   const { idToken } = useAuth();
   const [items, setItems] = useState<ReturnItem[]>([]);
-  const [source, setSource] = useState<'api' | 'missing' | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<ReturnItem | null>(null);
@@ -36,7 +35,6 @@ export default function IadelerScreen() {
     try {
       const page = await fetchReturns();
       setItems(page.items);
-      setSource(page.source);
       setError(null);
     } catch (e) {
       setItems([]);
@@ -89,11 +87,7 @@ export default function IadelerScreen() {
         ) : items.length === 0 ? (
           <EmptyState
             title="Henüz iade yok"
-            body={
-              source === 'missing'
-                ? 'Sunucuda iade listesi henüz yok. Boş liste hata değildir.'
-                : 'İade geldiğinde burada incelenir. Boş liste hata değildir.'
-            }
+            body="İade geldiğinde burada incelenir. Boş liste hata değildir. Trendyol’a yazılmaz."
             primary="Yenile"
             onPrimary={() => void load()}
           />
@@ -104,14 +98,14 @@ export default function IadelerScreen() {
               <Pressable key={item.id} style={styles.card} onPress={() => setPicked(item)}>
                 <Text style={styles.name}>{item.orderNumber ?? item.id}</Text>
                 <Text style={styles.meta}>
-                  {item.customerName ?? 'Müşteri'} · {item.statusLabel ?? item.status ?? 'Bekliyor'}
+                  {item.statusLabel} · {item.reason}
                 </Text>
               </Pressable>
             ))}
             {picked ? (
               <View style={styles.card}>
                 <Text style={styles.section}>İncele · {picked.orderNumber ?? picked.id}</Text>
-                <Text style={styles.meta}>{picked.reason ?? 'Gerekçe yok'}</Text>
+                <Text style={styles.meta}>{picked.reason}</Text>
                 <TextField label="Not" value={note} onChangeText={setNote} placeholder="Depo notu" />
                 <Button label="Onayla" variant="lime" loading={busy} onPress={() => void decide('approve')} />
                 <Button label="Reddet" variant="ghost" disabled={busy} onPress={() => void decide('reject')} />

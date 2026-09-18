@@ -15,8 +15,12 @@ import {
   type StockMovement,
   type OperationItem,
   type ReturnItem,
-  type TeamMember,
-  type BillingPlan,
+  type OrgMember,
+  type OrgInvite,
+  type OpsReport,
+  type ListingDraft,
+  type BillingOffering,
+  type BillingOfferingResponse,
 } from '@/lib/api';
 import { getIdToken } from '@/lib/firebase';
 
@@ -37,8 +41,12 @@ export type {
   StockMovement,
   OperationItem,
   ReturnItem,
-  TeamMember,
-  BillingPlan,
+  OrgMember,
+  OrgInvite,
+  OpsReport,
+  ListingDraft,
+  BillingOffering,
+  BillingOfferingResponse,
 };
 
 export class ApiError extends Error {
@@ -258,23 +266,8 @@ export async function registerDevice(fcmToken: string): Promise<{ uid: string; s
   });
 }
 
-/** 404/501 → null (Nest F4/F5 henüz yoksa uydurma liste yok). */
-async function requestIfPresent<T>(path: string, init?: RequestInit): Promise<T | null> {
-  let res: Response;
-  try {
-    res = await fetch(`${API_URL}${path}`, init);
-  } catch {
-    throw new ApiError('Sunucuya bağlanılamadı. İşlem tamamlanmış sayılmaz.', 0);
-  }
-  if (res.status === 404 || res.status === 501) return null;
-  if (!res.ok) await parseError(res);
-  return res.json() as Promise<T>;
-}
-
-export async function fetchReturns(): Promise<{ items: ReturnItem[]; source: 'api' | 'missing' }> {
-  const data = await requestIfPresent<{ items?: ReturnItem[] }>('/v1/returns', { headers: await headers() });
-  if (!data) return { items: [], source: 'missing' };
-  return { items: data.items ?? [], source: 'api' };
+export async function fetchReturns(): Promise<{ items: ReturnItem[]; tyWrite: false }> {
+  return request('/v1/returns', { headers: await headers() });
 }
 
 export async function reviewReturn(
@@ -282,46 +275,55 @@ export async function reviewReturn(
   body: { decision: 'approve' | 'reject'; note?: string },
 ): Promise<ReturnItem> {
   return request(`/v1/returns/${encodeURIComponent(id)}/review`, {
+    method: 'PATCH',
+    headers: await headers(true),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchTeam(): Promise<{ members: OrgMember[]; invites: OrgInvite[] }> {
+  return request('/v1/team', { headers: await headers() });
+}
+
+export async function fetchTeamMembers(): Promise<{ members: OrgMember[]; invites: OrgInvite[] }> {
+  return request('/v1/team/members', { headers: await headers() });
+}
+
+export async function inviteTeamMember(email: string): Promise<OrgInvite> {
+  return request('/v1/team/invites', {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function fetchReportSummary(): Promise<OpsReport> {
+  return request('/v1/reports/summary', { headers: await headers() });
+}
+
+export async function fetchBillingOffering(): Promise<BillingOfferingResponse> {
+  return request('/v1/billing/offering', { headers: await headers() });
+}
+
+export async function fetchListingDraft(listingId: string): Promise<ListingDraft> {
+  return request(`/v1/listings/${encodeURIComponent(listingId)}/draft`, { headers: await headers() });
+}
+
+export async function saveListingDraft(
+  listingId: string,
+  body: { title?: string; priceTry?: number },
+): Promise<ListingDraft> {
+  return request(`/v1/listings/${encodeURIComponent(listingId)}/draft`, {
     method: 'POST',
     headers: await headers(true),
     body: JSON.stringify(body),
   });
 }
 
-export async function fetchTeam(): Promise<{ items: TeamMember[]; source: 'api' | 'missing' }> {
-  const data = await requestIfPresent<{ items?: TeamMember[] }>('/v1/team', { headers: await headers() });
-  if (!data) return { items: [], source: 'missing' };
-  return { items: data.items ?? [], source: 'api' };
-}
-
-export async function inviteTeamMember(email: string, role: string): Promise<TeamMember> {
-  return request('/v1/team/invites', {
+export async function publishListing(listingId: string): Promise<ListingDraft> {
+  return request(`/v1/listings/${encodeURIComponent(listingId)}/publish`, {
     method: 'POST',
     headers: await headers(true),
-    body: JSON.stringify({ email, role }),
-  });
-}
-
-export async function fetchReports(): Promise<{
-  orderCount: number;
-  stockGap: number;
-  source: 'api' | 'missing';
-} | null> {
-  return requestIfPresent('/v1/reports', { headers: await headers() });
-}
-
-export async function fetchBillingPlans(): Promise<{ items: BillingPlan[]; source: 'api' | 'missing' }> {
-  const data = await requestIfPresent<{ items?: BillingPlan[] }>('/v1/billing/plans', {
-    headers: await headers(),
-  });
-  if (!data) return { items: [], source: 'missing' };
-  return { items: data.items ?? [], source: 'api' };
-}
-
-export async function publishListing(listingId: string, channel: 'trendyol'): Promise<{ queued: true }> {
-  return request('/v1/catalog/publish', {
-    method: 'POST',
-    headers: await headers(true),
-    body: JSON.stringify({ listingId, channel }),
+    body: JSON.stringify({ mock: true }),
   });
 }

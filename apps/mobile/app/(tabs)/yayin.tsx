@@ -10,28 +10,68 @@ import { Button } from '@/components/ui/Button';
 import { ChannelBadge } from '@/components/ui/ChannelBadge';
 import { ConfigBanner } from '@/components/ui/ConfigBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { TextField } from '@/components/ui/TextField';
 import { useCatalog } from '@/context/CatalogContext';
-import { ApiError, publishListing } from '@/lib/apiClient';
+import { ApiError, fetchListingDraft, publishListing, saveListingDraft, type ListingDraft } from '@/lib/apiClient';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
 export default function YayinScreen() {
   const catalog = useCatalog();
-  const mapped = catalog.products.filter((p) => p.mapped);
   const [step, setStep] = useState(1);
-  const [listingId, setListingId] = useState<string | null>(mapped[0]?.listingId ?? null);
+  const [listingId, setListingId] = useState<string | null>(catalog.products[0]?.listingId ?? null);
+  const [draft, setDraft] = useState<ListingDraft | null>(null);
+  const [title, setTitle] = useState('');
+  const [price, setPrice] = useState('');
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
 
-  const publish = async () => {
-    if (!listingId) {
-      setBanner('Önce eşli bir ürün seç.');
-      return;
-    }
+  const loadDraft = async (id: string) => {
     setBusy(true);
     setBanner(null);
     try {
-      await publishListing(listingId, 'trendyol');
-      setBanner('Yayın kuyruğa alındı.');
+      const next = await fetchListingDraft(id);
+      setDraft(next);
+      setTitle(next.title);
+      setPrice(String(next.priceTry));
+      setStep(3);
+    } catch (e) {
+      setBanner(e instanceof ApiError ? e.message : 'Taslak okunamadı.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    if (!listingId) return;
+    setBusy(true);
+    setBanner(null);
+    try {
+      const parsed = Number(price.replace(',', '.'));
+      const next = await saveListingDraft(listingId, {
+        title: title.trim() || undefined,
+        priceTry: Number.isFinite(parsed) ? parsed : undefined,
+      });
+      setDraft(next);
+      setBanner('Taslak kaydedildi. Canlı pazaryeri yazılmadı.');
+    } catch (e) {
+      setBanner(e instanceof ApiError ? e.message : 'Taslak tamamlanmış sayılmaz.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const publish = async () => {
+    if (!listingId) return;
+    setBusy(true);
+    setBanner(null);
+    try {
+      const next = await publishListing(listingId);
+      setDraft(next);
+      setBanner(
+        next.mock
+          ? 'Mock yayın. Canlı Trendyol yazılmadı.'
+          : 'Taslak kaldı. Canlı yazım yok.',
+      );
     } catch (e) {
       setBanner(e instanceof ApiError ? e.message : 'Yayın tamamlanmış sayılmaz.');
     } finally {
@@ -48,19 +88,19 @@ export default function YayinScreen() {
         <StoreBar />
         <View style={styles.heroPad}>
           <Text style={styles.title}>Katalog yayın</Text>
-          <Text style={styles.sub}>Üç adım. Hepsiburada canlı kanal değil.</Text>
+          <Text style={styles.sub}>Taslak, sonra mock yayın. Canlı kanal yazımı yok.</Text>
         </View>
       </SafeAreaView>
       <PorcelainSheet>
         {catalog.products.length === 0 ? (
           <EmptyState
             title="Önce içeri al"
-            body="Yayın sihirbazı eşli ürün ister."
+            body="Yayın sihirbazı ilan ister."
             primary="İçeri al"
             onPrimary={() => router.push('/(tabs)/icerik-al')}
           />
         ) : (
-          <ScrollView contentContainerStyle={styles.sheet}>
+          <ScrollView contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
             {banner ? <ConfigBanner text={banner} /> : null}
             <Text style={styles.steps}>Adım {step} / 3</Text>
 
@@ -72,11 +112,7 @@ export default function YayinScreen() {
                     <ChannelBadge />
                     <Text style={styles.name}>Trendyol</Text>
                   </View>
-                  <Text style={styles.meta}>Tek canlı kanal.</Text>
-                </View>
-                <View style={[styles.card, styles.mutedCard]}>
-                  <Text style={styles.name}>Hepsiburada</Text>
-                  <Text style={styles.meta}>Yakında. Canlı kanal değil.</Text>
+                  <Text style={styles.meta}>Mock yayın. Hepsiburada canlı değil.</Text>
                 </View>
                 <Button label="İleri" onPress={() => setStep(2)} />
               </>
@@ -84,33 +120,42 @@ export default function YayinScreen() {
 
             {step === 2 ? (
               <>
-                <Text style={styles.section}>Ürün</Text>
-                {mapped.length === 0 ? (
-                  <Text style={styles.meta}>Eşli SKU yok. Önce eşleştir.</Text>
-                ) : (
-                  mapped.map((p) => (
-                    <Pressable
-                      key={p.listingId}
-                      style={[styles.card, listingId === p.listingId && styles.cardOn]}
-                      onPress={() => setListingId(p.listingId)}>
-                      <Text style={styles.name}>{p.name}</Text>
-                      <Text style={styles.meta}>SKU {p.sku}</Text>
-                    </Pressable>
-                  ))
-                )}
+                <Text style={styles.section}>İlan</Text>
+                {catalog.products.map((p) => (
+                  <Pressable
+                    key={p.listingId}
+                    style={[styles.card, listingId === p.listingId && styles.cardOn]}
+                    onPress={() => setListingId(p.listingId)}>
+                    <Text style={styles.name}>{p.name}</Text>
+                    <Text style={styles.meta}>{p.listingId}</Text>
+                  </Pressable>
+                ))}
                 <Button label="Geri" variant="ghost" onPress={() => setStep(1)} />
-                <Button label="İleri" disabled={!listingId} onPress={() => setStep(3)} />
+                <Button
+                  label="Taslağı aç"
+                  disabled={!listingId}
+                  loading={busy}
+                  onPress={() => listingId && void loadDraft(listingId)}
+                />
               </>
             ) : null}
 
             {step === 3 ? (
               <>
-                <Text style={styles.section}>Yayınla</Text>
+                <Text style={styles.section}>Taslak / yayın</Text>
                 <Text style={styles.meta}>
-                  Taslak yayın. Başarılı demek için sunucu kuyruğu gerekir. Öneri motoru yok.
+                  {draft ? `${draft.state === 'mock_live' ? 'Mock yayında' : 'Taslak'} · canlı yazım yok` : ''}
                 </Text>
+                <TextField label="Başlık" value={title} onChangeText={setTitle} />
+                <TextField
+                  label="Fiyat (₺)"
+                  value={price}
+                  onChangeText={setPrice}
+                  keyboardType="decimal-pad"
+                />
+                <Button label="Taslağı kaydet" variant="ghost" loading={busy} onPress={() => void save()} />
+                <Button label="Mock yayınla" variant="lime" loading={busy} onPress={() => void publish()} />
                 <Button label="Geri" variant="ghost" onPress={() => setStep(2)} />
-                <Button label="Yayını gönder" variant="lime" loading={busy} onPress={() => void publish()} />
               </>
             ) : null}
           </ScrollView>
@@ -142,5 +187,4 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   cardOn: { borderColor: colors.graphite, borderWidth: 2 },
-  mutedCard: { opacity: 0.7 },
 });

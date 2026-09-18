@@ -37,12 +37,14 @@ F3 (`sellable = physical − reserved`; eşlenmemiş rezerve/kargo yok; yazdır 
 - `POST /v1/devices` `{ fcmToken }` — bildirim izni sonrası, mümkünse
 - `GET /v1/operations`
 
-F4/F5 (menüde açık; Nest uçları yoksa boş/hata, uydurma kâr yok):
+F4/F5 (Bearer; kâr uydurulmaz; ödeme yok):
 
-- İadeler, ekip/davet, raporlar (sipariş adedi + stok farkı), katalog yayın sihirbazı
-- Abonelik 499 / 999 / 1999 — «Yakında · ödeme yok»
-- 2FA isteğe bağlı; yardım WhatsApp / e-posta (ticket yok)
+- `GET /v1/returns` · `PATCH /v1/returns/:id/review` `{ decision, note? }`
+- `GET /v1/team` · `GET /v1/team/members` · `POST /v1/team/invites` `{ email }`
+- `GET /v1/reports/summary`
+- `GET/POST /v1/listings/:id/draft` · `POST /v1/listings/:id/publish` `{ mock: true }`
+- `GET /v1/billing/offering` — 499/999/1999, `chargeable: false`
 
 ## Ekranlar
 
-Özet, siparişler, ürünler, Hazırla, Stok, İşlem merkezi. HB, fatura, ekip yok.
+Özet, siparişler, ürünler, Hazırla, Stok, İşlem merkezi, İadeler, Ekip, Raporlar, Katalog yayın, Abonelik. HB canlı kanal değil; kâr ve ödeme yok.

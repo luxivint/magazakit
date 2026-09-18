@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,36 +8,40 @@ import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
 import { StoreBar } from '@/components/shell/StoreBar';
 import { Button } from '@/components/ui/Button';
 import { ConfigBanner } from '@/components/ui/ConfigBanner';
+import { ErrorState } from '@/components/ui/EmptyState';
+import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
-import { fetchBillingPlans, type BillingPlan } from '@/lib/apiClient';
+import { ApiError, fetchBillingOffering, type BillingOfferingResponse } from '@/lib/apiClient';
 import { formatMoney } from '@/lib/money';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
-const LOCAL_PLANS: BillingPlan[] = [
-  { id: 'baslangic', name: 'Başlangıç', priceTry: 499, period: 'ay', blurb: 'Tek mağaza, paketleme.' },
-  { id: 'buyume', name: 'Büyüme', priceTry: 999, period: 'ay', blurb: 'Ekip daveti, raporlar.' },
-  { id: 'olcek', name: 'Ölçek', priceTry: 1999, period: 'ay', blurb: 'Çok mağaza, öncelikli destek.' },
-];
-
 export default function AbonelikScreen() {
   const { idToken } = useAuth();
-  const [plans, setPlans] = useState<BillingPlan[]>(LOCAL_PLANS);
-  const [fromApi, setFromApi] = useState(false);
+  const [offering, setOffering] = useState<BillingOfferingResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [note, setNote] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!idToken) return;
-    void fetchBillingPlans()
-      .then((page) => {
-        if (page.source === 'api' && page.items.length) {
-          setPlans(page.items);
-          setFromApi(true);
-        }
-      })
-      .catch(() => {
-        /* paket kartları yerelde durur; ücret alınmaz */
-      });
+  const load = useCallback(async () => {
+    if (!idToken) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      setOffering(await fetchBillingOffering());
+      setError(null);
+    } catch (e) {
+      setOffering(null);
+      setError(e instanceof ApiError ? e.message : 'Paketler yüklenemedi.');
+    } finally {
+      setLoading(false);
+    }
   }, [idToken]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
     <View style={styles.root}>
@@ -48,29 +52,37 @@ export default function AbonelikScreen() {
         <StoreBar />
         <View style={styles.heroPad}>
           <Text style={styles.title}>Abonelik</Text>
-          <Text style={styles.sub}>Paketler. Ödeme yok, uygulama içi satın alma yok.</Text>
+          <Text style={styles.sub}>499 / 999 / 1999. Tahsilat yok.</Text>
         </View>
       </SafeAreaView>
       <PorcelainSheet>
-        <ScrollView contentContainerStyle={styles.sheet}>
-          {note ? <ConfigBanner text={note} /> : null}
-          {fromApi ? <Text style={styles.meta}>Paketler sunucudan.</Text> : null}
-          {plans.map((plan, i) => (
-            <View key={plan.id} style={[styles.card, i === 1 && styles.featured]}>
-              <Text style={styles.name}>{plan.name}</Text>
-              <Text style={styles.price}>
-                {formatMoney(plan.priceTry, 0)}
-                <Text style={styles.period}>/{plan.period ?? 'ay'}</Text>
-              </Text>
-              <Text style={styles.meta}>{plan.blurb ?? 'Özellikler yakında.'}</Text>
-              <Button
-                label="Yakında · ödeme yok"
-                variant={i === 1 ? 'lime' : 'ghost'}
-                onPress={() => setNote('Ödeme alınmaz. Kart ve IAP yok.')}
-              />
-            </View>
-          ))}
-        </ScrollView>
+        {loading ? (
+          <View style={styles.sheet}>
+            <OrderSkeleton />
+          </View>
+        ) : error || !offering ? (
+          <ErrorState title="Paketler yüklenemedi" body={error ?? 'Sunucu yanıtı yok.'} onRetry={() => void load()} />
+        ) : (
+          <ScrollView contentContainerStyle={styles.sheet}>
+            {note ? <ConfigBanner text={note} /> : null}
+            <Text style={styles.meta}>{offering.note}</Text>
+            {offering.items.map((plan, i) => (
+              <View key={plan.id} style={[styles.card, i === 1 && styles.featured]}>
+                <Text style={styles.name}>{plan.name}</Text>
+                <Text style={styles.price}>
+                  {formatMoney(plan.priceTry, 0)}
+                  <Text style={styles.period}>/ay</Text>
+                </Text>
+                <Text style={styles.meta}>{plan.chargeable || offering.chargeable ? 'Ücret alınır' : 'Ödeme yok'}</Text>
+                <Button
+                  label="Yakında · ödeme yok"
+                  variant={i === 1 ? 'lime' : 'ghost'}
+                  onPress={() => setNote('Ödeme alınmaz. Kart ve IAP yok.')}
+                />
+              </View>
+            ))}
+          </ScrollView>
+        )}
       </PorcelainSheet>
     </View>
   );
