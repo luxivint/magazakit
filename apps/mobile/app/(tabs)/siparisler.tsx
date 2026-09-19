@@ -22,6 +22,7 @@ const TABS = [
   { key: 'all', label: 'Tümü' },
   { key: 'hazirlanacak', label: 'Hazırlanacak' },
   { key: 'kargoda', label: 'Kargoda' },
+  { key: 'tamamlandi', label: 'Tamamlandı' },
   { key: 'iade', label: 'İade' },
 ];
 

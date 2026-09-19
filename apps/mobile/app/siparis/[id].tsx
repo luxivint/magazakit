@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { createElement, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
@@ -42,6 +42,14 @@ function LabelPdfFrame({ uri }: { uri: string }) {
   });
 }
 
+function leadSuffix(order: { status: string; reserved?: boolean }): string {
+  if (order.status === 'tamamlandi') return ' · teslim edildi';
+  if (order.status === 'kargoda') return ' · kargoda';
+  if (order.status === 'iade') return ' · iade';
+  if (order.reserved) return ' · rezerve';
+  return '';
+}
+
 export default function SiparisDetayScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const catalog = useCatalog();
@@ -69,8 +77,11 @@ export default function SiparisDetayScreen() {
 
   const reserved = !!(work?.reserved ?? order?.reserved);
   const packed = !!(work?.packed ?? order?.packed);
-  const shipped = !!(work?.shipped ?? order?.shipped);
   const money = order?.money;
+  const hero = order?.imageUrl ?? order?.lines.find((l) => l.imageUrl)?.imageUrl ?? null;
+  const placed = order
+    ? new Date(order.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })
+    : '';
 
   const onReserve = async () => {
     if (!id || reserveLock.current || busy) return;
@@ -148,6 +159,12 @@ export default function SiparisDetayScreen() {
   };
 
   const scanHint = [...mappedSkus.slice(0, 2), ...barcodes.slice(0, 1)].filter(Boolean).join(', ');
+  const closedNote =
+    order?.status === 'tamamlandi'
+      ? 'Bu paket teslim edildi. Hazırlama adımları kapalı.'
+      : order?.status === 'kargoda'
+        ? 'Bu paket kargoda. Hazırlama adımları yalnızca bekleyen siparişlerde açılır.'
+        : 'Bu paket kapalı. Hazırlama adımları yalnızca bekleyen siparişlerde açılır.';
 
   return (
     <View style={styles.root}>
@@ -158,8 +175,7 @@ export default function SiparisDetayScreen() {
         <Text style={styles.kicker}>{order?.statusLabel ?? 'Sipariş'}</Text>
         <Text style={styles.title}>{order?.number ?? 'Sipariş'}</Text>
         <Text style={styles.lead}>
-          {order ? `${order.customer} · ${order.qty} adet` : 'Katalogda yok — içeri al.'}
-          {shipped ? ' · kargoda' : reserved ? ' · rezerve' : ''}
+          {order ? `${order.customer} · ${order.qty} adet${leadSuffix(order)}` : 'Katalogda yok — içeri al.'}
         </Text>
       </SafeAreaView>
       <PorcelainSheet>
@@ -170,25 +186,34 @@ export default function SiparisDetayScreen() {
           {order ? (
             <>
               <View style={styles.summary}>
+                {hero ? (
+                  <Image source={{ uri: hero }} style={styles.heroImg} accessibilityLabel={order.product} />
+                ) : (
+                  <View style={styles.heroPlaceholder}>
+                    <ProductThumb kind={order.thumb} size={72} />
+                    <Text style={styles.body}>Ürün görseli katalogda yok. İçeri al ile ürünleri yenile.</Text>
+                  </View>
+                )}
                 <View style={styles.metaRow}>
                   <ChannelBadge channel={order.channel} />
                   <Text style={styles.meta}>{order.due}</Text>
                 </View>
                 {order.lines.length ? (
-                  order.lines.map((line) => (
-                    <View key={`${line.listingId}-${line.qty}`} style={styles.lineRow}>
+                  order.lines.map((line, i) => (
+                    <View key={`${line.listingId}-${line.qty}-${i}`} style={styles.lineRow}>
                       <ProductThumb
                         kind={order.thumb}
                         uri={line.imageUrl ?? order.imageUrl}
-                        size={44}
+                        size={56}
                       />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.lineTitle}>{line.title || line.listingId}</Text>
+                        <Text style={styles.lineTitle}>{line.title || order.product}</Text>
                         <Text style={styles.body}>
                           {line.qty} adet
                           {line.unitPriceTry != null ? ` · ${formatMoney(line.unitPriceTry)}` : ''}
                           {line.commissionRate != null ? ` · kom. %${line.commissionRate}` : ''}
                         </Text>
+                        <Text style={styles.body}>Teslim {placed}</Text>
                       </View>
                     </View>
                   ))
@@ -290,9 +315,7 @@ export default function SiparisDetayScreen() {
               />
             </>
           ) : order ? (
-            <Text style={styles.note}>
-              Bu paket kargoda veya kapalı. Hazırlama adımları yalnızca bekleyen siparişlerde açılır.
-            </Text>
+            <Text style={styles.note}>{closedNote}</Text>
           ) : null}
         </ScrollView>
       </PorcelainSheet>
@@ -334,6 +357,16 @@ const styles = StyleSheet.create({
   meta: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink },
   ok: { fontFamily: fonts.medium, fontSize: 13, color: colors.success },
   summary: { gap: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#E6E6E0' },
+  heroImg: { width: '100%', height: 180, borderRadius: radii.card, backgroundColor: colors.skeleton },
+  heroPlaceholder: {
+    minHeight: 120,
+    borderRadius: radii.card,
+    backgroundColor: colors.porcelainCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+  },
   lineRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   lineTitle: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

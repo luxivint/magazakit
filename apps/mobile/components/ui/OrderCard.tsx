@@ -54,7 +54,13 @@ export function OrderCard({
         <MoneyText value={order.amount} />
         {compact ? (
           <StatusDot
-            tone={order.status === 'hazirlanacak' ? 'warn' : order.status === 'kargoda' ? 'success' : 'idle'}
+            tone={
+              order.status === 'hazirlanacak'
+                ? 'warn'
+                : order.status === 'iade'
+                  ? 'idle'
+                  : 'success'
+            }
             label={order.statusLabel}
           />
         ) : order.status === 'hazirlanacak' ? (
@@ -64,7 +70,9 @@ export function OrderCard({
           </View>
         ) : (
           <View style={styles.ctaIdle}>
-            <Text style={styles.ctaIdleText}>{order.status === 'iade' ? 'İade' : 'Detay'}</Text>
+            <Text style={styles.ctaIdleText}>
+              {order.status === 'iade' ? 'İade' : order.status === 'tamamlandi' ? 'Teslim' : 'Kargoda'}
+            </Text>
             <Ionicons name="chevron-forward" size={14} color={colors.ink} />
           </View>
         )}

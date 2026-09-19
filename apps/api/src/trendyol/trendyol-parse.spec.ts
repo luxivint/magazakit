@@ -157,5 +157,30 @@ describe('trendyol-parse', () => {
     });
     expect(orders[0].status).toBe('delivered');
     expect(orders[0].statusLabel).toBe('Teslim');
+    expect(orders[0].status).not.toBe('shipped');
+  });
+
+  it('reads productImages on shipment lines', () => {
+    const orders = mapShipmentPackages({
+      content: [
+        {
+          shipmentPackageId: 4,
+          orderNumber: 'TY-11',
+          status: 'Delivered',
+          packageTotalPrice: 10,
+          lines: [
+            {
+              barcode: 'B2',
+              quantity: 1,
+              productName: 'Takoz',
+              productImages: [{ url: 'https://cdn.example/line.jpg' }],
+            },
+          ],
+        },
+      ],
+    });
+    expect(orders[0].status).toBe('delivered');
+    expect(orders[0].imageUrl).toBe('https://cdn.example/line.jpg');
+    expect(orders[0].lines[0].imageUrl).toBe('https://cdn.example/line.jpg');
   });
 });

@@ -17,11 +17,21 @@ const CHANNEL_LABELS: Record<Channel, string> = {
   ideasoft: 'IdeaSoft',
 };
 
-function mapStatus(status: string, label: string): Pick<Order, 'status' | 'statusLabel'> {
-  if (status === 'shipped' || status === 'delivered' || label === 'Kargoda') {
+export function mapStatus(status: string, label: string): Pick<Order, 'status' | 'statusLabel'> {
+  const raw = status.trim().toLowerCase();
+  const text = label.trim().toLowerCase();
+  if (
+    raw === 'delivered' ||
+    text === 'teslim' ||
+    text === 'tamamlandı' ||
+    text === 'tamamlandi'
+  ) {
+    return { status: 'tamamlandi', statusLabel: label && label !== 'Kargoda' ? label : 'Teslim' };
+  }
+  if (raw === 'shipped' || text === 'kargoda' || text === 'teslim noktasında') {
     return { status: 'kargoda', statusLabel: label || 'Kargoda' };
   }
-  if (status === 'cancelled' || label === 'İade') {
+  if (raw === 'cancelled' || text === 'iade' || text === 'iptal' || text === 'teslim edilemedi') {
     return { status: 'iade', statusLabel: label || 'İade' };
   }
   return { status: 'hazirlanacak', statusLabel: label || 'Hazırlanacak' };
@@ -33,6 +43,9 @@ function dueLabel(
   status?: Order['status'],
   cargoProvider?: string | null,
 ): { due: string; dueTone: 'warn' | 'idle' } {
+  if (status === 'tamamlandi') {
+    return { due: cargoProvider ? `Teslim · ${cargoProvider}` : 'Teslim edildi', dueTone: 'idle' };
+  }
   if (status === 'kargoda') {
     return { due: cargoProvider ? `Kargo · ${cargoProvider}` : 'Kargoya verildi', dueTone: 'idle' };
   }
@@ -91,6 +104,63 @@ export function shopStatusLabel(status: string, fallback: string): string {
   return fallback;
 }
 
+function fold(value: string): string {
+  return value
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[^a-z0-9ğüşöçı\s-]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function productPhoto(p: Product): string | null {
+  return p.imageUrl || p.imageUrls[0] || null;
+}
+
+export function catalogImageForLine(
+  products: Product[],
+  listingId: string,
+  title?: string,
+): string | null {
+  const exact = products.find((p) => {
+    if (!listingId) return false;
+    if (p.id === listingId || p.listingId === listingId) return true;
+    if (p.barcode && (p.barcode === listingId || `ty-${p.barcode}` === listingId)) return true;
+    if (p.sku && (p.sku === listingId || listingId.endsWith(p.sku))) return true;
+    return false;
+  });
+  const exactPhoto = exact ? productPhoto(exact) : null;
+  if (exactPhoto) return exactPhoto;
+  const needle = title ? fold(title).slice(0, 28) : '';
+  if (needle.length >= 8) {
+    const fuzzy = products.find((p) => {
+      const photo = productPhoto(p);
+      if (!photo) return false;
+      const name = fold(p.name);
+      return name.includes(needle) || needle.includes(name.slice(0, 28));
+    });
+    if (fuzzy) return productPhoto(fuzzy);
+  }
+  return null;
+}
+
+export function attachOrderCatalogImages(orders: Order[], products: Product[]): Order[] {
+  return orders.map((order) => {
+    const lines = order.lines.map((line) => ({
+      ...line,
+      imageUrl: line.imageUrl || catalogImageForLine(products, line.listingId, line.title),
+    }));
+    return {
+      ...order,
+      lines,
+      imageUrl:
+        order.imageUrl ||
+        lines.find((l) => l.imageUrl)?.imageUrl ||
+        catalogImageForLine(products, '', order.product) ||
+        null,
+    };
+  });
+}
+
 export function mapApiOrder(item: OrderListItem, index: number): Order {
   const mapped = mapStatus(item.status, item.statusLabel);
   const closed = mapped.status !== 'hazirlanacak';
@@ -100,12 +170,20 @@ export function mapApiOrder(item: OrderListItem, index: number): Order {
     mapped.status,
     item.money?.cargoProvider,
   );
+  const lines = (item.lines ?? []).map((l) => ({
+    listingId: l.listingId,
+    qty: l.qty,
+    title: l.title,
+    imageUrl: l.imageUrl ?? null,
+    unitPriceTry: l.unitPriceTry,
+    commissionRate: l.commissionRate,
+  }));
   return {
     id: item.id,
     channel: item.channel,
     channelLabel: CHANNEL_LABELS[item.channel] ?? item.channel,
     number: item.orderNumber.startsWith('#') ? item.orderNumber : `#${item.orderNumber}`,
-    product: item.productTitle || `${item.itemCount} adet`,
+    product: item.productTitle || lines[0]?.title || `${item.itemCount} adet`,
     customer: item.customerName,
     qty: item.itemCount,
     amount: item.totalTry,
@@ -115,19 +193,12 @@ export function mapApiOrder(item: OrderListItem, index: number): Order {
     dueTone: due.dueTone,
     ...mapped,
     thumb: THUMBS[index % THUMBS.length],
-    imageUrl: item.imageUrl ?? item.lines.find((l) => l.imageUrl)?.imageUrl ?? null,
-    lines: item.lines.map((l) => ({
-      listingId: l.listingId,
-      qty: l.qty,
-      title: l.title,
-      imageUrl: l.imageUrl ?? null,
-      unitPriceTry: l.unitPriceTry,
-      commissionRate: l.commissionRate,
-    })),
+    imageUrl: item.imageUrl ?? lines.find((l) => l.imageUrl)?.imageUrl ?? null,
+    lines,
     reserved: !!item.reserved,
     packed: !!item.packed,
     labeled: !!item.labeled,
-    shipped: !!item.shipped,
+    shipped: mapped.status === 'kargoda',
     money: item.money,
   };
 }

@@ -26,7 +26,7 @@ export default function OzetScreen() {
   const sales = catalog.orders.reduce((sum, o) => sum + o.amount, 0);
   const toPrepare = catalog.orders.filter((o) => o.status === 'hazirlanacak').length;
   const inTransit = catalog.orders.filter((o) => o.status === 'kargoda').length;
-  const returns = catalog.orders.filter((o) => o.status === 'iade').length;
+  const completed = catalog.orders.filter((o) => o.status === 'tamamlandi').length;
   const due = catalog.orders.filter((o) => o.dueTone === 'warn').length;
   const spark = catalog.orders.length ? catalog.orders.map((o) => Math.max(8, o.amount / 40)) : [8, 8, 8, 8, 8];
 
@@ -57,7 +57,7 @@ export default function OzetScreen() {
           </View>
           <View style={styles.actions}>
             <QuickAction label="Hazırla" icon="barcode-outline" lime onPress={() => {
-              const first = catalog.orders[0];
+              const first = catalog.orders.find((o) => o.status === 'hazirlanacak');
               if (first) router.push(`/siparis/${first.id}`);
               else router.push('/(tabs)/siparisler');
             }} />
@@ -100,9 +100,7 @@ export default function OzetScreen() {
             <View style={styles.ops}>
               <OpStat value={toPrepare} label="Hazırlanacak" tone="warn" />
               <OpStat value={inTransit} label="Kargoda" tone="idle" />
-              <Pressable style={{ flex: 1 }} onPress={() => router.push('/(tabs)/iadeler')}>
-                <OpStat value={returns} label="İade" tone="idle" />
-              </Pressable>
+              <OpStat value={completed} label="Tamamlandı" tone="success" />
             </View>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>İşletme</Text>
@@ -146,7 +144,7 @@ function OpStat({
 }: {
   value: number;
   label: string;
-  tone: 'warn' | 'idle';
+  tone: 'warn' | 'idle' | 'success';
 }) {
   return (
     <View style={styles.op}>

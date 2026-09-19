@@ -5,7 +5,7 @@ import { useShops } from '@/context/ShopContext';
 import type { Order, Product } from '@/data/mock';
 import type { OrderListItem, ProductListItem, ShopSyncResult } from '@/lib/api';
 import { API_URL, ApiError, fetchHealth, fetchOrders, fetchProducts, syncShop } from '@/lib/apiClient';
-import { mapApiOrder, mapApiProduct } from '@/lib/mapCatalog';
+import { attachOrderCatalogImages, mapApiOrder, mapApiProduct } from '@/lib/mapCatalog';
 
 export type CatalogSource = 'api' | 'none';
 
@@ -90,7 +90,10 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   }, [load, shops.length]);
 
   const products = useMemo(() => rawProducts.map(mapApiProduct), [rawProducts]);
-  const orders = useMemo(() => rawOrders.map(mapApiOrder), [rawOrders]);
+  const orders = useMemo(
+    () => attachOrderCatalogImages(rawOrders.map(mapApiOrder), products),
+    [rawOrders, products],
+  );
   const lastSync = clockFromIso(lastIngest?.lastSyncAt ?? shops[0]?.lastSyncAt);
 
   const value = useMemo<CatalogContextValue>(

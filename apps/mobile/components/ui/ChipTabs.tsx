@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fonts } from '@/theme/tokens';
 
@@ -12,7 +12,10 @@ export function ChipTabs({
   onChange: (key: string) => void;
 }) {
   return (
-    <View style={styles.row}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.row}>
       {items.map((item) => {
         const active = item.key === value;
         return (
@@ -22,7 +25,7 @@ export function ChipTabs({
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 

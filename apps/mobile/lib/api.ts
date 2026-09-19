@@ -60,12 +60,30 @@ export type ProductListItem = {
   status: 'active' | 'passive';
   statusLabel: string;
   imageUrl: string | null;
+  imageUrls?: string[];
 };
 
 export type OrderLine = {
   listingId: string;
   qty: number;
   scannedQty: number;
+  title?: string;
+  imageUrl?: string | null;
+  unitPriceTry?: number;
+  commissionRate?: number;
+};
+
+export type OrderMoney = {
+  grossTry: number;
+  sellerDiscountTry: number;
+  tyDiscountTry: number;
+  customerTry: number;
+  commissionRate: number | null;
+  commissionTry: number | null;
+  sgrFeeTry: number;
+  estimatedEarningsTry: number | null;
+  earningsEstimated: boolean;
+  cargoProvider: string | null;
 };
 
 export type OrderListItem = {
@@ -77,17 +95,20 @@ export type OrderListItem = {
   status: string;
   statusLabel: string;
   itemCount: number;
+  productTitle?: string;
+  imageUrl?: string | null;
   totalTry: number;
   cargoDeadlineAt: string | null;
   cargoWarning: boolean;
   createdAt: string;
-  lines?: OrderLine[];
+  lines: OrderLine[];
   reserved?: boolean;
   reservationKey?: string | null;
   packed?: boolean;
   labeled?: boolean;
   shipped?: boolean;
   labelUrl?: string | null;
+  money?: OrderMoney;
 };
 
 export type PreviewList<T> = {

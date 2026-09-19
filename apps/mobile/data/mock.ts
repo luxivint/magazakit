@@ -1,6 +1,6 @@
 import type { Channel } from '@/lib/api';
 
-export type OrderStatus = 'hazirlanacak' | 'kargoda' | 'iade';
+export type OrderStatus = 'hazirlanacak' | 'kargoda' | 'tamamlandi' | 'iade';
 
 export type OrderLineView = {
   listingId: string;
@@ -146,7 +146,8 @@ export const orders: Order[] = [
 
 export const recentOrders = orders.slice(0, 2).map((order) => ({
   ...order,
-  statusLabel: order.status === 'kargoda' ? 'Kargoda' : 'Hazırlanacak',
+  statusLabel:
+    order.status === 'tamamlandi' ? 'Teslim' : order.status === 'kargoda' ? 'Kargoda' : 'Hazırlanacak',
 }));
 
 export const products: Product[] = [
