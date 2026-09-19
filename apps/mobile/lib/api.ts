@@ -1,15 +1,24 @@
-/** Web/emulator: http://127.0.0.1:43140. Physical device: LAN IP of the Nest host. */
-export const API_URL = (
+import { Platform } from 'react-native';
+
+/** Native: Nest URL. Web: same origin (Metro proxies /v1 and /health). */
+const ENV_API_URL = (
   process.env.EXPO_PUBLIC_API_URL ??
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   'http://127.0.0.1:43140'
 ).replace(/\/$/, '');
 
-export const API_BASE_URL = API_URL;
+export const API_URL = Platform.OS === 'web' ? '' : ENV_API_URL;
+
+export const API_BASE_URL = API_URL || ENV_API_URL;
 
 export function apiUrlAllowsSecrets(raw = API_URL): boolean {
+  const candidate =
+    raw ||
+    (typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : ENV_API_URL);
   try {
-    const u = new URL(raw);
+    const u = new URL(candidate);
     const host = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
     const loopback = host === 'localhost' || host === '127.0.0.1' || host === '::1';
     if (u.protocol === 'https:') return true;
