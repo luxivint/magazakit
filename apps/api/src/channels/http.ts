@@ -6,6 +6,10 @@ import { ErrorCodes } from '@magazakit/contracts';
 const PRIVATE_HOST =
   /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|169\.254\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|\[::1\]|::1$|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
 
+function hostnameOf(url: URL): string {
+  return url.hostname.replace(/^\[|\]$/g, '');
+}
+
 function allowPrivateHosts(): boolean {
   return process.env.CHANNEL_ALLOW_PRIVATE_HOSTS === 'true';
 }
@@ -55,10 +59,11 @@ export function assertPublicHttps(raw: string, label: string): URL {
   if (url.protocol !== 'https:') {
     reject(label, 'HTTPS olmalı.');
   }
-  if (!allowPrivateHosts() && PRIVATE_HOST.test(url.hostname)) {
+  const host = hostnameOf(url);
+  if (!allowPrivateHosts() && PRIVATE_HOST.test(host)) {
     reject(label, 'özel ağa açılamaz.');
   }
-  if (!allowPrivateHosts() && isIP(url.hostname) && isBlockedIp(url.hostname)) {
+  if (!allowPrivateHosts() && isIP(host) && isBlockedIp(host)) {
     reject(label, 'özel ağa açılamaz.');
   }
   return url;
@@ -69,15 +74,16 @@ export async function assertSafeChannelUrl(raw: string | URL, label: string): Pr
   if (url.protocol !== 'https:') {
     reject(label, 'HTTPS olmalı.');
   }
+  const host = hostnameOf(url);
   if (allowPrivateHosts()) return url;
-  if (PRIVATE_HOST.test(url.hostname) || (isIP(url.hostname) && isBlockedIp(url.hostname))) {
+  if (PRIVATE_HOST.test(host) || (isIP(host) && isBlockedIp(host))) {
     reject(label, 'özel ağa açılamaz.');
   }
-  if (isIP(url.hostname)) return url;
+  if (isIP(host)) return url;
   if (process.env.NODE_ENV === 'test') return url;
   let records: { address: string }[];
   try {
-    records = await lookup(url.hostname, { all: true });
+    records = await lookup(host, { all: true });
   } catch {
     reject(label, 'çözülemedi.', HttpStatus.BAD_GATEWAY);
   }
