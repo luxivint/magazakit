@@ -31,7 +31,7 @@ export function corsOptions(): CorsOptions {
         callback(null, true);
         return;
       }
-      if (isExpoDevOrigin(origin) || extra.includes(origin)) {
+      if (extra.includes('*') || isExpoDevOrigin(origin) || extra.includes(origin)) {
         callback(null, true);
         return;
       }
