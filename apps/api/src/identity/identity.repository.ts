@@ -148,8 +148,8 @@ export function toProductListItem(
   };
 }
 
-export function attachListingPhotos(
-  orders: OrderListItem[],
+export function attachListingPhotos<T extends Pick<OrderListItem, 'lines' | 'imageUrl'>>(
+  orders: T[],
   listings: Array<{
     id: string;
     barcode?: string;
@@ -157,7 +157,7 @@ export function attachListingPhotos(
     imageUrl?: string | null;
     imageUrls?: string[];
   }>,
-): OrderListItem[] {
+): T[] {
   const byKey = new Map<string, string>();
   for (const listing of listings) {
     const url = listing.imageUrl || listing.imageUrls?.[0];
