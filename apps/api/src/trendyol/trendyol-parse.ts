@@ -156,6 +156,12 @@ function closedStatus(status: OrderStatus): boolean {
   return status === 'shipped' || status === 'delivered' || status === 'cancelled';
 }
 
+function paymentLabel(pkg: Record<string, unknown>): string | null {
+  const raw = str(pkg.paymentMethod ?? pkg.paymentType ?? pkg.paymentTypeName);
+  if (!raw || raw === '-') return null;
+  return raw;
+}
+
 function cargoPayer(pkg: Record<string, unknown>): OrderMoney['cargoPayer'] {
   const raw = pkg.whoPays;
   if (raw === 1 || raw === '1' || String(raw).toLowerCase() === 'seller') return 'seller';
@@ -216,7 +222,7 @@ export function estimatePackageMoney(
     intlReturnOpTry: 0,
     intlServiceTry: 0,
     penaltyTry: 0,
-    paymentMethod: str(pkg.paymentType ?? pkg.paymentTypeName) || null,
+    paymentMethod: paymentLabel(pkg),
     cargoFeeRate: null,
     financeLoaded: false,
     estimatedEarningsTry,

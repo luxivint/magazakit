@@ -148,6 +148,41 @@ export function toProductListItem(
   };
 }
 
+export function attachListingPhotos(
+  orders: OrderListItem[],
+  listings: Array<{
+    id: string;
+    barcode?: string;
+    sku?: string;
+    imageUrl?: string | null;
+    imageUrls?: string[];
+  }>,
+): OrderListItem[] {
+  const byKey = new Map<string, string>();
+  for (const listing of listings) {
+    const url = listing.imageUrl || listing.imageUrls?.[0];
+    if (!url) continue;
+    byKey.set(listing.id, url);
+    if (listing.barcode) {
+      byKey.set(listing.barcode, url);
+      byKey.set(`ty-${listing.barcode}`, url);
+    }
+    if (listing.sku) byKey.set(listing.sku, url);
+  }
+  return orders.map((order) => {
+    const lines = order.lines.map((line) => {
+      if (line.imageUrl) return line;
+      const url = byKey.get(line.listingId);
+      return url ? { ...line, imageUrl: url } : line;
+    });
+    return {
+      ...order,
+      lines,
+      imageUrl: order.imageUrl || lines.find((line) => line.imageUrl)?.imageUrl || null,
+    };
+  });
+}
+
 export function withOrderDefaults(
   orgId: string,
   incoming: Omit<OrderListItem, 'organizationId'> | OrderListItem,
@@ -199,10 +234,14 @@ export function withOrderDefaults(
     money: incoming.money
       ? { ...existing?.money, ...incoming.money }
       : existing?.money,
-    lines: seedLines.map((line) => ({
-      ...line,
-      scannedQty: existing.lines.find((old) => old.listingId === line.listingId)?.scannedQty ?? 0,
-    })),
+    lines: seedLines.map((line) => {
+      const old = existing.lines.find((row) => row.listingId === line.listingId);
+      return {
+        ...line,
+        scannedQty: old?.scannedQty ?? 0,
+        ...(line.imageUrl || old?.imageUrl ? { imageUrl: line.imageUrl ?? old?.imageUrl } : {}),
+      };
+    }),
     packed: existing.packed || incoming.packed,
     shipped: existing.shipped || incoming.shipped,
   };

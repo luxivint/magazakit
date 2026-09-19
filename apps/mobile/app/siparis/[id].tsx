@@ -317,7 +317,7 @@ function PayoutCard({ money }: { money: Order['money'] }) {
           {netReady ? (
             <MoneyText value={money.estimatedEarningsTry ?? 0} size="metric" />
           ) : (
-            <Text style={styles.missing}>kargo/hizmet cari yok</Text>
+            <Text style={styles.missing}>fatura satırı yok</Text>
           )}
         </View>
         {money.paymentMethod ? (
@@ -330,9 +330,9 @@ function PayoutCard({ money }: { money: Order['money'] }) {
           </Text>
         ) : null}
         <Text style={styles.note}>
-          Aynı kalemler Trendyol satıcı paneli sipariş tablosu. Net = tutar − komisyon − kargo −
-          platform hizmet − diğer kesintiler. Kargo ve hizmet cari/faturadan gelir; yoksa 96 ₺
-          yazılmaz.
+          Komisyon hakediş satırından. Kargo ve platform hizmeti ancak Trendyol sipariş numaralı
+          fatura kalemi gönderirse dolar. Satıcı paneli bu tutarları faturadan önce tahmin edebiliyor;
+          resmi API o tahmini vermiyor. Satır yoksa net yazılmaz.
         </Text>
       </View>
     </>
@@ -352,7 +352,7 @@ function MoneyRow({
     <View style={styles.moneyRow}>
       <Text style={styles.label}>{label}</Text>
       {value == null ? (
-        <Text style={styles.missing}>cari yok</Text>
+        <Text style={styles.missing}>fatura satırı yok</Text>
       ) : (
         <Text style={[styles.value, muted && { color: colors.muted }]}>{formatMoney(value)}</Text>
       )}

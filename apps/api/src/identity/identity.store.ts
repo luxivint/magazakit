@@ -31,7 +31,7 @@ import {
   type WarehouseTransfer,
 } from '@magazakit/contracts';
 import type { IdentityRepository, PersistenceBackend } from './identity.repository';
-import { sellableOf, toProductListItem } from './identity.repository';
+import { attachListingPhotos, sellableOf, toProductListItem } from './identity.repository';
 import { trendyolMode } from '../config/trendyol-env';
 import { mockTrendyolOutboxStatus } from '../outbox/mock-trendyol-write';
 import { CHANNEL_LABELS, HARD_BLOCK, channelCatalog } from '../channels/registry';
@@ -75,6 +75,8 @@ trailer<</Root 1 0 R>>
 
 @Injectable()
 export class IdentityStore {
+  private readonly financeTriedAt = new Map<string, number>();
+
   constructor(
     private readonly repo: IdentityRepository,
     private readonly adapters: ChannelAdapterMap,
@@ -241,7 +243,9 @@ export class IdentityStore {
     const warnings = feed.warnings ?? [];
     const partial = warnings.length > 0;
     const productsUpserted = await this.repo.upsertListings(org.id, shop.id, listings);
-    const ordersUpserted = await this.repo.upsertOrders(org.id, feed.orders);
+    const photographed = attachListingPhotos(feed.orders, listings);
+    const ordersUpserted = await this.repo.upsertOrders(org.id, photographed);
+    this.financeTriedAt.delete(org.id);
     await this.repo.upsertReturns(org.id, feed.returns ?? []);
     const lastSyncAt = new Date().toISOString();
     const prefix = adapter.mock ? 'mock' : 'live';
@@ -296,12 +300,19 @@ export class IdentityStore {
     pageSize?: string,
   ): Promise<PreviewList<OrderListItem>> {
     const org = await this.assertOrgAccess(uid, organizationId);
-    let orders = await this.repo.listOrgOrders(org.id);
+    let orders = await this.withCatalogPhotos(org.id, await this.repo.listOrgOrders(org.id));
     orders = await this.attachTrendyolFinance(uid, org.id, orders);
+    orders = await this.withCatalogPhotos(org.id, orders);
     return asPreviewList(
       paginate(orders, parsePageQuery({ page, pageSize })),
       await this.previewIsMock(uid),
     );
+  }
+
+  private async withCatalogPhotos(orgId: string, orders: OrderListItem[]): Promise<OrderListItem[]> {
+    if (orders.length === 0) return orders;
+    const listings = await this.repo.listListings(orgId);
+    return attachListingPhotos(orders, listings);
   }
 
   private async attachTrendyolFinance(
@@ -309,13 +320,24 @@ export class IdentityStore {
     orgId: string,
     orders: OrderListItem[],
   ): Promise<OrderListItem[]> {
-    if (orders.length === 0 || orders.every((o) => o.money?.financeLoaded)) return orders;
+    if (orders.length === 0) return orders;
+    const missingInvoice = orders.some(
+      (order) =>
+        order.money &&
+        (order.money.commissionTry == null ||
+          order.money.cargoFeeTry == null ||
+          order.money.serviceFeeTry == null),
+    );
+    if (!missingInvoice) return orders;
+    const last = this.financeTriedAt.get(orgId) ?? 0;
+    if (last > 0 && Date.now() - last < 5 * 60 * 1000) return orders;
     const shop = (await this.repo.listShopsForUid(uid)).find(
       (s) => s.organizationId === orgId && s.channel === 'trendyol' && s.status === 'live_connected' && !s.mock,
     );
     if (!shop) return orders;
     const secrets = await this.repo.getShopSecrets(shop.id, orgId);
     if (!secrets) return orders;
+    this.financeTriedAt.set(orgId, Date.now());
     try {
       const next = await enrichOrdersWithFinance(trendyolLiveFromSecrets(secrets), orders);
       await this.repo.upsertOrders(orgId, next);
@@ -353,7 +375,9 @@ export class IdentityStore {
 
   async getOrder(uid: string, orderId: string): Promise<OrderListItem> {
     const org = await this.requireOrg(uid);
-    return this.requireOrder(org.id, orderId);
+    const order = await this.requireOrder(org.id, orderId);
+    const [photographed] = await this.withCatalogPhotos(org.id, [order]);
+    return photographed;
   }
 
   async listOperations(uid: string): Promise<{ items: OperationEvent[] }> {

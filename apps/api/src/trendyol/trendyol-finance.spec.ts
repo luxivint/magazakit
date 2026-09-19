@@ -4,6 +4,7 @@ import {
   emptyFinance,
   ingestCargoInvoiceItems,
   ingestOtherFinancials,
+  ingestSettlementDeliveryFee,
   ingestSettlementSale,
 } from './trendyol-finance';
 import type { OrderMoney } from '@magazakit/contracts';
@@ -86,5 +87,26 @@ describe('trendyol-finance', () => {
     expect(next.cargoFeeRate).toBe(50.4);
     expect(next.estimatedEarningsTry).toBe(25.42);
     expect(next.earningsEstimated).toBe(false);
+  });
+
+  it('keeps net empty when cargo invoice has no line for that order', () => {
+    const map = new Map();
+    ingestSettlementSale(map, {
+      content: [{ orderNumber: '11512925676', commissionAmount: 18.4, sellerRevenue: 96.6 }],
+    });
+    const next = applyFinanceAcc(baseMoney(), map.get('11512925676') ?? emptyFinance());
+    expect(next.commissionTry).toBe(18.4);
+    expect(next.cargoFeeTry).toBeNull();
+    expect(next.serviceFeeTry).toBeNull();
+    expect(next.estimatedEarningsTry).toBeNull();
+    expect(next.earningsEstimated).toBe(true);
+  });
+
+  it('uses DeliveryFee settlements when cargo-invoice items are missing', () => {
+    const map = new Map();
+    ingestSettlementDeliveryFee(map, {
+      content: [{ orderNumber: '11512925676', debt: 57.99, description: 'Teslimat Ücreti' }],
+    });
+    expect(map.get('11512925676')?.cargoFeeTry).toBe(57.99);
   });
 });

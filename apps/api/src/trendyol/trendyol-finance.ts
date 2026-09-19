@@ -99,6 +99,19 @@ export function ingestSettlementSale(map: Map<string, FinanceAcc>, payload: unkn
   }
 }
 
+/** DeliveryFee is the official per-order teslimat kaydı. Cargo invoice items override later. */
+export function ingestSettlementDeliveryFee(map: Map<string, FinanceAcc>, payload: unknown): void {
+  for (const row of pageContent(payload)) {
+    const amount = Math.abs(num(row.debt) || num(row.credit) || num(row.amount));
+    if (amount <= 0) continue;
+    for (const key of keysOf(row)) {
+      const acc = bump(map, key);
+      acc.cargoFeeTry = round2(acc.cargoFeeTry + amount);
+      acc.cargoFeeLabel = str(row.description) || acc.cargoFeeLabel || 'Teslimat ücreti';
+    }
+  }
+}
+
 export function cargoInvoiceSerials(payload: unknown): string[] {
   const out: string[] = [];
   for (const row of pageContent(payload)) {
@@ -299,6 +312,20 @@ export async function enrichOrdersWithFinance(
         `${sellerPath}/otherfinancials`,
         { transactionType: 'Stoppage', startDate, endDate },
         (payload) => ingestOtherFinancials(map, payload),
+      );
+      await eachFinancePage(
+        getJson,
+        config,
+        `${sellerPath}/settlements`,
+        { transactionType: 'DeliveryFee', startDate, endDate },
+        (payload) => ingestSettlementDeliveryFee(map, payload),
+      );
+      await eachFinancePage(
+        getJson,
+        config,
+        `${sellerPath}/settlements`,
+        { transactionType: 'DeliveryFeeCancel', startDate, endDate },
+        (payload) => ingestSettlementDeliveryFee(map, payload),
       );
     }
     for (const serial of serials) {
