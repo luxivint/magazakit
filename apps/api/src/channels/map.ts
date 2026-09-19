@@ -18,6 +18,7 @@ export function listing(input: {
   marketplaceStock?: number;
   active?: boolean;
   imageUrl?: string | null;
+  imageUrls?: string[];
 }): MockListingSeed {
   const qty = input.marketplaceStock ?? 0;
   const status: ProductStatus = input.active === false ? 'passive' : 'active';
@@ -37,6 +38,7 @@ export function listing(input: {
     status,
     statusLabel: status === 'active' ? 'Aktif' : 'Pasif',
     imageUrl: input.imageUrl ?? null,
+    imageUrls: input.imageUrls,
   };
 }
 
@@ -144,6 +146,44 @@ export function pageItems(
 export function httpImage(value: unknown): string | null {
   const url = str(value);
   return url.startsWith('http://') || url.startsWith('https://') ? url : null;
+}
+
+/** Trendyol/HB/n11 image envelopes: string, {url}, {imageUrl}, nested arrays. */
+export function firstHttpImage(...sources: unknown[]): string | null {
+  const all = allHttpImages(...sources);
+  return all[0] ?? null;
+}
+
+export function allHttpImages(...sources: unknown[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const walk = (value: unknown): void => {
+    if (value == null) return;
+    if (typeof value === 'string') {
+      const url = httpImage(value);
+      if (url && !seen.has(url)) {
+        seen.add(url);
+        out.push(url);
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item);
+      return;
+    }
+    const obj = rec(value);
+    if (!obj) return;
+    walk(obj.url);
+    walk(obj.imageUrl);
+    walk(obj.listImageUrl);
+    walk(obj.href);
+    walk(obj.src);
+    walk(obj.images);
+    walk(obj.imageUrls);
+    walk(obj.imagesUrl);
+  };
+  for (const source of sources) walk(source);
+  return out;
 }
 
 export function envTriple(

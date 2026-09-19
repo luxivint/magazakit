@@ -1,4 +1,4 @@
-import { mapStatus, pageItems } from './map';
+import { firstHttpImage, mapStatus, pageItems } from './map';
 
 describe('pageItems', () => {
   it('reads Çiçeksepeti supplierOrderListWithBranch', () => {
@@ -18,5 +18,14 @@ describe('pageItems', () => {
     expect(mapStatus('PARTIALLY_SHIPPED').status).toBe('picking');
     expect(mapStatus('UNSHIPPED').status).toBe('created');
     expect(mapStatus('UNFULFILLABLE').status).toBe('cancelled');
+  });
+
+  it('picks the first http image from mixed envelopes', () => {
+    expect(firstHttpImage(['https://cdn.example/a.jpg'], { url: 'https://cdn.example/b.jpg' })).toBe(
+      'https://cdn.example/a.jpg',
+    );
+    expect(firstHttpImage({ listImageUrl: 'https://cdn.example/c.jpg' })).toBe(
+      'https://cdn.example/c.jpg',
+    );
   });
 });

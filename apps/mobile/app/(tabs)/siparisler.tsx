@@ -25,17 +25,43 @@ const TABS = [
   { key: 'iade', label: 'İade' },
 ];
 
+const DATE_FILTERS = [
+  { key: 'all', label: 'Tüm zamanlar', days: null as number | null },
+  { key: '14', label: '14 gün', days: 14 },
+  { key: '90', label: '90 gün', days: 90 },
+  { key: 'today', label: 'Bugün', days: 0 },
+];
+
 export default function SiparislerScreen() {
   const catalog = useCatalog();
   const [tab, setTab] = useState('all');
+  const [q, setQ] = useState('');
+  const [dateKey, setDateKey] = useState('all');
   const orders = catalog.orders;
   const sourceLabel = catalogSourceLabel(catalog.reachable, catalog.apiMock);
+  const dateFilter = DATE_FILTERS.find((d) => d.key === dateKey) ?? DATE_FILTERS[0];
   const due = orders.filter((o) => o.dueTone === 'warn').length;
 
   const visible = useMemo(() => {
-    if (tab === 'all') return orders;
-    return orders.filter((order) => order.status === tab);
-  }, [tab, orders]);
+    const needle = q.trim().toLowerCase();
+    const now = Date.now();
+    return orders.filter((order) => {
+      if (tab !== 'all' && order.status !== tab) return false;
+      if (needle) {
+        const hay = `${order.number} ${order.customer} ${order.product}`.toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      if (dateFilter.days === 0) {
+        const d = new Date(order.createdAt);
+        const t = new Date();
+        if (d.toDateString() !== t.toDateString()) return false;
+      } else if (dateFilter.days != null) {
+        const created = new Date(order.createdAt).getTime();
+        if (now - created > dateFilter.days * 86_400_000) return false;
+      }
+      return true;
+    });
+  }, [tab, orders, q, dateFilter]);
 
   return (
     <View style={styles.root}>
@@ -50,7 +76,11 @@ export default function SiparislerScreen() {
             </Pressable>
           </View>
           <View style={styles.searchRow}>
-            <SearchField placeholder="Sipariş no veya müşteri ara" />
+            <SearchField
+              placeholder="Sipariş no veya müşteri ara"
+              value={q}
+              onChangeText={setQ}
+            />
             <Pressable style={styles.filterBtn} accessibilityLabel="Filtreler">
               <Ionicons name="options-outline" size={18} color={colors.white} />
             </Pressable>
@@ -58,7 +88,13 @@ export default function SiparislerScreen() {
           <ChipTabs items={TABS} value={tab} onChange={setTab} />
           <View style={styles.filters}>
             <FilterPill label="Tüm mağazalar" />
-            <FilterPill label="Bugün" />
+            <Pressable
+              onPress={() => {
+                const i = DATE_FILTERS.findIndex((d) => d.key === dateKey);
+                setDateKey(DATE_FILTERS[(i + 1) % DATE_FILTERS.length].key);
+              }}>
+              <FilterPill label={dateFilter.label} />
+            </Pressable>
           </View>
         </View>
       </SafeAreaView>
@@ -82,15 +118,28 @@ export default function SiparislerScreen() {
             primary="Mağaza bağla"
             onPrimary={() => router.push('/(tabs)/magaza-bagla')}
           />
-        ) : visible.length === 0 ? (
+        ) : orders.length === 0 ? (
           <ScrollView contentContainerStyle={styles.sheet}>
             <EmptyState
               title="Henüz sipariş yok"
-              body="İçeri alınınca siparişler gelir. Boş liste hata değildir."
+              body="İçeri al hem ürün hem sipariş çeker. Trendyol’da son 6 ay taranır. Boş liste hata değildir."
               primary="İçeri al"
               onPrimary={() => router.push('/(tabs)/icerik-al')}
             />
             <SyncFooter time={catalog.lastSync ?? '—'} source={sourceLabel} />
+          </ScrollView>
+        ) : visible.length === 0 ? (
+          <ScrollView contentContainerStyle={styles.sheet}>
+            <EmptyState
+              title="Filtreye uyan sipariş yok"
+              body="Tarih veya aramayı genişlet. Kayıtlar silinmedi."
+              primary="Tüm zamanlar"
+              onPrimary={() => {
+                setDateKey('all');
+                setTab('all');
+                setQ('');
+              }}
+            />
           </ScrollView>
         ) : (
           <ScrollView contentContainerStyle={styles.sheet} showsVerticalScrollIndicator={false}>

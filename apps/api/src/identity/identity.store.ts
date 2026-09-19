@@ -38,6 +38,7 @@ import { CHANNEL_LABELS, HARD_BLOCK, channelCatalog } from '../channels/registry
 import { liveAdapterFromSecrets, parseShopConnect } from '../channels/shop-secrets';
 import { SHOP_CHANNELS, type ChannelAdapterMap, type ChannelCatalogRow, type ChannelReadAdapter } from '../channels/types';
 import type { Channel, ShopConnectRequest } from '@magazakit/contracts';
+import { mirrorListingImages } from '../media/ingest-images';
 
 function boom(code: string, message: string, status: HttpStatus): never {
   throw new HttpException({ code, message }, status);
@@ -235,9 +236,10 @@ export class IdentityStore {
     }
     const adapter = await this.adapterForShop(org.id, shop);
     const feed = await adapter.pullFeed();
+    const listings = await mirrorListingImages(org.id, feed.listings);
     const warnings = feed.warnings ?? [];
     const partial = warnings.length > 0;
-    const productsUpserted = await this.repo.upsertListings(org.id, shop.id, feed.listings);
+    const productsUpserted = await this.repo.upsertListings(org.id, shop.id, listings);
     const ordersUpserted = await this.repo.upsertOrders(org.id, feed.orders);
     await this.repo.upsertReturns(org.id, feed.returns ?? []);
     const lastSyncAt = new Date().toISOString();

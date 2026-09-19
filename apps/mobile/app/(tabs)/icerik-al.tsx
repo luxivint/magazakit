@@ -26,8 +26,8 @@ export default function IcerikAlScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.white} />
         </Pressable>
         <BrandMark />
-        <Text style={styles.headline}>Ürünleri içeri al</Text>
-        <Text style={styles.lead}>Ürün ve siparişleri mağazandan çek. Listeler bundan sonra dolar.</Text>
+        <Text style={styles.headline}>İçeri al</Text>
+        <Text style={styles.lead}>Ürün, görsel ve siparişleri mağazandan çek. Görseller R2’de tutulur.</Text>
       </SafeAreaView>
       <PorcelainSheet>
         <ScrollView contentContainerStyle={styles.sheet}>
@@ -65,11 +65,12 @@ export default function IcerikAlScreen() {
                 .ingest()
                 .then((r) => {
                   setNote(`${r.productsUpserted} ürün, ${r.ordersUpserted} sipariş alındı.`);
-                  router.replace('/(tabs)/urunler');
                 })
                 .catch(() => undefined);
             }}
           />
+          <Button label="Ürünleri aç" variant="ghost" onPress={() => router.push('/(tabs)/urunler')} />
+          <Button label="Siparişleri aç" variant="ghost" onPress={() => router.push('/(tabs)/siparisler')} />
           <Button label="Eşleştirmeyi aç" variant="ghost" onPress={() => router.push('/(tabs)/esleme')} />
         </ScrollView>
       </PorcelainSheet>

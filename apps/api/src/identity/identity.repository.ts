@@ -144,6 +144,7 @@ export function toProductListItem(
     status: listing.status,
     statusLabel: listing.statusLabel,
     imageUrl: listing.imageUrl,
+    imageUrls: listing.imageUrls,
   };
 }
 
@@ -156,6 +157,8 @@ export function withOrderDefaults(
     listingId: line.listingId,
     qty: line.qty,
     scannedQty: 0,
+    ...(line.title ? { title: line.title } : {}),
+    ...(line.imageUrl ? { imageUrl: line.imageUrl } : {}),
   }));
   if (!existing) {
     return {
@@ -183,6 +186,8 @@ export function withOrderDefaults(
     cargoWarning: incoming.cargoWarning,
     orderNumber: incoming.orderNumber,
     createdAt: incoming.createdAt,
+    productTitle: incoming.productTitle ?? existing.productTitle,
+    imageUrl: incoming.imageUrl ?? existing.imageUrl,
     lines: seedLines.map((line) => ({
       ...line,
       scannedQty: existing.lines.find((old) => old.listingId === line.listingId)?.scannedQty ?? 0,

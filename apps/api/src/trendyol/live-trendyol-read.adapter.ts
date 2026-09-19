@@ -100,21 +100,31 @@ export class LiveTrendyolReadAdapter implements TrendyolReadAdapter {
     Omit<OrderListItem, 'organizationId'>[]
   > {
     const all: Omit<OrderListItem, 'organizationId'>[] = [];
-    let page = 0;
-    while (page * ORDER_SIZE < MAX_OFFSET) {
-      const endDate = Date.now();
-      const payload = await this.getJson(this.config, this.ordersPath(), {
-        page,
-        size: ORDER_SIZE,
-        startDate: endDate - 7 * 24 * 60 * 60 * 1000,
-        endDate,
-        orderByField: 'PackageLastModifiedDate',
-        orderByDirection: 'DESC',
-      });
-      const batch = mapShipmentPackages(payload);
-      all.push(...batch);
-      if (batch.length === 0 || batch.length < ORDER_SIZE) break;
-      page += 1;
+    const seen = new Set<string>();
+    const now = Date.now();
+    // Trendyol v2 orders: startDate/endDate max ~2 weeks. Walk older windows.
+    const windowMs = 13 * 24 * 60 * 60 * 1000;
+    const windows = 14;
+    for (let w = 0; w < windows; w += 1) {
+      const endDate = now - w * windowMs;
+      const startDate = endDate - windowMs;
+      for (let page = 0; page * ORDER_SIZE < MAX_OFFSET; page += 1) {
+        const payload = await this.getJson(this.config, this.ordersPath(), {
+          page,
+          size: ORDER_SIZE,
+          startDate,
+          endDate,
+          orderByField: 'PackageLastModifiedDate',
+          orderByDirection: 'DESC',
+        });
+        const batch = mapShipmentPackages(payload);
+        for (const order of batch) {
+          if (seen.has(order.id)) continue;
+          seen.add(order.id);
+          all.push(order);
+        }
+        if (batch.length === 0 || batch.length < ORDER_SIZE) break;
+      }
     }
     return all;
   }

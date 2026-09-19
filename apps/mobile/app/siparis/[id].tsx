@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
 import { Button } from '@/components/ui/Button';
 import { ConfigBanner } from '@/components/ui/ConfigBanner';
+import { ProductThumb } from '@/components/ui/ProductThumb';
 import { TextField } from '@/components/ui/TextField';
 import { useCatalog } from '@/context/CatalogContext';
 import {
@@ -149,7 +150,7 @@ export default function HazirlaScreen() {
         <Pressable style={styles.back} onPress={() => router.back()} accessibilityLabel="Geri">
           <Ionicons name="chevron-back" size={22} color={colors.white} />
         </Pressable>
-        <Text style={styles.kicker}>Siparişi hazırla</Text>
+        <Text style={styles.kicker}>Sipariş</Text>
         <Text style={styles.title}>{order?.number ?? 'Sipariş'}</Text>
         <Text style={styles.lead}>
           {order ? `${order.customer} · ${order.qty} adet` : 'Katalogda yok — içeri al.'}
@@ -160,6 +161,34 @@ export default function HazirlaScreen() {
         <ScrollView contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
           {error ? <ConfigBanner text={error} /> : null}
           {conflict ? <ConfigBanner text={conflict} /> : null}
+
+          {order ? (
+            <>
+              <View style={styles.summary}>
+                {order.lines.length ? (
+                  order.lines.map((line) => (
+                    <View key={`${line.listingId}-${line.qty}`} style={styles.lineRow}>
+                      <ProductThumb
+                        kind={order.thumb}
+                        uri={line.imageUrl ?? order.imageUrl}
+                        size={44}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.lineTitle}>{line.title || line.listingId}</Text>
+                        <Text style={styles.body}>{line.qty} adet</Text>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.body}>{order.product}</Text>
+                )}
+                <View style={styles.metaRow}>
+                  <Text style={styles.meta}>{order.statusLabel}</Text>
+                  <Text style={styles.meta}>{order.due}</Text>
+                </View>
+              </View>
+            </>
+          ) : null}
 
           <Text style={styles.section}>1. Rezerve</Text>
           <Text style={styles.body}>
@@ -221,4 +250,8 @@ const styles = StyleSheet.create({
   body: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, lineHeight: 18 },
   meta: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink },
   ok: { fontFamily: fonts.medium, fontSize: 13, color: colors.success },
+  summary: { gap: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#E6E6E0' },
+  lineRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  lineTitle: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
 });

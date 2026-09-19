@@ -20,7 +20,7 @@ export function OrderCard({
 }) {
   return (
     <Pressable style={styles.card} onPress={onPress}>
-      <ProductThumb kind={order.thumb} />
+      <ProductThumb kind={order.thumb} uri={order.imageUrl} />
       <View style={styles.mid}>
         <View style={styles.topLine}>
           <ChannelBadge channel={order.channel} />

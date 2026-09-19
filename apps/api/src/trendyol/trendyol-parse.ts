@@ -1,4 +1,5 @@
 import type { OrderLine, OrderListItem, OrderStatus, ProductStatus } from '@magazakit/contracts';
+import { allHttpImages, firstHttpImage } from '../channels/map';
 import type { MockListingSeed } from './mock-feed';
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -40,14 +41,6 @@ export function trendyolPageMeta(payload: unknown): {
   };
 }
 
-function imageUrl(images: unknown): string | null {
-  if (!Array.isArray(images) || images.length === 0) return null;
-  const first = asRecord(images[0]);
-  const url = str(first?.url);
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return null;
-}
-
 function listingFromVariant(
   content: Record<string, unknown>,
   variant: Record<string, unknown>,
@@ -62,6 +55,15 @@ function listingFromVariant(
   const archived = variant.archived === true;
   const status: ProductStatus = onSale && !archived ? 'active' : 'passive';
   const sku = str(variant.stockCode) || str(content.stockCode) || barcode;
+  const imageUrls = allHttpImages(
+    variant.images,
+    variant.imageUrl,
+    variant.listImageUrl,
+    content.images,
+    content.imageUrl,
+    content.listImageUrl,
+    content.imagesUrl,
+  );
   return {
     id: `ty-${barcode}`,
     sku,
@@ -76,7 +78,8 @@ function listingFromVariant(
     critical: qty > 0 && qty <= 3,
     status,
     statusLabel: status === 'active' ? 'Aktif' : 'Pasif',
-    imageUrl: imageUrl(content.images),
+    imageUrl: imageUrls[0] ?? null,
+    imageUrls,
   };
 }
 
@@ -142,8 +145,8 @@ export function mapShipmentPackages(payload: unknown): Omit<OrderListItem, 'orga
     const pkg = asRecord(row);
     if (!pkg) continue;
     const packageId = str(pkg.shipmentPackageId ?? pkg.id);
-    const orderNumber = str(pkg.orderNumber);
-    if (!packageId || !orderNumber) continue;
+    const orderNumber = str(pkg.orderNumber) || packageId;
+    if (!packageId) continue;
     const rawStatus = str(pkg.status ?? pkg.shipmentPackageStatus);
     const mapped = mapPackageStatus(rawStatus);
     const linesRaw = Array.isArray(pkg.lines) ? pkg.lines : [];
@@ -155,15 +158,20 @@ export function mapShipmentPackages(payload: unknown): Omit<OrderListItem, 'orga
       const barcode = str(line.barcode);
       const qty = Math.max(1, Math.floor(num(line.quantity)));
       itemCount += qty;
+      const title = str(line.productName) || str(line.productTitle) || barcode;
       lines.push({
         listingId: barcode ? `ty-${barcode}` : `ty-line-${str(line.lineId) || lines.length}`,
         qty,
         scannedQty: 0,
+        title: title || undefined,
+        imageUrl: firstHttpImage(line.productImage, line.imageUrl, line.images),
       });
     }
     const deadline = isoFromMillis(pkg.agreedDeliveryDate ?? pkg.estimatedDeliveryEndDate);
     const warn =
       deadline != null && new Date(deadline).getTime() - Date.now() < 4 * 60 * 60 * 1000;
+    const productTitle =
+      lines.map((l) => l.title).filter(Boolean).join(', ') || `${itemCount} adet`;
     out.push({
       id: `ty-${packageId}`,
       orderNumber,
@@ -172,6 +180,8 @@ export function mapShipmentPackages(payload: unknown): Omit<OrderListItem, 'orga
       status: mapped.status,
       statusLabel: mapped.statusLabel,
       itemCount,
+      productTitle,
+      imageUrl: lines.find((l) => l.imageUrl)?.imageUrl ?? null,
       totalTry: num(pkg.packageTotalPrice ?? pkg.packageGrossAmount),
       cargoDeadlineAt: deadline,
       cargoWarning: warn,

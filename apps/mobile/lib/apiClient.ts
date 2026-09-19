@@ -235,13 +235,15 @@ export async function upsertMapping(listingId: string, sku: string): Promise<Lis
 }
 
 export async function fetchProducts(organizationId?: string): Promise<PreviewList<ProductListItem>> {
-  const q = organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : '';
-  return request(`/v1/products${q}`, { headers: await headers() });
+  const params = new URLSearchParams({ pageSize: '200' });
+  if (organizationId) params.set('organizationId', organizationId);
+  return request(`/v1/products?${params.toString()}`, { headers: await headers() });
 }
 
 export async function fetchOrders(organizationId?: string): Promise<PreviewList<OrderListItem>> {
-  const q = organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : '';
-  return request(`/v1/orders${q}`, { headers: await headers() });
+  const params = new URLSearchParams({ pageSize: '200' });
+  if (organizationId) params.set('organizationId', organizationId);
+  return request(`/v1/orders?${params.toString()}`, { headers: await headers() });
 }
 
 function newKey(): string {

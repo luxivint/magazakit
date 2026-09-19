@@ -6,9 +6,13 @@ import { colors, fonts, radii } from '@/theme/tokens';
 export function SearchField({
   placeholder,
   variant = 'dark',
+  value,
+  onChangeText,
 }: {
   placeholder: string;
   variant?: 'dark' | 'light';
+  value?: string;
+  onChangeText?: (text: string) => void;
 }) {
   const dark = variant === 'dark';
   return (
@@ -18,6 +22,8 @@ export function SearchField({
         placeholder={placeholder}
         placeholderTextColor={dark ? '#8A908A' : colors.muted}
         style={[styles.input, { color: dark ? colors.white : colors.ink }]}
+        value={value}
+        onChangeText={onChangeText}
       />
     </View>
   );

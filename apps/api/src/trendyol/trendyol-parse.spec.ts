@@ -39,6 +39,28 @@ describe('trendyol-parse', () => {
     expect(listings[1].status).toBe('passive');
   });
 
+  it('reads string image arrays and variant imageUrl', () => {
+    const listings = mapApprovedProducts({
+      content: [
+        {
+          title: 'Clip',
+          imageUrl: 'https://cdn.example/parent.jpg',
+          variants: [
+            {
+              barcode: 'B1',
+              onSale: true,
+              images: ['https://cdn.example/variant.jpg'],
+              stock: { quantity: 1 },
+              price: { salePrice: 10 },
+            },
+          ],
+        },
+      ],
+    });
+    expect(listings[0].imageUrl).toBe('https://cdn.example/variant.jpg');
+    expect(listings[0].imageUrls).toContain('https://cdn.example/parent.jpg');
+  });
+
   it('maps v2 order packages without treating package as order number', () => {
     const orders = mapShipmentPackages({
       content: [
@@ -62,5 +84,14 @@ describe('trendyol-parse', () => {
     expect(orders[0].itemCount).toBe(2);
     expect(orders[0].lines[0].listingId).toBe('ty-8683772071724');
     expect(orders[0].status).toBe('created');
+    expect(orders[0].productTitle).toContain('8683772071724');
+  });
+
+  it('keeps packages when orderNumber is missing', () => {
+    const orders = mapShipmentPackages({
+      content: [{ shipmentPackageId: 9, status: 'Created', lines: [] }],
+    });
+    expect(orders[0].id).toBe('ty-9');
+    expect(orders[0].orderNumber).toBe('9');
   });
 });

@@ -12,11 +12,16 @@ export type Order = {
   qty: number;
   amount: number;
   time: string;
+  createdAt: string;
   due: string;
   dueTone: 'warn' | 'idle';
   status: OrderStatus;
   statusLabel: string;
   thumb: ProductThumbKind;
+  imageUrl?: string | null;
+  lines: { listingId: string; qty: number; title?: string; imageUrl?: string | null }[];
+  reserved?: boolean;
+  imageUrl?: string | null;
   reserved?: boolean;
   packed?: boolean;
   labeled?: boolean;
@@ -44,6 +49,9 @@ export type Product = {
   marketplaceStock: number;
   listingId: string;
   channel?: Channel;
+  imageUrl: string | null;
+  imageUrls: string[];
+  statusLabel?: string;
 };
 
 export const STORE_NAME = 'Mağazam';
@@ -71,11 +79,13 @@ export const orders: Order[] = [
     qty: 2,
     amount: 899.9,
     time: '13:42',
+    createdAt: '2026-09-18T10:42:00.000Z',
     due: "Bugün 17:00'ye kadar",
     dueTone: 'warn',
     status: 'hazirlanacak',
     statusLabel: 'Hazırlanacak',
     thumb: 'mug',
+    lines: [],
   },
   {
     id: 'ty-10479',
@@ -87,11 +97,13 @@ export const orders: Order[] = [
     qty: 1,
     amount: 649,
     time: '11:56',
+    createdAt: '2026-09-18T08:56:00.000Z',
     due: "Yarın 17:00'ye kadar",
     dueTone: 'idle',
     status: 'hazirlanacak',
     statusLabel: 'Hazırlanacak',
     thumb: 'thermos',
+    lines: [],
   },
   {
     id: 'ty-10470',
@@ -103,11 +115,13 @@ export const orders: Order[] = [
     qty: 1,
     amount: 1290,
     time: '10:18',
+    createdAt: '2026-09-18T07:18:00.000Z',
     due: 'Kargoya verildi',
     dueTone: 'idle',
     status: 'kargoda',
     statusLabel: 'Kargoda',
     thumb: 'lamp',
+    lines: [],
   },
 ];
 
@@ -135,6 +149,8 @@ export const products: Product[] = [
     mapped: false,
     marketplaceStock: 24,
     listingId: 'kupa',
+    imageUrl: null,
+    imageUrls: [],
   },
   {
     id: 'havlu',
@@ -154,6 +170,8 @@ export const products: Product[] = [
     mapped: false,
     marketplaceStock: 3,
     listingId: 'havlu',
+    imageUrl: null,
+    imageUrls: [],
   },
   {
     id: 'termos',
@@ -173,6 +191,8 @@ export const products: Product[] = [
     mapped: false,
     marketplaceStock: 18,
     listingId: 'termos',
+    imageUrl: null,
+    imageUrls: [],
   },
   {
     id: 'lamba',
@@ -192,6 +212,8 @@ export const products: Product[] = [
     mapped: false,
     marketplaceStock: 12,
     listingId: 'lamba',
+    imageUrl: null,
+    imageUrls: [],
   },
 ];
 

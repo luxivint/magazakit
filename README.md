@@ -85,6 +85,8 @@ F6 stub: suppliers, warehouses, einvoices (`gibLive: false`), printer.
 
 Katalog: `GET /v1/docs`. Satılabilir = fiziksel − rezerve. Yazdırma kargolamaz.
 
+İçeri al ürün **ve** sipariş çeker. Trendyol sipariş API’si 2 haftalık pencerelerle son ~6 ayı tarar. İlan görselleri varsa Cloudflare R2’ye kopyalanır (`R2_*` gitignored `.env`); anahtar yoksa pazaryeri CDN URL’si kalır.
+
 ## Persistence
 
 `DATABASE_URL` yoksa bellek (restart’ta silinir). Varsa `apps/api/migrations/*.sql` boot’ta uygulanır. URL var ama Postgres kapalıysa uyarı + bellek.

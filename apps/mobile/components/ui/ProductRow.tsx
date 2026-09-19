@@ -12,7 +12,7 @@ import { ProductThumb } from './ProductThumb';
 export function ProductRow({ product }: { product: Product }) {
   return (
     <Pressable style={styles.row} onPress={() => router.push(`/urun/${product.id}`)}>
-      <ProductThumb kind={product.thumb} />
+      <ProductThumb kind={product.thumb} uri={product.imageUrl} />
       <View style={styles.mid}>
         <Text style={styles.name}>{product.name}</Text>
         <Text style={styles.sku}>{product.mapped ? `Ana SKU: ${product.sku}` : 'Eşleşmedi · satılabilir 0'}</Text>

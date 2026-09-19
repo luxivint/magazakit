@@ -12,9 +12,13 @@ const cfg: TrendyolLiveConfig = {
 
 describe('LiveTrendyolReadAdapter', () => {
   it('pulls approved products and v2 orders via injected GET', async () => {
-    const calls: string[] = [];
-    const getJson = async (_c: TrendyolLiveConfig, path: string) => {
-      calls.push(path);
+    const calls: { path: string; startDate?: number }[] = [];
+    const getJson = async (
+      _c: TrendyolLiveConfig,
+      path: string,
+      query: TrendyolQuery = {},
+    ) => {
+      calls.push({ path, startDate: typeof query.startDate === 'number' ? query.startDate : undefined });
       if (path.includes('/products/approved')) {
         return {
           content: [
@@ -54,9 +58,13 @@ describe('LiveTrendyolReadAdapter', () => {
     expect(feed.listings).toHaveLength(1);
     expect(feed.orders).toHaveLength(1);
     expect(feed.returns).toEqual([]);
-    expect(calls[0]).toContain('/products/approved');
-    expect(calls[1]).toContain('/v2/orders');
-    expect(calls.join(' ')).not.toContain('secret');
+    expect(calls[0].path).toContain('/products/approved');
+    expect(calls.filter((c) => c.path.includes('/v2/orders')).length).toBeGreaterThan(1);
+    const spans = calls
+      .filter((c) => c.startDate != null)
+      .map((c) => c.startDate as number);
+    expect(Math.max(...spans) - Math.min(...spans)).toBeGreaterThan(30 * 24 * 60 * 60 * 1000);
+    expect(JSON.stringify(calls)).not.toContain('secret');
   });
 
   it('continues approved-product pagination with nextPageToken after 10,000 contents', async () => {

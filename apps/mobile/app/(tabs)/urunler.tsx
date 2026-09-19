@@ -26,13 +26,18 @@ const TABS = [
 export default function UrunlerScreen() {
   const catalog = useCatalog();
   const [tab, setTab] = useState('all');
+  const [q, setQ] = useState('');
   const products = catalog.products;
   const sourceLabel = catalogSourceLabel(catalog.reachable, catalog.apiMock);
 
   const visible = useMemo(() => {
-    if (tab === 'critical') return products.filter((p) => p.critical);
-    return products;
-  }, [tab, products]);
+    const needle = q.trim().toLowerCase();
+    return products.filter((p) => {
+      if (tab === 'critical' && !p.critical) return false;
+      if (!needle) return true;
+      return `${p.name} ${p.sku} ${p.barcode} ${p.listingId}`.toLowerCase().includes(needle);
+    });
+  }, [tab, products, q]);
 
   const criticalCount = products.filter((p) => p.critical).length;
 
@@ -52,7 +57,11 @@ export default function UrunlerScreen() {
             </Pressable>
           </View>
           <View style={styles.searchRow}>
-            <SearchField placeholder="Ürün adı, barkod veya SKU" />
+            <SearchField
+              placeholder="Ürün adı, barkod veya SKU"
+              value={q}
+              onChangeText={setQ}
+            />
             <Pressable style={styles.filterBtn} accessibilityLabel="Görünüm">
               <Ionicons name="filter-outline" size={18} color={colors.white} />
             </Pressable>

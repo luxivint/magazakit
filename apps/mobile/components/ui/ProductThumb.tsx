@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import type { ProductThumbKind } from '@/data/mock';
@@ -11,7 +11,29 @@ const BG: Record<ProductThumbKind, string> = {
   lamp: '#E4E0D4',
 };
 
-export function ProductThumb({ kind, size = 52 }: { kind: ProductThumbKind; size?: number }) {
+export function ProductThumb({
+  kind = 'mug',
+  uri,
+  size = 52,
+}: {
+  kind?: ProductThumbKind;
+  uri?: string | null;
+  size?: number;
+}) {
+  if (uri) {
+    return (
+      <Image
+        source={{ uri }}
+        accessibilityLabel="Ürün görseli"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: radii.thumb,
+          backgroundColor: colors.skeleton,
+        }}
+      />
+    );
+  }
   return (
     <View style={[styles.box, { width: size, height: size, backgroundColor: BG[kind] }]}>
       <Svg width={size * 0.62} height={size * 0.62} viewBox="0 0 32 32">

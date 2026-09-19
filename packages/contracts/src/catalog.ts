@@ -2,6 +2,8 @@ export type OrderLine = {
   listingId: string;
   qty: number;
   scannedQty: number;
+  title?: string;
+  imageUrl?: string | null;
 };
 
 export type Channel =
@@ -43,6 +45,7 @@ export type ProductListItem = {
   status: ProductStatus;
   statusLabel: string;
   imageUrl: string | null;
+  imageUrls?: string[];
 };
 
 export type OrderStatus = 'created' | 'picking' | 'shipped' | 'delivered' | 'cancelled';
@@ -56,6 +59,8 @@ export type OrderListItem = {
   status: OrderStatus;
   statusLabel: string;
   itemCount: number;
+  productTitle?: string;
+  imageUrl?: string | null;
   totalTry: number;
   /** ISO 4217 currency reported by the channel. `totalTry` is retained for API compatibility. */
   totalCurrency?: string;

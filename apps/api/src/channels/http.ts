@@ -168,6 +168,38 @@ export async function channelFetchJson(
   }
 }
 
+export async function channelFetchBytes(
+  url: string | URL,
+  init: RequestInit,
+  label: string,
+): Promise<{ bytes: Buffer; contentType: string }> {
+  const timeout = AbortSignal.timeout(
+    Number(process.env.CHANNEL_HTTP_TIMEOUT_MS) || 15_000,
+  );
+  const signal = init.signal
+    ? AbortSignal.any([init.signal, timeout])
+    : timeout;
+  const res = await fetchFollowingRedirects(url, { ...init, signal }, label);
+  if (!res.ok) {
+    throw new HttpException(
+      {
+        code: ErrorCodes.CHANNEL_UNAVAILABLE,
+        message: `${label} ${res.status}`,
+      },
+      HttpStatus.BAD_GATEWAY,
+    );
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > 8 * 1024 * 1024) {
+    throw new HttpException(
+      { code: ErrorCodes.VALIDATION, message: `${label} görsel çok büyük.` },
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+  const contentType = res.headers.get('content-type') || 'application/octet-stream';
+  return { bytes: buf, contentType };
+}
+
 async function fetchFollowingRedirects(
   start: string | URL,
   init: RequestInit,

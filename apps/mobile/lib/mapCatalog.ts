@@ -32,9 +32,13 @@ function dueLabel(iso: string | null, warn: boolean): { due: string; dueTone: 'w
   const d = new Date(iso);
   const clock = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
   const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diff = Math.round((day - start) / 86_400_000);
+  if (diff === 0) return { due: `Bugün ${clock}'ye kadar`, dueTone: warn ? 'warn' : 'idle' };
+  if (diff === 1) return { due: `Yarın ${clock}'ye kadar`, dueTone: warn ? 'warn' : 'idle' };
   return {
-    due: sameDay ? `Bugün ${clock}'ye kadar` : `Yarın ${clock}'ye kadar`,
+    due: d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }),
     dueTone: warn ? 'warn' : 'idle',
   };
 }
@@ -58,7 +62,10 @@ export function mapApiProduct(item: ProductListItem, index: number): Product {
     channels: { trendyol: item.channel === 'trendyol' },
     channel: item.channel,
     thumb: THUMBS[index % THUMBS.length],
+    imageUrl: item.imageUrl,
+    imageUrls: item.imageUrls?.length ? item.imageUrls : item.imageUrl ? [item.imageUrl] : [],
     critical: item.critical,
+    statusLabel: item.statusLabel,
   };
 }
 
@@ -80,15 +87,23 @@ export function mapApiOrder(item: OrderListItem, index: number): Order {
     channel: item.channel,
     channelLabel: CHANNEL_LABELS[item.channel] ?? item.channel,
     number: item.orderNumber.startsWith('#') ? item.orderNumber : `#${item.orderNumber}`,
-    product: `${item.itemCount} adet`,
+    product: item.productTitle || `${item.itemCount} adet`,
     customer: item.customerName,
     qty: item.itemCount,
     amount: item.totalTry,
     time: new Date(item.createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+    createdAt: item.createdAt,
     due: due.due,
     dueTone: due.dueTone,
     ...mapStatus(item.status, item.statusLabel),
     thumb: THUMBS[index % THUMBS.length],
+    imageUrl: item.imageUrl ?? item.lines.find((l) => l.imageUrl)?.imageUrl ?? null,
+    lines: item.lines.map((l) => ({
+      listingId: l.listingId,
+      qty: l.qty,
+      title: l.title,
+      imageUrl: l.imageUrl ?? null,
+    })),
     reserved: !!item.reserved,
     packed: !!item.packed,
     labeled: !!item.labeled,
