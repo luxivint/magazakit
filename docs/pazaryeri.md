@@ -1,6 +1,8 @@
 # Pazaryeri entegrasyonu (11 kanal)
 
-Doğrulama: 18 Eylül 2026, resmi portallar + (resmi olmayan) lonca / coskntkk SDK. Yazma yok. Anahtar Expo’da yok.
+Doğrulama: 19 Eylül 2026, resmi portallar. **Canlı yazma yok** (`write: false`). Anahtar Expo’da yok. 8 salt-okuma adapter + 3 BLOKE kanal; “11 kanal yazıyor” değil.
+
+Organizasyon bazlı şifreli mağaza anahtarı henüz yok: sunucu `.env` ortak, erişim `MARKETPLACE_OWNER_UID` ile tek Firebase hesabına kilitli.
 
 `GET /v1/channels` → `mode` + `write: false`. `POST /v1/shops/:channel/connect` Nest `.env` probe; BLOKE / eksik env → `CHANNEL_UNAVAILABLE` (503), shop yazılmaz. Canlı env anahtarlarını yalnızca `MARKETPLACE_OWNER_UID` ile eşleşen Firebase hesabı kullanabilir. Trendyol default `TRENDYOL_USE_MOCK=true` (mock); canlı için `false` + üç env.
 
@@ -9,11 +11,11 @@ Doğrulama: 18 Eylül 2026, resmi portallar + (resmi olmayan) lonca / coskntkk S
 | Trendyol | V2 approved + `/v2/orders`, `apigw.trendyol.com`, UA `{sellerId} - SelfIntegration` | [getting started](https://developers.trendyol.com/v3.0/docs/getting-started-1), [ürün V2](https://developers.trendyol.com/v3.0/docs/product-filter-approved-product-v2), [sipariş V2](https://developers.trendyol.com/docs/sipari%C5%9F-paketlerini-%C3%A7ekme-getshipmentpackages) | Lonca örnekleri V1 `/orders` içerebilir — kullanılmaz. |
 | Hepsiburada | `GET listing-external.../listings/merchantid/{id}` + `GET oms-external.../orders/merchantid/{id}` Basic | [developers.hepsiburada.com](https://developers.hepsiburada.com) | UA **yalın integrator adı** (`HEPSIBURADA_INTEGRATOR_NAME`). `{merchantId} - SelfIntegration` SIT’te 401. |
 | n11 | `GET api.n11.com/ms/product-query` + `.../shipmentPackages` header `appKey`/`appSecret` | [ürün](https://developer.n11.com/documentation/n11-marketplace-entegrasyonu/satici-urun-sorgulama/), [sipariş](https://developer.n11.com/documentation/n11-siparis-entegrasyonu/siparis-listeleme-servisi/) | SOAP ayrı; kullanılmaz. |
-| Shopify | Admin GraphQL `2026-07` | [versioning](https://shopify.dev/docs/api/usage/versioning) | `2025-10` 16 Eki 2026’da düşer. `read_orders` scope ayrı. |
-| WooCommerce | `wp-json/wc/v3` query key | [REST](https://developer.woocommerce.com/docs/apis/rest-api/) | HTTPS; özel IP yok. |
+| Shopify | Admin GraphQL `2026-07`, cursor `pageInfo` | [versioning](https://shopify.dev/docs/api/usage/versioning) | `read_orders` ayrı; sipariş izni yoksa ürün senkronu yine çalışır. |
+| WooCommerce | `wp-json/wc/v3` **Basic Auth** | [auth](https://developer.woocommerce.com/docs/apis/rest-api/) | Query-string key kullanılmaz. Para birimi `GET /data/currencies/current`. |
 | Çiçeksepeti | `GET /Products` + `POST /Order/GetOrders`; cevap `supplierOrderListWithBranch` | [ciceksepeti.dev](https://www.ciceksepeti.dev/) | UA satıcı id. Tarih ≤14 gün. |
-| ikas | `api.myikas.com` `listProduct` Bearer | [auth](https://builders.ikas.com/docs/app-development/private-app/authentication) | Client credentials token önbelleğe alınır ve süresi dolmadan yenilenir; sipariş sorgusu yok (boş liste). |
-| Amazon TR | LWA + `GET /orders/2026-01-01/orders` ve Listings Items EU, marketplace `A33AVAJ2PDY3EV` | [marketplace IDs](https://developer-docs.amazon.com/sp-api/docs/marketplace-ids), [searchOrders](https://developer-docs.amazon.com/sp-api/reference/searchorders) | Yeni nested order şeması + pagination token; ürünler için `AMAZON_SELLER_ID`. UA `App/1.0 (Language=JavaScript)`. |
+| ikas | OAuth `client_credentials` + `listProduct` / resmi `listOrder` | [auth](https://builders.ikas.com/docs/app-development/private-app/authentication), [listOrder](https://builders.ikas.com/docs/admin-api/admin-apis/order/list-order) | Token `expires_in` (14400sn) önbellekte. Satır SKU resmi örnekte yok; kalemler boş kalabilir. |
+| Amazon TR | `searchOrders` 2026-01-01 `includedData=PROCEEDS,FULFILLMENT` + Listings Items `2021-08-01` | [searchOrders](https://developer-docs.amazon.com/sp-api/reference/searchorders), [searchListingsItems](https://developer-docs.amazon.com/sp-api/reference/searchlistingsitems) | Sayfa `pagination.nextToken` → `paginationToken`. Ürün için `AMAZON_SELLER_ID`. |
 | Pazarama | **BLOKE** | isortagim panel; `isortagimapi.pazarama.com/docs` **404** | Path uydurulmadı. |
 | Ticimax | **BLOKE** | SOAP [UrunServis](https://static.ticimax.com/dokumanlar/UrunServis.pdf) / [SiparisServis](https://static.ticimax.com/dokumanlar/SiparisServis.pdf) | REST yok; SOAP bu dilimde yok. |
 | IdeaSoft | **BLOKE** | [apidoc.ideasoft.dev](https://apidoc.ideasoft.dev/) OAuth | Ürün/sipariş path doğrulanmadan çağrılmıyor. |

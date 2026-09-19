@@ -51,6 +51,12 @@ export function mapStatus(raw: string): {
   if (s.includes('partially_fulfilled') || s.includes('partially fulfilled')) {
     return { status: 'picking', statusLabel: 'Kısmen hazırlandı' };
   }
+  if (s.includes('partially_shipped') || s.includes('partially shipped')) {
+    return { status: 'picking', statusLabel: 'Kısmen kargolandı' };
+  }
+  if (s.includes('unfulfillable')) {
+    return { status: 'cancelled', statusLabel: 'Karşılanamaz' };
+  }
   if (s === 'fulfilled') {
     return { status: 'shipped', statusLabel: 'Gönderildi' };
   }

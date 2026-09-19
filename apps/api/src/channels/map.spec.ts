@@ -14,5 +14,9 @@ describe('pageItems', () => {
     expect(mapStatus('FULFILLED').status).toBe('shipped');
     expect(mapStatus('PARTIALLY_FULFILLED').status).toBe('picking');
     expect(mapStatus('UNFULFILLED').status).toBe('created');
+    expect(mapStatus('SHIPPED').status).toBe('shipped');
+    expect(mapStatus('PARTIALLY_SHIPPED').status).toBe('picking');
+    expect(mapStatus('UNSHIPPED').status).toBe('created');
+    expect(mapStatus('UNFULFILLABLE').status).toBe('cancelled');
   });
 });

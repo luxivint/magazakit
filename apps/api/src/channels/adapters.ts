@@ -172,7 +172,14 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
         createdAt: str(r.orderDate ?? r.OrderDate) || undefined,
         lines: items.map((it) => {
           const line = rec(it) ?? {};
-          const sku = str(line.sku ?? line.hbSku ?? line.merchantSku);
+          const sku = str(
+            line.hepsiburadaSku ??
+              line.HepsiburadaSku ??
+              line.merchantSku ??
+              line.MerchantSku ??
+              line.sku ??
+              line.hbSku,
+          );
           return {
             listingId: sku ? `hb-${sku}` : `hb-line-${str(line.id)}`,
             qty: Math.max(1, num(line.quantity)),
@@ -359,6 +366,22 @@ function arrFirst(value: unknown): unknown {
   return Array.isArray(value) ? value[0] : value;
 }
 
+/** A missing product or order scope must not fail the other feed. */
+async function independentFeed(
+  products: () => Promise<ReturnType<typeof listing>[]>,
+  orders: () => Promise<Omit<OrderListItem, 'organizationId'>[]>,
+) {
+  const [listingPart, orderPart] = await Promise.allSettled([products(), orders()]);
+  if (listingPart.status === 'rejected' && orderPart.status === 'rejected') {
+    throw listingPart.reason;
+  }
+  return {
+    listings: listingPart.status === 'fulfilled' ? listingPart.value : [],
+    orders: orderPart.status === 'fulfilled' ? orderPart.value : [],
+    returns: [] as [],
+  };
+}
+
 function graphQlFailed(payload: unknown): boolean {
   const errors = rec(payload)?.errors;
   return Array.isArray(errors) && errors.length > 0;
@@ -420,11 +443,10 @@ export class ShopifyReadAdapter implements ChannelReadAdapter {
   }
 
   async pullFeed() {
-    const [listings, orders] = await Promise.all([
-      this.collectProducts(),
-      this.collectOrders(),
-    ]);
-    return { listings, orders, returns: [] };
+    return independentFeed(
+      () => this.collectProducts(),
+      () => this.collectOrders(),
+    );
   }
 
   private async collectProducts() {
@@ -583,8 +605,24 @@ export class WooCommerceReadAdapter implements ChannelReadAdapter {
     return this.collectFeed(true, true);
   }
 
+  private async storeCurrency(c: { root: string; headers: Record<string, string> }): Promise<string> {
+    try {
+      const payload = rec(
+        await channelFetchJson(
+          `${c.root}/data/currencies/current`,
+          { headers: c.headers },
+          'WooCommerce currency',
+        ),
+      );
+      return str(payload?.code) || 'TRY';
+    } catch {
+      return 'TRY';
+    }
+  }
+
   private async collectFeed(includeListings: boolean, includeOrders: boolean) {
     const c = this.cfg();
+    const currency = await this.storeCurrency(c);
     const productRows: unknown[] = [];
     if (includeListings) {
       for (let page = 1; page <= 1000; page += 1) {
@@ -608,7 +646,7 @@ export class WooCommerceReadAdapter implements ChannelReadAdapter {
         sku,
         title: str(r.name) || sku,
         priceTry: num(r.price ?? r.regular_price),
-        priceCurrency: str(r.currency) || undefined,
+        priceCurrency: currency,
         marketplaceStock: num(r.stock_quantity),
         active: str(r.stock_status) !== 'outofstock',
         imageUrl: httpImage(img?.src),
@@ -644,7 +682,7 @@ export class WooCommerceReadAdapter implements ChannelReadAdapter {
         customerName: str(rec(r.billing)?.first_name),
         statusRaw: str(r.status),
         totalTry: num(r.total),
-        totalCurrency: str(r.currency) || 'TRY',
+        totalCurrency: str(r.currency) || currency,
         createdAt: str(r.date_created_gmt)
           ? `${str(r.date_created_gmt)}Z`
           : undefined,
@@ -925,6 +963,13 @@ export class IkasReadAdapter implements ChannelReadAdapter {
   }
 
   async pullFeed() {
+    return independentFeed(
+      () => this.collectProducts(),
+      () => this.collectOrders(),
+    );
+  }
+
+  private async collectProducts() {
     const productRows: unknown[] = [];
     for (let page = 1; page <= 1000; page += 1) {
       const products = rec(
@@ -977,7 +1022,45 @@ export class IkasReadAdapter implements ChannelReadAdapter {
         });
       });
     });
-    return { listings, orders: [], returns: [] };
+    return listings;
+  }
+
+  private async collectOrders() {
+    const orderRows: unknown[] = [];
+    for (let page = 1; page <= 1000; page += 1) {
+      const payload = rec(
+        await this.gql(
+          `query ListOrder($pagination: PaginationInput, $sort: String) {
+            listOrder(pagination: $pagination, sort: $sort) {
+              count
+              hasNext
+              data { id orderNumber orderedAt status totalFinalPrice }
+            }
+          }`,
+          { pagination: { page, limit: 100 }, sort: '-orderedAt' },
+        ),
+      );
+      const root = rec(rec(payload?.data)?.listOrder);
+      const batch = pageItems(root?.data);
+      orderRows.push(...batch);
+      if (batch.length < 100 || root?.hasNext === false) break;
+      const count = num(root?.count);
+      if (count > 0 && orderRows.length >= count) break;
+    }
+    return orderRows.map((row) => {
+      const r = rec(row) ?? {};
+      const id = str(r.id) || str(r.orderNumber);
+      return order({
+        channel: 'ikas',
+        id: `ikas-${id}`,
+        orderNumber: str(r.orderNumber) || id,
+        statusRaw: str(r.status),
+        totalTry: num(r.totalFinalPrice),
+        createdAt: num(r.orderedAt)
+          ? new Date(num(r.orderedAt)).toISOString()
+          : str(r.orderedAt) || undefined,
+      });
+    });
   }
 
   async listProducts(query: PageQuery) {
@@ -998,7 +1081,14 @@ export class IkasReadAdapter implements ChannelReadAdapter {
   }
 
   async listOrders(query: PageQuery) {
-    return asPreviewList(paginate([] as OrderListItem[], query), false);
+    const orders = await this.collectOrders();
+    return asPreviewList(
+      paginate(
+        orders.map((o) => ({ ...o, organizationId: '' })),
+        query,
+      ),
+      false,
+    );
   }
 }
 
@@ -1079,7 +1169,7 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
       marketplaceIds: marketplace,
       createdAfter: after,
       maxResultsPerPage: String(limit),
-      includedData: 'PROCEEDS',
+      includedData: 'PROCEEDS,FULFILLMENT',
     });
     if (paginationToken) query.set('paginationToken', paginationToken);
     return `${host}/orders/2026-01-01/orders?${query.toString()}`;
@@ -1095,11 +1185,10 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
   }
 
   async pullFeed() {
-    const [listings, orders] = await Promise.all([
-      this.collectProducts(),
-      this.collectOrders(),
-    ]);
-    return { listings, orders, returns: [] };
+    return independentFeed(
+      () => this.collectProducts(),
+      () => this.collectOrders(),
+    );
   }
 
   private async collectProducts() {
@@ -1173,7 +1262,9 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
         ]),
       );
       paginationToken = str(
-        root.paginationToken ?? rec(root.payload)?.NextToken,
+        rec(root.pagination)?.nextToken ??
+          root.paginationToken ??
+          rec(root.payload)?.NextToken,
       );
       if (!paginationToken) break;
     }
