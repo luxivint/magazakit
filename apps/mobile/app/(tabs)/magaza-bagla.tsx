@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/Button';
 import { ChannelBadge } from '@/components/ui/ChannelBadge';
 import { ConfigBanner } from '@/components/ui/ConfigBanner';
 import { TextField } from '@/components/ui/TextField';
-import { useAuth } from '@/context/AuthContext';
 import { useShops } from '@/context/ShopContext';
 import type { Channel, ChannelCatalogRow, ShopConnectRequest } from '@/lib/api';
 import { ApiError, fetchChannels } from '@/lib/apiClient';
@@ -21,45 +20,43 @@ type Field = { key: keyof ShopConnectRequest; label: string; placeholder: string
 
 const FIELDS: Partial<Record<Channel, Field[]>> = {
   trendyol: [
-    { key: 'sellerId', label: 'Satıcı ID', placeholder: 'Trendyol sellerId' },
-    { key: 'apiKey', label: 'API key', placeholder: 'Sunucuya bir kez gider', secure: true },
-    { key: 'apiSecret', label: 'API secret', placeholder: 'Telefonda saklanmaz', secure: true },
+    { key: 'sellerId', label: 'Satıcı ID (Cari ID)', placeholder: 'Satıcı ID' },
+    { key: 'apiKey', label: 'API Key', placeholder: 'API Key', secure: true },
+    { key: 'apiSecret', label: 'API Secret', placeholder: 'API Secret', secure: true },
   ],
   hepsiburada: [
-    { key: 'merchantId', label: 'Merchant ID', placeholder: 'merchantId' },
-    { key: 'apiKey', label: 'API key', placeholder: 'Basic kullanıcı', secure: true },
-    { key: 'apiSecret', label: 'API secret', placeholder: 'Basic parola', secure: true },
+    { key: 'merchantId', label: 'Merchant ID', placeholder: 'Merchant ID' },
+    { key: 'apiKey', label: 'API Key', placeholder: 'API Key', secure: true },
+    { key: 'apiSecret', label: 'API Secret', placeholder: 'API Secret', secure: true },
   ],
   n11: [
-    { key: 'appKey', label: 'appKey', placeholder: 'n11 appKey', secure: true },
-    { key: 'appSecret', label: 'appSecret', placeholder: 'n11 appSecret', secure: true },
+    { key: 'appKey', label: 'appKey', placeholder: 'appKey', secure: true },
+    { key: 'appSecret', label: 'appSecret', placeholder: 'appSecret', secure: true },
   ],
   shopify: [
     { key: 'shopDomain', label: 'Mağaza', placeholder: 'magaza.myshopify.com' },
     { key: 'accessToken', label: 'Admin token', placeholder: 'shpat_…', secure: true },
   ],
   woocommerce: [
-    { key: 'host', label: 'Mağaza HTTPS', placeholder: 'https://ornek.com' },
+    { key: 'host', label: 'Mağaza adresi', placeholder: 'https://ornek.com' },
     { key: 'consumerKey', label: 'Consumer key', placeholder: 'ck_…', secure: true },
     { key: 'consumerSecret', label: 'Consumer secret', placeholder: 'cs_…', secure: true },
   ],
-  ciceksepeti: [{ key: 'apiKey', label: 'API key', placeholder: 'x-api-key', secure: true }],
+  ciceksepeti: [{ key: 'apiKey', label: 'API Key', placeholder: 'API Key', secure: true }],
   ikas: [
-    { key: 'clientId', label: 'client_id', placeholder: 'ikas private app', secure: true },
-    { key: 'clientSecret', label: 'client_secret', placeholder: 'ikas secret', secure: true },
+    { key: 'clientId', label: 'client_id', placeholder: 'client_id', secure: true },
+    { key: 'clientSecret', label: 'client_secret', placeholder: 'client_secret', secure: true },
   ],
   amazon: [
-    { key: 'clientId', label: 'LWA client id', placeholder: 'amzn1.application…', secure: true },
+    { key: 'clientId', label: 'LWA client id', placeholder: 'LWA client id', secure: true },
     { key: 'clientSecret', label: 'LWA secret', placeholder: 'LWA secret', secure: true },
-    { key: 'refreshToken', label: 'Refresh token', placeholder: 'Atzr|…', secure: true },
-    { key: 'sellerId', label: 'Seller ID (ürünler)', placeholder: 'isteğe bağlı' },
+    { key: 'refreshToken', label: 'Refresh token', placeholder: 'Refresh token', secure: true },
+    { key: 'sellerId', label: 'Seller ID', placeholder: 'Ürün listesi için' },
   ],
 };
 
 export default function MagazaBaglaScreen() {
-  const { orgName } = useAuth();
   const { connectChannel } = useShops();
-  const [storeName, setStoreName] = useState(orgName ?? '');
   const [values, setValues] = useState<ShopConnectRequest>({});
   const [catalog, setCatalog] = useState<ChannelCatalogRow[]>([]);
   const [channel, setChannel] = useState<Channel>('trendyol');
@@ -82,9 +79,9 @@ export default function MagazaBaglaScreen() {
     try {
       const shop = await connectChannel(channel, values);
       setValues({});
-      setResult(`${shopStatusLabel(shop.status, shop.statusLabel)}. Anahtar telefonda tutulmadı.`);
+      setResult(shopStatusLabel(shop.status, shop.statusLabel));
     } catch (e) {
-      setResult(e instanceof ApiError ? e.message : 'Bağlantı denendi sayılmaz.');
+      setResult(e instanceof ApiError ? e.message : 'Bağlanamadı.');
     } finally {
       setBusy(false);
     }
@@ -98,54 +95,38 @@ export default function MagazaBaglaScreen() {
         </Pressable>
         <BrandMark />
         <Text style={styles.headline}>Mağazanı bağla</Text>
-        <Text style={styles.lead}>Anahtar bir kez API’ye gider, org mağazasında şifrelenir. Telefonda ve .env’de durmaz.</Text>
-        <View style={styles.steps}>
-          <Text style={styles.stepMuted}>1 İşletme</Text>
-          <Text style={styles.stepOn}>2 Mağaza</Text>
-          <Text style={styles.stepMuted}>3 Ürünler</Text>
-        </View>
+        {channel === 'trendyol' ? (
+          <Text style={styles.lead}>Paneldeki Satıcı ID, API Key ve API Secret. Diğer satırlar API’ye gitmez.</Text>
+        ) : (
+          <Text style={styles.lead}>Anahtar bir kez sunucuya yazılır.</Text>
+        )}
       </SafeAreaView>
       <PorcelainSheet>
         <ScrollView contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
-          <Text style={styles.section}>Pazaryeri seç</Text>
+          <Text style={styles.section}>Pazaryeri</Text>
           {catalog.length === 0 ? (
-            <Text style={styles.hint}>Kanallar yüklenemedi. API /v1/channels açık olmalı.</Text>
+            <Text style={styles.hint}>Kanallar yüklenemedi.</Text>
           ) : (
             catalog.map((row) => {
               const on = row.channel === channel;
+              const closed = row.mode === 'blocked';
               return (
                 <Pressable
                   key={row.channel}
-                  style={[styles.channelOn, on && styles.channelSelected]}
+                  style={[styles.channelOn, on && styles.channelSelected, closed && styles.channelBlocked]}
                   onPress={() => {
                     setChannel(row.channel);
                     setValues({});
                     setResult(null);
                   }}
                 >
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <ChannelBadge channel={row.channel} />
-                    <Text style={styles.hint}>
-                      {row.mode === 'mock'
-                        ? 'Anahtarsız test okuma (Trendyol mock)'
-                        : row.note}
-                    </Text>
-                  </View>
-                  {on ? <Ionicons name="checkmark-circle" size={22} color={colors.success} /> : null}
+                  <ChannelBadge channel={row.channel} />
+                  {closed ? <Text style={styles.blocked}>Kapalı</Text> : null}
+                  {on && !closed ? <Ionicons name="checkmark-circle" size={22} color={colors.success} /> : null}
                 </Pressable>
               );
             })
           )}
-          <TextField
-            label="Mağaza adı"
-            placeholder="Ayşe Home"
-            value={storeName}
-            onChangeText={setStoreName}
-            autoCapitalize="words"
-          />
-          {channel === 'trendyol' ? (
-            <Text style={styles.hint}>Boş bırakırsan mock bağlanır. Canlı için üç alan da gerekir; biri doluysa üçünü de doldur. Anahtarlar yalnızca HTTPS veya 127.0.0.1 API’ye gider.</Text>
-          ) : null}
           {fields.map((field) => (
             <TextField
               key={field.key}
@@ -158,19 +139,17 @@ export default function MagazaBaglaScreen() {
             />
           ))}
           {result ? <ConfigBanner text={result} /> : null}
-          {result && !result.includes('sayılmaz') && !result.includes('yok') && !result.includes('gerekli') ? (
+          {result && !result.includes('Bağlanamadı') && !result.includes('gerekli') && !result.includes('Kapalı') ? (
             <Button label="Ürünleri içeri al" variant="ghost" onPress={() => router.push('/(tabs)/icerik-al')} />
           ) : null}
           <Button
-            label={blocked ? 'Durumu dene (bağlı sayılmaz)' : 'Bağlantıyı test et'}
+            label={blocked ? 'Bu kanal kapalı' : 'Bağla'}
             icon="link-outline"
             trailing="arrow-forward"
             onPress={() => void test()}
             loading={busy}
+            disabled={blocked}
           />
-          <Pressable onPress={() => router.replace('/(tabs)/magazalar')}>
-            <Text style={styles.skip}>Daha sonra bağla</Text>
-          </Pressable>
         </ScrollView>
       </PorcelainSheet>
     </View>
@@ -183,9 +162,6 @@ const styles = StyleSheet.create({
   back: { width: 36, height: 36, justifyContent: 'center', marginBottom: 8 },
   headline: { marginTop: 8, fontFamily: fonts.bold, fontSize: 26, color: colors.white, letterSpacing: -0.5 },
   lead: { marginTop: 6, fontFamily: fonts.regular, fontSize: 14, color: colors.mutedOnDark },
-  steps: { flexDirection: 'row', gap: 14, marginTop: 14 },
-  stepOn: { fontFamily: fonts.semibold, fontSize: 13, color: colors.lime },
-  stepMuted: { fontFamily: fonts.medium, fontSize: 13, color: colors.mutedOnDark },
   sheet: { padding: space.xl, gap: 12, paddingBottom: 40 },
   section: { fontFamily: fonts.bold, fontSize: 18, color: colors.ink },
   channelOn: {
@@ -200,6 +176,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   channelSelected: { borderColor: colors.success },
-  hint: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, marginTop: -4 },
-  skip: { textAlign: 'center', fontFamily: fonts.medium, fontSize: 13, color: colors.muted, paddingVertical: 8 },
+  channelBlocked: { opacity: 0.55 },
+  blocked: { fontFamily: fonts.medium, fontSize: 12, color: colors.muted },
+  hint: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted },
 });
