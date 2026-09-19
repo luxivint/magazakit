@@ -32,6 +32,7 @@ import {
   type Channel,
   type ChannelCatalogRow,
   type ShopConnectRequest,
+  type TrendyolTariff,
 } from '@/lib/api';
 import { getIdToken } from '@/lib/firebase';
 
@@ -67,6 +68,7 @@ export type {
   PrinterTestResult,
   Channel,
   ChannelCatalogRow,
+  TrendyolTariff,
 };
 
 export class ApiError extends Error {
@@ -458,6 +460,18 @@ export async function createEinvoice(orderId?: string): Promise<EinvoiceDraft> {
     method: 'POST',
     headers: await headers(true),
     body: JSON.stringify(orderId ? { orderId } : {}),
+  });
+}
+
+export async function fetchTrendyolTariff(): Promise<TrendyolTariff> {
+  return request('/v1/shops/trendyol/tariff', { headers: await headers() });
+}
+
+export async function saveTrendyolTariff(body: Partial<TrendyolTariff>): Promise<TrendyolTariff> {
+  return request('/v1/shops/trendyol/tariff', {
+    method: 'PUT',
+    headers: await headers(true),
+    body: JSON.stringify(body),
   });
 }
 

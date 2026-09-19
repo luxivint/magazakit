@@ -17,6 +17,7 @@ import type {
   StockBalance,
   StockMovement,
   Supplier,
+  TrendyolTariff,
   Warehouse,
   WarehouseTransfer,
 } from '@magazakit/contracts';
@@ -113,6 +114,8 @@ export interface IdentityRepository {
   saveEinvoice(draft: EinvoiceDraft): Promise<EinvoiceDraft>;
   getPrinter(orgId: string): Promise<PrinterSettings | null>;
   savePrinter(settings: PrinterSettings): Promise<PrinterSettings>;
+  getTrendyolTariff(orgId: string): Promise<TrendyolTariff | null>;
+  saveTrendyolTariff(orgId: string, tariff: TrendyolTariff): Promise<TrendyolTariff>;
 }
 
 export function toProductListItem(

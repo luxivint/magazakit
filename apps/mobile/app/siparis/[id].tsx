@@ -286,6 +286,14 @@ function signed(value: number | null | undefined): number | null {
   return -Math.abs(value);
 }
 
+function sourceLabel(source?: string): string {
+  if (source === 'fatura') return 'fatura';
+  if (source === 'fatura-tahsis') return 'fatura-tahsis';
+  if (source === 'settlement') return 'cari';
+  if (source === 'tarife') return 'tahmini (tarife)';
+  return 'yok';
+}
+
 function PayoutCard({ money }: { money: Order['money'] }) {
   if (!money) {
     return (
@@ -295,13 +303,19 @@ function PayoutCard({ money }: { money: Order['money'] }) {
   const cargoLabel =
     money.cargoFeeRate != null ? `Kargo (%${money.cargoFeeRate})` : 'Kargo';
   const netReady = money.estimatedEarningsTry != null && money.cargoFeeTry != null && money.serviceFeeTry != null;
+  const status = money.earningsStatus ?? (money.earningsEstimated === false ? 'kesinleşti' : netReady ? 'tahmini' : 'eksik');
+  const netCaption = status === 'kesinleşti' ? 'kesinleşti' : status === 'tahmini' ? 'tahmini' : 'eksik';
   return (
     <>
       <Text style={styles.section}>Kesinti (panel)</Text>
       <View style={styles.moneyCard}>
         <MoneyRow label="Sipariş tutarı" value={money.customerTry} />
         <MoneyRow label="Komisyon" value={signed(money.commissionTry)} muted />
-        <MoneyRow label={cargoLabel} value={signed(money.cargoFeeTry)} muted />
+        <MoneyRow
+          label={`${cargoLabel} · ${sourceLabel(money.cargoFeeSource)}`}
+          value={signed(money.cargoFeeTry)}
+          muted
+        />
         <MoneyRow label="İndirim" value={-(money.sellerDiscountTry || 0)} muted />
         <MoneyRow label="Ceza" value={-(money.penaltyTry || 0)} muted />
         <MoneyRow label="İptal" value={-(money.cancelTry || 0)} muted />
@@ -309,15 +323,19 @@ function PayoutCard({ money }: { money: Order['money'] }) {
         <MoneyRow label="İade kargo" value={-(money.returnCargoTry || 0)} muted />
         <MoneyRow label="Yurtdışı operasyon iade" value={-(money.intlReturnOpTry || 0)} muted />
         <MoneyRow label="Uluslararası hizmet bedeli" value={-(money.intlServiceTry || 0)} muted />
-        <MoneyRow label="Platform hizmet bedeli" value={signed(money.serviceFeeTry)} muted />
-        <MoneyRow label="Stopaj" value={-(money.stoppageTry || 0)} muted />
+        <MoneyRow
+          label={`Platform hizmet bedeli · ${sourceLabel(money.serviceFeeSource)}`}
+          value={signed(money.serviceFeeTry)}
+          muted
+        />
+        <MoneyRow label="Stopaj" value={-(money.stoppageTry ?? 0)} muted />
         <MoneyRow label="SGR" value={-(money.sgrFeeTry || 0)} muted />
         <View style={styles.earnRow}>
-          <Text style={styles.earnLabel}>Net tutar</Text>
+          <Text style={styles.earnLabel}>Net hakediş · {netCaption}</Text>
           {netReady ? (
             <MoneyText value={money.estimatedEarningsTry ?? 0} size="metric" />
           ) : (
-            <Text style={styles.missing}>fatura satırı yok</Text>
+            <Text style={styles.missing}>kalem eksik</Text>
           )}
         </View>
         {money.paymentMethod ? (
@@ -327,12 +345,13 @@ function PayoutCard({ money }: { money: Order['money'] }) {
           <Text style={styles.body}>
             {money.cargoProvider}
             {money.cargoTrackingNumber ? ` · ${money.cargoTrackingNumber}` : ''}
+            {money.cargoDeci != null ? ` · ${money.cargoDeci} desi` : ''}
           </Text>
         ) : null}
         <Text style={styles.note}>
-          Komisyon hakediş satırından. Kargo ve platform hizmeti ancak Trendyol sipariş numaralı
-          fatura kalemi gönderirse dolar. Satıcı paneli bu tutarları faturadan önce tahmin edebiliyor;
-          resmi API o tahmini vermiyor. Satır yoksa net yazılmaz.
+          Panel formülü: tutar − komisyon − kargo − PHB. Örnek (kaynaklı): 115 − 18,40 − 57,99 − 13,19 = 25,42.
+          57,99 ancak kargo faturası satırında veya senin tarife tablonda durur; koda gömülmez. PHB faturası
+          sipariş numarası taşımıyorsa dönem tahsisi yalnız n=1 veya n × senin PHB tutarın faturaya denkse.
         </Text>
       </View>
     </>
@@ -352,7 +371,7 @@ function MoneyRow({
     <View style={styles.moneyRow}>
       <Text style={styles.label}>{label}</Text>
       {value == null ? (
-        <Text style={styles.missing}>fatura satırı yok</Text>
+        <Text style={styles.missing}>yok</Text>
       ) : (
         <Text style={[styles.value, muted && { color: colors.muted }]}>{formatMoney(value)}</Text>
       )}

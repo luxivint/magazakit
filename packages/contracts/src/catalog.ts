@@ -16,6 +16,20 @@ export type OrderLine = {
 
 export type MoneySource = 'package_rate' | 'settlement' | 'invoice' | 'none';
 
+/** How a kesinti amount was produced. Never mix unlabeled guesses. */
+export type FeeSource = 'none' | 'tarife' | 'fatura-tahsis' | 'settlement' | 'fatura';
+
+export type EarningsStatus = 'eksik' | 'tahmini' | 'kesinleşti';
+
+/** Seller-filled amounts. Band ceilings come from Trendyol Akademi; TL cells stay empty until the seller copies panel/tarife. */
+export type TrendyolTariff = {
+  cargoRuleUrl: string;
+  phbRuleUrl: string;
+  cargoBands: { maxCustomerTry: number; amountTry: number | null }[];
+  cargoDesi: { deci: number; amountTry: number | null }[];
+  phbGrossTry: number | null;
+};
+
 /** Package figures plus optional current-account (cari) matches. Not a tax invoice. */
 export type OrderMoney = {
   grossTry: number;
@@ -28,7 +42,9 @@ export type OrderMoney = {
   sgrFeeTry: number;
   cargoFeeTry: number | null;
   cargoFeeLabel: string | null;
+  cargoFeeSource: FeeSource;
   serviceFeeTry: number | null;
+  serviceFeeSource: FeeSource;
   storeFeeTry: number | null;
   stoppageTry: number | null;
   sellerRevenueTry: number | null;
@@ -43,6 +59,7 @@ export type OrderMoney = {
   financeLoaded: boolean;
   estimatedEarningsTry: number | null;
   earningsEstimated: boolean;
+  earningsStatus: EarningsStatus;
   cargoProvider: string | null;
   cargoTrackingNumber: string | null;
   cargoDeci: number | null;

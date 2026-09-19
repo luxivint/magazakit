@@ -18,6 +18,7 @@ import type {
   StockBalance,
   StockMovement,
   Supplier,
+  TrendyolTariff,
   Warehouse,
   WarehouseTransfer,
 } from '@magazakit/contracts';
@@ -942,6 +943,24 @@ export class PostgresIdentityRepository implements IdentityRepository {
       [settings.organizationId, JSON.stringify(settings)],
     );
     return settings;
+  }
+
+  async getTrendyolTariff(orgId: string): Promise<TrendyolTariff | null> {
+    const row = await this.pool.query(
+      'SELECT payload FROM printer_settings WHERE organization_id = $1',
+      [`${orgId}:ty-tariff`],
+    );
+    return row.rows[0] ? (row.rows[0].payload as TrendyolTariff) : null;
+  }
+
+  async saveTrendyolTariff(orgId: string, tariff: TrendyolTariff): Promise<TrendyolTariff> {
+    await this.pool.query(
+      `INSERT INTO printer_settings (organization_id, payload)
+       VALUES ($1, $2::jsonb)
+       ON CONFLICT (organization_id) DO UPDATE SET payload = EXCLUDED.payload`,
+      [`${orgId}:ty-tariff`, JSON.stringify(tariff)],
+    );
+    return tariff;
   }
 
   private async listJson<T>(

@@ -84,7 +84,9 @@ export type OrderMoney = {
   sgrFeeTry: number;
   cargoFeeTry?: number | null;
   cargoFeeLabel?: string | null;
+  cargoFeeSource?: 'none' | 'tarife' | 'fatura-tahsis' | 'settlement' | 'fatura';
   serviceFeeTry?: number | null;
+  serviceFeeSource?: 'none' | 'tarife' | 'fatura-tahsis' | 'settlement' | 'fatura';
   storeFeeTry?: number | null;
   stoppageTry?: number | null;
   sellerRevenueTry?: number | null;
@@ -99,6 +101,7 @@ export type OrderMoney = {
   financeLoaded?: boolean;
   estimatedEarningsTry: number | null;
   earningsEstimated: boolean;
+  earningsStatus?: 'eksik' | 'tahmini' | 'kesinleşti';
   cargoProvider: string | null;
   cargoTrackingNumber?: string | null;
   cargoDeci?: number | null;
@@ -391,4 +394,12 @@ export type ChannelCatalogRow = {
   read: 'live' | 'mock' | 'blocked';
   write: false;
   note: string;
+};
+
+export type TrendyolTariff = {
+  cargoRuleUrl: string;
+  phbRuleUrl: string;
+  cargoBands: { maxCustomerTry: number; amountTry: number | null }[];
+  cargoDesi: { deci: number; amountTry: number | null }[];
+  phbGrossTry: number | null;
 };

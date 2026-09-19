@@ -27,6 +27,12 @@ export class MetaController {
         { method: 'GET', path: '/v1/channels', note: '11 kanallar; write false; BLOKE connected değil' },
         { method: 'GET', path: '/v1/shops' },
         {
+          method: 'GET',
+          path: '/v1/shops/trendyol/tariff',
+          note: 'Seller-editable cargo bands + PHB; Akademi URLs; no hardcoded 57.99',
+        },
+        { method: 'PUT', path: '/v1/shops/trendyol/tariff', body: { phbGrossTry: 'number|null', cargoBands: [] } },
+        {
           method: 'POST',
           path: '/v1/shops/trendyol/connect',
           body: { sellerId: 'live: with apiKey+apiSecret. empty = mock when TRENDYOL_USE_MOCK' },

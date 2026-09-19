@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
-import type { ShopConnectRequest, ShopStatus, ShopSyncResult } from '@magazakit/contracts';
+import { Body, Controller, Get, Param, Post, Put, Req } from '@nestjs/common';
+import type { ShopConnectRequest, ShopStatus, ShopSyncResult, TrendyolTariff } from '@magazakit/contracts';
 import type { Request } from 'express';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { assertConnectTransport } from './connect-transport';
@@ -13,6 +13,19 @@ export class ShopsController {
   async list(@CurrentUser() user: AuthUser): Promise<{ items: ShopStatus[]; mock: boolean }> {
     const items = await this.identity.listShops(user.uid);
     return { items, mock: items.every((s) => s.mock) };
+  }
+
+  @Get('trendyol/tariff')
+  getTariff(@CurrentUser() user: AuthUser): Promise<TrendyolTariff> {
+    return this.identity.getTrendyolTariff(user.uid);
+  }
+
+  @Put('trendyol/tariff')
+  saveTariff(
+    @CurrentUser() user: AuthUser,
+    @Body() body: Partial<TrendyolTariff>,
+  ): Promise<TrendyolTariff> {
+    return this.identity.saveTrendyolTariff(user.uid, body ?? {});
   }
 
   @Post('trendyol/connect')

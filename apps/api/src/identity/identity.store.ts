@@ -27,6 +27,7 @@ import {
   type PrinterTestResult,
   type PurchaseOrderStub,
   type Supplier,
+  type TrendyolTariff,
   type Warehouse,
   type WarehouseTransfer,
 } from '@magazakit/contracts';
@@ -36,7 +37,8 @@ import { trendyolMode } from '../config/trendyol-env';
 import { mockTrendyolOutboxStatus } from '../outbox/mock-trendyol-write';
 import { CHANNEL_LABELS, HARD_BLOCK, channelCatalog } from '../channels/registry';
 import { liveAdapterFromSecrets, parseShopConnect, trendyolLiveFromSecrets } from '../channels/shop-secrets';
-import { enrichOrdersWithFinance } from '../trendyol/trendyol-finance';
+import { applyFinanceMap, enrichOrdersWithFinance } from '../trendyol/trendyol-finance';
+import { normalizeTariff } from '../trendyol/trendyol-tariff';
 import { SHOP_CHANNELS, type ChannelAdapterMap, type ChannelCatalogRow, type ChannelReadAdapter } from '../channels/types';
 import type { Channel, ShopConnectRequest } from '@magazakit/contracts';
 import { mirrorListingImages } from '../media/ingest-images';
@@ -246,6 +248,7 @@ export class IdentityStore {
     const photographed = attachListingPhotos(feed.orders, listings);
     const ordersUpserted = await this.repo.upsertOrders(org.id, photographed);
     this.financeTriedAt.delete(org.id);
+    await this.attachTrendyolFinance(uid, org.id, await this.repo.listOrgOrders(org.id), true);
     await this.repo.upsertReturns(org.id, feed.returns ?? []);
     const lastSyncAt = new Date().toISOString();
     const prefix = adapter.mock ? 'mock' : 'live';
@@ -319,31 +322,31 @@ export class IdentityStore {
     uid: string,
     orgId: string,
     orders: OrderListItem[],
+    force = false,
   ): Promise<OrderListItem[]> {
     if (orders.length === 0) return orders;
-    const missingInvoice = orders.some(
+    const tariff = normalizeTariff(await this.repo.getTrendyolTariff(orgId));
+    const withTariff = (rows: OrderListItem[]) =>
+      applyFinanceMap(rows, new Map(), tariff).map((row) => ({ ...row, organizationId: orgId }));
+    const allInvoiced = orders.every(
       (order) =>
-        order.money &&
-        (order.money.commissionTry == null ||
-          order.money.cargoFeeTry == null ||
-          order.money.serviceFeeTry == null),
+        order.money?.cargoFeeSource === 'fatura' && order.money.serviceFeeSource === 'fatura',
     );
-    if (!missingInvoice) return orders;
-    const last = this.financeTriedAt.get(orgId) ?? 0;
-    if (last > 0 && Date.now() - last < 5 * 60 * 1000) return orders;
+    if (!force && allInvoiced) return withTariff(orders);
     const shop = (await this.repo.listShopsForUid(uid)).find(
       (s) => s.organizationId === orgId && s.channel === 'trendyol' && s.status === 'live_connected' && !s.mock,
     );
-    if (!shop) return orders;
-    const secrets = await this.repo.getShopSecrets(shop.id, orgId);
-    if (!secrets) return orders;
+    const secrets = shop ? await this.repo.getShopSecrets(shop.id, orgId) : null;
+    if (!shop || !secrets) return withTariff(orders);
+    const last = this.financeTriedAt.get(orgId) ?? 0;
+    if (!force && last > 0 && Date.now() - last < 3 * 60 * 1000) return withTariff(orders);
     this.financeTriedAt.set(orgId, Date.now());
     try {
-      const next = await enrichOrdersWithFinance(trendyolLiveFromSecrets(secrets), orders);
+      const next = await enrichOrdersWithFinance(trendyolLiveFromSecrets(secrets), orders, undefined, tariff);
       await this.repo.upsertOrders(orgId, next);
       return next.map((row) => ({ ...row, organizationId: orgId }));
     } catch {
-      return orders;
+      return withTariff(orders);
     }
   }
 
@@ -375,8 +378,17 @@ export class IdentityStore {
 
   async getOrder(uid: string, orderId: string): Promise<OrderListItem> {
     const org = await this.requireOrg(uid);
-    const order = await this.requireOrder(org.id, orderId);
-    const [photographed] = await this.withCatalogPhotos(org.id, [order]);
+    await this.requireOrder(org.id, orderId);
+    const all = await this.withCatalogPhotos(org.id, await this.repo.listOrgOrders(org.id));
+    const enriched = await this.attachTrendyolFinance(uid, org.id, all);
+    const found = enriched.find((row) => row.id === orderId);
+    if (!found) {
+      throw new HttpException(
+        { code: ErrorCodes.NOT_FOUND, message: 'Sipariş bulunamadı.' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    const [photographed] = await this.withCatalogPhotos(org.id, [found]);
     return photographed;
   }
 
@@ -1143,6 +1155,34 @@ export class IdentityStore {
       createdAt: nowIso(),
     };
     return this.repo.saveEinvoice(draft);
+  }
+
+  async getTrendyolTariff(uid: string): Promise<TrendyolTariff> {
+    const org = await this.requireOrg(uid);
+    return normalizeTariff(await this.repo.getTrendyolTariff(org.id));
+  }
+
+  async saveTrendyolTariff(uid: string, body: Partial<TrendyolTariff>): Promise<TrendyolTariff> {
+    const org = await this.requireOrg(uid);
+    const tariff = normalizeTariff({ ...(await this.repo.getTrendyolTariff(org.id)), ...body });
+    await this.repo.saveTrendyolTariff(org.id, tariff);
+    const orders = await this.repo.listOrgOrders(org.id);
+    if (orders.length > 0) {
+      const cleared = orders.map((order) => {
+        if (!order.money) return order;
+        let money = order.money;
+        if (money.cargoFeeSource === 'tarife') {
+          money = { ...money, cargoFeeTry: null, cargoFeeSource: 'none', cargoFeeLabel: null };
+        }
+        if (money.serviceFeeSource === 'tarife') {
+          money = { ...money, serviceFeeTry: null, serviceFeeSource: 'none' };
+        }
+        return { ...order, money };
+      });
+      const next = applyFinanceMap(cleared, new Map(), tariff);
+      await this.repo.upsertOrders(org.id, next);
+    }
+    return tariff;
   }
 
   async getPrinter(uid: string): Promise<PrinterSettings> {

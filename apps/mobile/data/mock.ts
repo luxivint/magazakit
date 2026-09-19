@@ -44,7 +44,9 @@ export type Order = {
     sgrFeeTry: number;
     cargoFeeTry?: number | null;
     cargoFeeLabel?: string | null;
+    cargoFeeSource?: 'none' | 'tarife' | 'fatura-tahsis' | 'settlement' | 'fatura';
     serviceFeeTry?: number | null;
+    serviceFeeSource?: 'none' | 'tarife' | 'fatura-tahsis' | 'settlement' | 'fatura';
     storeFeeTry?: number | null;
     stoppageTry?: number | null;
     sellerRevenueTry?: number | null;
@@ -59,6 +61,7 @@ export type Order = {
     financeLoaded?: boolean;
     estimatedEarningsTry: number | null;
     earningsEstimated: boolean;
+    earningsStatus?: 'eksik' | 'tahmini' | 'kesinleşti';
     cargoProvider: string | null;
     cargoTrackingNumber?: string | null;
     cargoDeci?: number | null;

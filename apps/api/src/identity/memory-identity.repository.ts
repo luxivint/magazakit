@@ -16,6 +16,7 @@ import type {
   StockBalance,
   StockMovement,
   Supplier,
+  TrendyolTariff,
   Warehouse,
   WarehouseTransfer,
 } from '@magazakit/contracts';
@@ -89,6 +90,7 @@ export class MemoryIdentityRepository implements IdentityRepository {
   private readonly transfers: WarehouseTransfer[] = [];
   private readonly einvoices: EinvoiceDraft[] = [];
   private readonly printers = new Map<string, PrinterSettings>();
+  private readonly trendyolTariffs = new Map<string, TrendyolTariff>();
   private seq = 0;
 
   private listingKey(orgId: string, listingId: string): string {
@@ -545,6 +547,15 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return settings;
   }
 
+  async getTrendyolTariff(orgId: string): Promise<TrendyolTariff | null> {
+    return this.trendyolTariffs.get(orgId) ?? null;
+  }
+
+  async saveTrendyolTariff(orgId: string, tariff: TrendyolTariff): Promise<TrendyolTariff> {
+    this.trendyolTariffs.set(orgId, tariff);
+    return tariff;
+  }
+
   exportSnapshot(): Record<string, unknown> {
     return {
       version: 1,
@@ -572,6 +583,7 @@ export class MemoryIdentityRepository implements IdentityRepository {
       transfers: this.transfers,
       einvoices: this.einvoices,
       printers: [...this.printers.entries()],
+      trendyolTariffs: [...this.trendyolTariffs.entries()],
     };
   }
 
@@ -608,5 +620,6 @@ export class MemoryIdentityRepository implements IdentityRepository {
     this.transfers.splice(0, this.transfers.length, ...arr<WarehouseTransfer>('transfers'));
     this.einvoices.splice(0, this.einvoices.length, ...arr<EinvoiceDraft>('einvoices'));
     fill(this.printers, entries('printers'));
+    fill(this.trendyolTariffs, entries('trendyolTariffs'));
   }
 }
