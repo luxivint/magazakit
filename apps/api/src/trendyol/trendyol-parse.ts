@@ -156,6 +156,13 @@ function closedStatus(status: OrderStatus): boolean {
   return status === 'shipped' || status === 'delivered' || status === 'cancelled';
 }
 
+function cargoPayer(pkg: Record<string, unknown>): OrderMoney['cargoPayer'] {
+  const raw = pkg.whoPays;
+  if (raw === 1 || raw === '1' || String(raw).toLowerCase() === 'seller') return 'seller';
+  if (raw == null || raw === '') return null;
+  return 'marketplace';
+}
+
 /** Commission on the package is a percent. Amount and sellerRevenue are settlement, not this feed. */
 export function estimatePackageMoney(
   pkg: Record<string, unknown>,
@@ -168,7 +175,8 @@ export function estimatePackageMoney(
   const commissionTry = lines.every((l) => l.commissionTry != null)
     ? round2(lines.reduce((s, l) => s + (l.commissionTry ?? 0), 0))
     : null;
-  const sgrFeeTry = round2(lines.reduce((s, l) => s + (l.sgrFeeTry ?? 0), 0));
+  const lineSgr = round2(lines.reduce((s, l) => s + (l.sgrFeeTry ?? 0), 0));
+  const sgrFeeTry = lineSgr || round2(num(pkg.totalSgrFee));
   const sellerDiscountTry = round2(
     num(pkg.packageSellerDiscount) ||
       lines.reduce((s, l) => s + (l.sellerDiscountTry ?? 0), 0),
@@ -187,6 +195,7 @@ export function estimatePackageMoney(
       : round2(commissionRates.reduce((s, n) => s + n, 0) / commissionRates.length);
   const estimatedEarningsTry =
     commissionTry == null ? null : round2(customerTry - commissionTry - sgrFeeTry);
+  const deci = num(pkg.cargoDeci);
   return {
     grossTry,
     sellerDiscountTry,
@@ -194,10 +203,20 @@ export function estimatePackageMoney(
     customerTry,
     commissionRate: rate,
     commissionTry,
+    commissionSource: commissionTry == null ? 'none' : 'package_rate',
     sgrFeeTry,
+    cargoFeeTry: null,
+    cargoFeeLabel: null,
+    serviceFeeTry: null,
+    storeFeeTry: null,
+    stoppageTry: null,
+    sellerRevenueTry: null,
     estimatedEarningsTry,
     earningsEstimated: estimatedEarningsTry != null,
     cargoProvider: str(pkg.cargoProviderName) || null,
+    cargoTrackingNumber: str(pkg.cargoTrackingNumber) || null,
+    cargoDeci: deci > 0 ? deci : null,
+    cargoPayer: cargoPayer(pkg),
   };
 }
 

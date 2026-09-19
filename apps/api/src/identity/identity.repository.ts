@@ -196,7 +196,9 @@ export function withOrderDefaults(
     createdAt: incoming.createdAt,
     productTitle: incoming.productTitle ?? existing.productTitle,
     imageUrl: incoming.imageUrl ?? existing.imageUrl,
-    money: incoming.money ?? existing.money,
+    money: incoming.money
+      ? { ...existing?.money, ...incoming.money }
+      : existing?.money,
     lines: seedLines.map((line) => ({
       ...line,
       scannedQty: existing.lines.find((old) => old.listingId === line.listingId)?.scannedQty ?? 0,

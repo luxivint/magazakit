@@ -80,10 +80,20 @@ export type OrderMoney = {
   customerTry: number;
   commissionRate: number | null;
   commissionTry: number | null;
+  commissionSource?: 'package_rate' | 'settlement' | 'invoice' | 'none';
   sgrFeeTry: number;
+  cargoFeeTry?: number | null;
+  cargoFeeLabel?: string | null;
+  serviceFeeTry?: number | null;
+  storeFeeTry?: number | null;
+  stoppageTry?: number | null;
+  sellerRevenueTry?: number | null;
   estimatedEarningsTry: number | null;
   earningsEstimated: boolean;
   cargoProvider: string | null;
+  cargoTrackingNumber?: string | null;
+  cargoDeci?: number | null;
+  cargoPayer?: 'seller' | 'marketplace' | null;
 };
 
 export type OrderListItem = {

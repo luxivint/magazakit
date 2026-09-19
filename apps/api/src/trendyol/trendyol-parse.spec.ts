@@ -129,6 +129,10 @@ describe('trendyol-parse', () => {
       commissionRate: 15,
       cargoProvider: 'Trendyol Express',
       earningsEstimated: true,
+      commissionSource: 'package_rate',
+      cargoFeeTry: null,
+      serviceFeeTry: null,
+      storeFeeTry: null,
     });
     expect(orders[0].money?.commissionTry).toBe(27);
     expect(orders[0].money?.sgrFeeTry).toBe(2);

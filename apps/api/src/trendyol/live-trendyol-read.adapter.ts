@@ -15,6 +15,7 @@ import {
   mapShipmentPackages,
   trendyolPageMeta,
 } from './trendyol-parse';
+import { enrichOrdersWithFinance } from './trendyol-finance';
 
 type GetJson = typeof trendyolGetJson;
 
@@ -126,6 +127,6 @@ export class LiveTrendyolReadAdapter implements TrendyolReadAdapter {
         if (batch.length === 0 || batch.length < ORDER_SIZE) break;
       }
     }
-    return all;
+    return enrichOrdersWithFinance(this.config, all, this.getJson);
   }
 }

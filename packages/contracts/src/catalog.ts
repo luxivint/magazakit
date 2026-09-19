@@ -14,7 +14,9 @@ export type OrderLine = {
   vatRate?: number;
 };
 
-/** Settlement is the current-account statement. These figures are package estimates. */
+export type MoneySource = 'package_rate' | 'settlement' | 'invoice' | 'none';
+
+/** Package figures plus optional current-account (cari) matches. Not a tax invoice. */
 export type OrderMoney = {
   grossTry: number;
   sellerDiscountTry: number;
@@ -22,10 +24,20 @@ export type OrderMoney = {
   customerTry: number;
   commissionRate: number | null;
   commissionTry: number | null;
+  commissionSource: MoneySource;
   sgrFeeTry: number;
+  cargoFeeTry: number | null;
+  cargoFeeLabel: string | null;
+  serviceFeeTry: number | null;
+  storeFeeTry: number | null;
+  stoppageTry: number | null;
+  sellerRevenueTry: number | null;
   estimatedEarningsTry: number | null;
   earningsEstimated: boolean;
   cargoProvider: string | null;
+  cargoTrackingNumber: string | null;
+  cargoDeci: number | null;
+  cargoPayer: 'seller' | 'marketplace' | null;
 };
 
 export type Channel =
