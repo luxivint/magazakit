@@ -11,8 +11,8 @@ expo-env.d.ts
 .env*.local
 !.env.example
 !**/.env.example
-apps/api/.env
-apps/mobile/.env
+.data
+**/.data/**
 
 *.log
 .DS_Store

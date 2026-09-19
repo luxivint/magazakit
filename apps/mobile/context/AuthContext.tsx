@@ -14,6 +14,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Platform } from 'react-native';
 
 import { ApiError, createOrganization, fetchCurrentOrganization, fetchMe } from '@/lib/apiClient';
+import { clearCachedOrg, readCachedOrg, writeCachedOrg } from '@/lib/orgCache';
 import { firebaseErrorTr, getFirebaseAuth, googleProvider, isFirebaseConfigured } from '@/lib/firebase';
 import { googleWebClientId } from '@/lib/firebaseConfig';
 import type { OrganizationSummary } from '@/lib/api';
@@ -62,12 +63,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadIdentity = async (firebaseUser: User) => {
     setUser(toSession(firebaseUser));
     setIdToken(await firebaseUser.getIdToken());
+    const cached = await readCachedOrg(firebaseUser.uid);
+    if (cached) setOrg(cached);
     try {
       const [me, current] = await Promise.all([fetchMe(), fetchCurrentOrganization()]);
-      setOrg(current ?? me.organization);
+      const next = current ?? me.organization ?? null;
+      if (next) {
+        setOrg(next);
+        await writeCachedOrg(firebaseUser.uid, next);
+      } else {
+        setOrg(null);
+        await clearCachedOrg(firebaseUser.uid);
+      }
       setApiError(null);
     } catch (e) {
-      setOrg(null);
+      if (!cached) setOrg(null);
       setApiError(e instanceof ApiError ? e.message : 'Sunucu yanıt vermedi.');
     }
   };
@@ -163,9 +173,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           setOrg(next);
           setApiError(null);
+          const uid = getFirebaseAuth()?.currentUser?.uid;
+          if (uid) await writeCachedOrg(uid, next);
           return next;
         } catch (e) {
-          setOrg(null);
           const message = e instanceof ApiError ? e.message : 'İşletme oluşturulamadı.';
           setApiError(message);
           throw e instanceof Error ? e : new Error(message);
@@ -173,7 +184,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signOut: async () => {
         const auth = getFirebaseAuth();
+        const uid = auth?.currentUser?.uid;
         if (auth) await firebaseSignOut(auth);
+        if (uid) await clearCachedOrg(uid);
         setUser(null);
         setOrg(null);
         setIdToken(null);

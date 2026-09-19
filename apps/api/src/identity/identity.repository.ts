@@ -23,7 +23,7 @@ import type {
 import type { ChannelSecrets } from '../channels/shop-secrets';
 import type { MockListingSeed } from '../trendyol/mock-feed';
 
-export type PersistenceBackend = 'memory' | 'postgres';
+export type PersistenceBackend = 'memory' | 'postgres' | 'file';
 
 export type StoredListing = MockListingSeed & { shopId: string };
 

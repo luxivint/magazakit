@@ -55,8 +55,14 @@ function mockShop(
   };
 }
 
+function fill<K, V>(map: Map<K, V>, entries: [K, V][]): void {
+  map.clear();
+  for (const [key, value] of entries) map.set(key, value);
+}
+
 /**
- * In-memory is lost on process restart. Set DATABASE_URL for Postgres.
+ * In-memory is lost on process restart unless a snapshot file is used.
+ * Set DATABASE_URL for Postgres.
  */
 export class MemoryIdentityRepository implements IdentityRepository {
   readonly backend = 'memory' as const;
@@ -537,5 +543,70 @@ export class MemoryIdentityRepository implements IdentityRepository {
   async savePrinter(settings: PrinterSettings): Promise<PrinterSettings> {
     this.printers.set(settings.organizationId, settings);
     return settings;
+  }
+
+  exportSnapshot(): Record<string, unknown> {
+    return {
+      version: 1,
+      seq: this.seq,
+      orgsByOwner: [...this.orgsByOwner.entries()],
+      orgsById: [...this.orgsById.entries()],
+      fcmByUid: [...this.fcmByUid.entries()],
+      shopsById: [...this.shopsById.entries()],
+      shopsByOrgChannel: [...this.shopsByOrgChannel.entries()],
+      shopSecrets: [...this.shopSecrets.entries()],
+      listings: [...this.listings.entries()],
+      orders: [...this.orders.entries()],
+      mappings: [...this.mappings.entries()],
+      stock: [...this.stock.entries()],
+      movements: [...this.movements.entries()],
+      outbox: this.outbox,
+      operations: this.operations,
+      returns: [...this.returns.entries()],
+      members: [...this.members.entries()],
+      invites: [...this.invites.entries()],
+      drafts: [...this.drafts.entries()],
+      suppliers: [...this.suppliers.entries()],
+      purchaseOrders: this.purchaseOrders,
+      warehouses: [...this.warehouses.entries()],
+      transfers: this.transfers,
+      einvoices: this.einvoices,
+      printers: [...this.printers.entries()],
+    };
+  }
+
+  importSnapshot(raw: Record<string, unknown>): void {
+    const entries = <K, V>(key: string): [K, V][] => {
+      const value = raw[key];
+      return Array.isArray(value) ? (value as [K, V][]) : [];
+    };
+    const arr = <T>(key: string): T[] => {
+      const value = raw[key];
+      return Array.isArray(value) ? (value as T[]) : [];
+    };
+    this.seq = typeof raw.seq === 'number' ? raw.seq : 0;
+    fill(this.orgsByOwner, entries('orgsByOwner'));
+    fill(this.orgsById, entries('orgsById'));
+    fill(this.fcmByUid, entries('fcmByUid'));
+    fill(this.shopsById, entries('shopsById'));
+    fill(this.shopsByOrgChannel, entries('shopsByOrgChannel'));
+    fill(this.shopSecrets, entries('shopSecrets'));
+    fill(this.listings, entries('listings'));
+    fill(this.orders, entries('orders'));
+    fill(this.mappings, entries('mappings'));
+    fill(this.stock, entries('stock'));
+    fill(this.movements, entries('movements'));
+    this.outbox.splice(0, this.outbox.length, ...arr('outbox'));
+    this.operations.splice(0, this.operations.length, ...arr('operations'));
+    fill(this.returns, entries('returns'));
+    fill(this.members, entries('members'));
+    fill(this.invites, entries('invites'));
+    fill(this.drafts, entries('drafts'));
+    fill(this.suppliers, entries('suppliers'));
+    this.purchaseOrders.splice(0, this.purchaseOrders.length, ...arr('purchaseOrders'));
+    fill(this.warehouses, entries('warehouses'));
+    this.transfers.splice(0, this.transfers.length, ...arr('transfers'));
+    this.einvoices.splice(0, this.einvoices.length, ...arr('einvoices'));
+    fill(this.printers, entries('printers'));
   }
 }

@@ -8,7 +8,7 @@ export type HealthResponse = {
     configured: boolean;
     credential: 'adc' | 'project-id-only' | 'none';
   };
-  persistence: 'memory' | 'postgres';
+  persistence: 'memory' | 'postgres' | 'file';
   outbox?: {
     pending: number;
     channel: 'trendyol';

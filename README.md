@@ -89,6 +89,6 @@ Katalog: `GET /v1/docs`. Satılabilir = fiziksel − rezerve. Yazdırma kargolam
 
 ## Persistence
 
-`DATABASE_URL` yoksa bellek (restart’ta silinir). Varsa `apps/api/migrations/*.sql` boot’ta uygulanır. URL var ama Postgres kapalıysa uyarı + bellek.
+`DATABASE_URL` yoksa işletme/mağaza `apps/api/.data/identity.json` dosyasında kalır (Nest restart’ta silinmez). Postgres için gitignored `DATABASE_URL`.
 
 Worker `GET http://127.0.0.1:43141/health` pending outbox sayar. Mock drain pazaryeri teslimatı iddia etmez; kayıtları `unknown` yapar. Pazaryeri secret git’te yok; loglanmaz. Redis yok.
