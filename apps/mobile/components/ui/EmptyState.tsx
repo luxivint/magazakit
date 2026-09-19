@@ -17,9 +17,9 @@ export function EmptyState({
 }: {
   title: string;
   body: string;
-  primary: string;
+  primary?: string;
   secondary?: string;
-  onPrimary: () => void;
+  onPrimary?: () => void;
   onSecondary?: () => void;
 }) {
   return (
@@ -34,7 +34,7 @@ export function EmptyState({
       </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{body}</Text>
-      <Button label={primary} onPress={onPrimary} icon="refresh" />
+      {primary && onPrimary ? <Button label={primary} onPress={onPrimary} icon="refresh" /> : null}
       {secondary && onSecondary ? (
         <Button label={secondary} onPress={onSecondary} variant="ghost" />
       ) : null}

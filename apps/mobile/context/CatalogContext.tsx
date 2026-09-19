@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { usePathname } from 'expo-router';
 
 import { useAuth } from '@/context/AuthContext';
 import { useShops } from '@/context/ShopContext';
@@ -36,6 +37,9 @@ function clockFromIso(iso: string | null | undefined): string | null {
 export function CatalogProvider({ children }: { children: ReactNode }) {
   const { idToken, org } = useAuth();
   const { shops, loading: shopsLoading, refresh: refreshShops } = useShops();
+  const pathname = usePathname();
+  const watchLive = pathname === '/' || pathname.includes('siparisler');
+  const ingestLock = useRef(false);
   const [source, setSource] = useState<CatalogSource>('none');
   const [apiMock, setApiMock] = useState<boolean | null>(null);
   const [reachable, setReachable] = useState(false);
@@ -46,7 +50,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const [rawOrders, setRawOrders] = useState<OrderListItem[]>([]);
   const [lastIngest, setLastIngest] = useState<ShopSyncResult | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!idToken || !org) {
       setRawProducts([]);
       setRawOrders([]);
@@ -57,10 +61,10 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (shopsLoading) {
-      setLoading(true);
+      if (!silent) setLoading(true);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const health = await fetchHealth();
@@ -81,13 +85,39 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       setRawOrders([]);
       setError(e instanceof Error ? e.message : 'Sunucu yanıt vermedi.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [idToken, org, shopsLoading]);
+
+  const pullShop = useCallback(async () => {
+    const shop = shops[0];
+    if (!shop || ingestLock.current) return;
+    ingestLock.current = true;
+    try {
+      const result = await syncShop(shop.id);
+      setLastIngest(result);
+      refreshShops();
+    } catch {
+      /* keep last catalog */
+    } finally {
+      ingestLock.current = false;
+    }
+    await load(true);
+  }, [shops, refreshShops, load]);
 
   useEffect(() => {
     void load();
   }, [load, shops.length]);
+
+  useEffect(() => {
+    if (!idToken || !org || shops.length === 0 || shopsLoading) return;
+    void pullShop();
+    const id = setInterval(() => {
+      if (watchLive) void pullShop();
+      else void load(true);
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [idToken, org, shops.length, shopsLoading, watchLive, pullShop, load]);
 
   const products = useMemo(() => rawProducts.map(mapApiProduct), [rawProducts]);
   const orders = useMemo(
@@ -111,7 +141,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       products,
       orders,
       refresh: () => {
-        void load();
+        void load(false);
       },
       ingest: async () => {
         const shop = shops[0];
@@ -124,7 +154,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
           const result = await syncShop(shop.id);
           setLastIngest(result);
           refreshShops();
-          await load();
+          await load(false);
           return result;
         } catch (e) {
           const message = e instanceof Error ? e.message : 'İçeri alma tamamlanmış sayılmaz.';

@@ -72,9 +72,6 @@ export default function SiparislerScreen() {
           <View style={styles.titleRow}>
             <Text style={styles.title}>Siparişler</Text>
             <Text style={styles.count}>{formatCount(catalog.loading ? 0 : orders.length)}</Text>
-            <Pressable style={styles.ingestBtn} onPress={() => router.push('/(tabs)/icerik-al')}>
-              <Text style={styles.ingestText}>İçeri al</Text>
-            </Pressable>
           </View>
           <View style={styles.searchRow}>
             <SearchField
@@ -123,9 +120,7 @@ export default function SiparislerScreen() {
           <ScrollView contentContainerStyle={styles.sheet}>
             <EmptyState
               title="Henüz sipariş yok"
-              body="İçeri al hem ürün hem sipariş çeker. Trendyol’da son 6 ay taranır. Boş liste hata değildir."
-              primary="İçeri al"
-              onPrimary={() => router.push('/(tabs)/icerik-al')}
+              body="Yeni siparişler kendiliğinden gelir."
             />
             <SyncFooter time={catalog.lastSync ?? '—'} source={sourceLabel} />
           </ScrollView>
@@ -180,13 +175,6 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   title: { fontFamily: fonts.bold, fontSize: 32, color: colors.white, letterSpacing: -0.8 },
   count: { fontFamily: fonts.medium, fontSize: 18, color: colors.mutedOnDark, flex: 1 },
-  ingestBtn: {
-    backgroundColor: colors.lime,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radii.pill,
-  },
-  ingestText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.graphite },
   searchRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   filterBtn: {
     width: 42,

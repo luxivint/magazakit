@@ -83,11 +83,11 @@ export default function OzetScreen() {
               title={catalog.needsShop ? 'Mağaza bağlı değil' : 'Bugün işlem yok'}
               body={
                 catalog.needsShop
-                  ? 'Trendyol bağla, sonra içeri al. Örnek satış gösterilmez.'
-                  : 'İçeri alınınca siparişler burada görünür.'
+                  ? 'Trendyol bağla. Siparişler otomatik gelir.'
+                  : 'Siparişler kısa sürede burada görünür.'
               }
-              primary={catalog.needsShop ? 'Mağaza bağla' : 'İçeri al'}
-              onPrimary={() => router.push(catalog.needsShop ? '/(tabs)/magaza-bagla' : '/(tabs)/icerik-al')}
+              primary={catalog.needsShop ? 'Mağaza bağla' : undefined}
+              onPrimary={catalog.needsShop ? () => router.push('/(tabs)/magaza-bagla') : undefined}
             />
           </ScrollView>
         ) : (

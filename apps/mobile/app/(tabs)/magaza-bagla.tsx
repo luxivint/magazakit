@@ -139,9 +139,6 @@ export default function MagazaBaglaScreen() {
             />
           ))}
           {result ? <ConfigBanner text={result} /> : null}
-          {result && !result.includes('Bağlanamadı') && !result.includes('gerekli') && !result.includes('Kapalı') ? (
-            <Button label="Ürünleri içeri al" variant="ghost" onPress={() => router.push('/(tabs)/icerik-al')} />
-          ) : null}
           <Button
             label={blocked ? 'Bu kanal kapalı' : 'Bağla'}
             icon="link-outline"

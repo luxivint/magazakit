@@ -14,7 +14,7 @@ describe('trendyol-tariff', () => {
     expect(estimateCargoTry({ customerTry: 115, cargoDeci: 1, cargoProvider: 'Aras' }, tariff)).toBe(57.99);
     expect(estimatePhbTry(tariff)).toBe(13.19);
     expect(estimatePhbTry(tariff, true)).toBe(5.99);
-    expect(tariffVersionLabel(tariff)).toBe('tahmini (tarife v1)');
+    expect(tariffVersionLabel(tariff)).toBe('tahmini');
     expect(tariff.cargoRuleUrl).toContain('kargo-baremi');
     expect(tariff.desiPdfUrl).toContain('trendyol_guncel_kargo_fiyatlari.pdf');
   });
@@ -22,6 +22,7 @@ describe('trendyol-tariff', () => {
   it('uses desi list when order is ≥350 TL', () => {
     const tariff = emptyTrendyolTariff();
     expect(estimateCargoTry({ customerTry: 400, cargoDeci: 1, cargoProvider: 'Aras' }, tariff)).toBe(106.75);
+    expect(estimateCargoTry({ customerTry: 973.75, cargoDeci: 8, cargoProvider: 'Yurtiçi' }, tariff)).toBe(232.2);
   });
 
   it('computes volumetric vs billed desi', () => {

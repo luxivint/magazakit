@@ -286,73 +286,37 @@ function signed(value: number | null | undefined): number | null {
   return -Math.abs(value);
 }
 
-function sourceLabel(source?: string, label?: string | null): string {
-  if (source === 'fatura') return 'fatura';
-  if (source === 'fatura-tahsis') return 'fatura-tahsis';
-  if (source === 'settlement') return 'cari';
-  if (source === 'tarife') return label || 'tahmini (tarife)';
-  return 'yok';
+function quietFeeLabel(source?: string): string | null {
+  if (source === 'fatura' || source === 'fatura-tahsis' || source === 'settlement') return null;
+  if (source === 'tarife') return 'tahmini';
+  return null;
 }
 
 function PayoutCard({ money }: { money: Order['money'] }) {
   if (!money) {
-    return (
-      <Text style={styles.note}>Kazanç kalemleri bu kayıtta yok. İçeri al ile siparişi yeniden çek.</Text>
-    );
+    return <Text style={styles.note}>Kesinti henüz yok.</Text>;
   }
-  const cargoLabel =
-    money.cargoFeeRate != null ? `Kargo (%${money.cargoFeeRate})` : 'Kargo';
+  const cargoHint = quietFeeLabel(money.cargoFeeSource);
+  const phbHint = quietFeeLabel(money.serviceFeeSource);
   const netReady = money.estimatedEarningsTry != null && money.cargoFeeTry != null && money.serviceFeeTry != null;
   const status = money.earningsStatus ?? (money.earningsEstimated === false ? 'kesinleşti' : netReady ? 'tahmini' : 'eksik');
-  const netCaption = status === 'kesinleşti' ? 'kesinleşti' : status === 'tahmini' ? 'tahmini' : 'eksik';
+  const netHint = status === 'tahmini' ? 'tahmini' : null;
   return (
     <>
-      <Text style={styles.section}>Kesinti (panel)</Text>
+      <Text style={styles.section}>Kesinti</Text>
       <View style={styles.moneyCard}>
-        <MoneyRow label="Sipariş tutarı" value={money.customerTry} />
+        <MoneyRow label="Tutar" value={money.customerTry} />
         <MoneyRow label="Komisyon" value={signed(money.commissionTry)} muted />
-        <MoneyRow
-          label={`${cargoLabel} · ${sourceLabel(money.cargoFeeSource, money.cargoFeeLabel)}`}
-          value={signed(money.cargoFeeTry)}
-          muted
-        />
-        <MoneyRow label="İndirim" value={-(money.sellerDiscountTry || 0)} muted />
-        <MoneyRow label="Ceza" value={-(money.penaltyTry || 0)} muted />
-        <MoneyRow label="İptal" value={-(money.cancelTry || 0)} muted />
-        <MoneyRow label="İade" value={-(money.returnTry || 0)} muted />
-        <MoneyRow label="İade kargo" value={-(money.returnCargoTry || 0)} muted />
-        <MoneyRow label="Yurtdışı operasyon iade" value={-(money.intlReturnOpTry || 0)} muted />
-        <MoneyRow label="Uluslararası hizmet bedeli" value={-(money.intlServiceTry || 0)} muted />
-        <MoneyRow
-          label={`Platform hizmet bedeli · ${sourceLabel(money.serviceFeeSource)}`}
-          value={signed(money.serviceFeeTry)}
-          muted
-        />
-        <MoneyRow label="Stopaj" value={-(money.stoppageTry ?? 0)} muted />
-        <MoneyRow label="SGR" value={-(money.sgrFeeTry || 0)} muted />
+        <MoneyRow label={cargoHint ? `Kargo · ${cargoHint}` : 'Kargo'} value={signed(money.cargoFeeTry)} muted />
+        <MoneyRow label={phbHint ? `PHB · ${phbHint}` : 'PHB'} value={signed(money.serviceFeeTry)} muted />
         <View style={styles.earnRow}>
-          <Text style={styles.earnLabel}>Net hakediş · {netCaption}</Text>
-          {netReady ? (
-            <MoneyText value={money.estimatedEarningsTry ?? 0} size="metric" />
+          <Text style={styles.earnLabel}>{netHint ? `Net · ${netHint}` : 'Net'}</Text>
+          {money.estimatedEarningsTry != null ? (
+            <MoneyText value={money.estimatedEarningsTry} size="metric" />
           ) : (
-            <Text style={styles.missing}>kalem eksik</Text>
+            <Text style={styles.missing}>—</Text>
           )}
         </View>
-        {money.paymentMethod ? (
-          <Text style={styles.body}>Ödeme: {money.paymentMethod}</Text>
-        ) : null}
-        {money.cargoProvider ? (
-          <Text style={styles.body}>
-            {money.cargoProvider}
-            {money.cargoTrackingNumber ? ` · ${money.cargoTrackingNumber}` : ''}
-            {money.cargoDeci != null ? ` · ${money.cargoDeci} desi` : ''}
-          </Text>
-        ) : null}
-        <Text style={styles.note}>
-          Panel formülü: tutar − komisyon − kargo − PHB. Örnek (kaynaklı): 115 − 18,40 − 57,99 − 13,19 = 25,42.
-          57,99 ancak kargo faturası satırında veya senin tarife tablonda durur; koda gömülmez. PHB faturası
-          sipariş numarası taşımıyorsa dönem tahsisi yalnız n=1 veya n × senin PHB tutarın faturaya denkse.
-        </Text>
       </View>
     </>
   );

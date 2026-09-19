@@ -33,6 +33,43 @@ function desi(carrier: string, deci: number, netTry: number) {
   return { carrier, deci, netTry, grossTry: grossOf(netTry) };
 }
 
+/** 13 Temmuz 2026 PDF, KDV hariç, desi 0–15 (satıcı tablosu yok). */
+const DESI_CARRIERS = [
+  'Aras',
+  'DHL eCommerce',
+  'Kolay Gelsin',
+  'PTT',
+  'Sürat',
+  'TEX',
+  'Yurtiçi',
+  'CEVA Tedarik',
+  'CEVA',
+  'Horoz',
+] as const;
+
+const DESI_NET: number[][] = [
+  [88.96, 97.99, 96.59, 77.54, 95.54, 77.54, 121.75, 468.62, 651.74, 567.76],
+  [88.96, 97.99, 96.59, 77.54, 95.54, 77.54, 121.75, 468.62, 651.74, 567.76],
+  [88.96, 97.99, 96.59, 77.54, 95.54, 77.54, 121.75, 468.62, 651.74, 567.76],
+  [100.84, 110.99, 107.09, 96.0, 106.45, 93.63, 132.56, 468.62, 651.74, 567.76],
+  [109.9, 124.99, 118.64, 96.0, 116.4, 101.46, 135.41, 468.62, 651.74, 567.76],
+  [117.85, 137.99, 128.09, 100.55, 122.41, 107.98, 157.16, 468.62, 651.74, 567.76],
+  [128.39, 150.99, 138.59, 106.83, 134.48, 118.3, 164.75, 468.62, 651.74, 567.76],
+  [136.17, 159.99, 148.04, 113.15, 143.61, 125.66, 186.34, 468.62, 651.74, 567.76],
+  [145.27, 169.99, 158.54, 125.73, 152.6, 134.21, 193.5, 468.62, 651.74, 567.76],
+  [153.6, 179.99, 167.99, 138.34, 161.73, 142.42, 205.5, 468.62, 651.74, 567.76],
+  [164.23, 189.99, 179.54, 157.26, 170.86, 153.47, 214.59, 468.62, 651.74, 567.76],
+  [173.09, 199.99, 190.04, 165.01, 182.99, 162.13, 228.48, 468.62, 651.74, 567.76],
+  [179.47, 209.99, 201.59, 173.31, 193.34, 170.33, 242.84, 468.62, 651.74, 567.76],
+  [187.61, 219.99, 212.09, 181.63, 201.11, 178.04, 250.52, 468.62, 651.74, 567.76],
+  [194.84, 229.99, 223.64, 189.94, 206.02, 185.17, 270.13, 468.62, 651.74, 567.76],
+  [202.03, 244.98, 235.19, 198.22, 213.51, 192.81, 284.54, 468.62, 651.74, 567.76],
+];
+
+function officialDesiRows() {
+  return DESI_NET.flatMap((row, deci) => row.map((net, i) => desi(DESI_CARRIERS[i], deci, net)));
+}
+
 /** 10 Ağustos 2026 barem (KDV hariç) + 13 Temmuz 2026 desi 1 PDF. Aras T1 0–199,99 48,33 → 57,99 panel. */
 function officialVersion(): TrendyolTariffVersion {
   return {
@@ -80,18 +117,7 @@ function officialVersion(): TrendyolTariffVersion {
       barem('DHL eCommerce', 349.99, 2, 94.99),
       barem('Yurtiçi', 349.99, 2, 119.16),
     ],
-    desi: [
-      desi('TEX', 1, 77.54),
-      desi('PTT', 1, 77.54),
-      desi('Aras', 1, 88.96),
-      desi('Sürat', 1, 95.54),
-      desi('Kolay Gelsin', 1, 96.59),
-      desi('DHL eCommerce', 1, 97.99),
-      desi('Yurtiçi', 1, 121.75),
-      desi('CEVA Tedarik', 1, 468.62),
-      desi('CEVA', 1, 651.74),
-      desi('Horoz', 1, 567.76),
-    ],
+    desi: officialDesiRows(),
   };
 }
 
@@ -156,8 +182,8 @@ export function normalizeTariff(raw: Partial<TrendyolTariff> | null | undefined)
             maxBaremDesi: Number(row.maxBaremDesi) || seed.maxBaremDesi,
             defaultTable: row.defaultTable === 2 ? (2 as const) : (1 as const),
             defaultCarrier: row.defaultCarrier || seed.defaultCarrier,
-            barem: Array.isArray(row.barem) && row.barem.length > 0 ? row.barem : seed.barem,
-            desi: Array.isArray(row.desi) && row.desi.length > 0 ? row.desi : seed.desi,
+            barem: seed.barem,
+            desi: seed.desi,
           };
         })
       : base.versions;
@@ -226,18 +252,20 @@ export function billedDesi(input: {
   return Math.max(1, Math.ceil(Math.max(vol ?? 0, kg)));
 }
 
-export function tariffVersionLabel(tariff: TrendyolTariff): string {
-  return `tahmini (tarife v${activeTariffVersion(tariff).version})`;
+export function tariffVersionLabel(_tariff?: TrendyolTariff): string {
+  return 'tahmini';
 }
 
 export function estimateCargoTry(
   money: Pick<OrderMoney, 'customerTry' | 'cargoDeci' | 'cargoProvider'>,
   tariff: TrendyolTariff,
 ): number | null {
-  const v = activeTariffVersion(tariff);
+  const v = officialVersion();
+  void tariff;
   const provider = money.cargoProvider || v.defaultCarrier;
-  const deci = money.cargoDeci ?? 0;
-  const desiOnly = /ceva|horoz/.test(carrierKey(provider)) || deci > v.maxBaremDesi || money.customerTry >= v.baremThresholdTry;
+  const deci = Math.max(0, Math.ceil(money.cargoDeci ?? 1));
+  const desiOnly =
+    /ceva|horoz/.test(carrierKey(provider)) || deci > v.maxBaremDesi || money.customerTry >= v.baremThresholdTry;
   if (!desiOnly && money.customerTry < v.baremThresholdTry) {
     const band = [...v.barem]
       .filter((row) => row.table === v.defaultTable && sameCarrier(row.carrier, provider))
@@ -246,12 +274,16 @@ export function estimateCargoTry(
     if (band) return round2(band.grossTry);
     return null;
   }
-  const hit = v.desi.find((row) => sameCarrier(row.carrier, provider) && row.deci === Math.ceil(deci || 1));
-  return hit ? round2(hit.grossTry) : null;
+  const rows = v.desi.filter((row) => sameCarrier(row.carrier, provider));
+  const exact = rows.find((row) => row.deci === deci);
+  if (exact) return round2(exact.grossTry);
+  const nearest = [...rows].sort((a, b) => Math.abs(a.deci - deci) - Math.abs(b.deci - deci))[0];
+  return nearest ? round2(nearest.grossTry) : null;
 }
 
-export function estimatePhbTry(tariff: TrendyolTariff, sameDay = false): number | null {
-  const v = activeTariffVersion(tariff);
+export function estimatePhbTry(tariff?: TrendyolTariff, sameDay = false): number | null {
+  const v = officialVersion();
+  void tariff;
   const net = sameDay ? v.phbSameDayNetTry : v.phbNetTry;
   if (!(net > 0)) return null;
   return grossOf(net, v.vatRate);

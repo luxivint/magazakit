@@ -22,14 +22,14 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!idToken || !org) {
       setShops([]);
       setError(null);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const page = await fetchShops();
       setShops(page.items);
@@ -38,13 +38,19 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       setShops([]);
       setError(e instanceof ApiError ? e.message : 'Mağazalar yüklenemedi.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [idToken, org, tick]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!idToken || !org) return;
+    const id = setInterval(() => void load(true), 60_000);
+    return () => clearInterval(id);
+  }, [idToken, org, load]);
 
   const value = useMemo<ShopContextValue>(
     () => ({

@@ -16,6 +16,9 @@ export function isExpoDevOrigin(origin: string): boolean {
   if (/\.(expo\.dev|exp\.direct|exp\.host)(:\d+)?$/i.test(origin.replace(/^https?:\/\//, ''))) {
     return true;
   }
+  if (/\.trycloudflare\.com$/i.test(origin.replace(/^https?:\/\//, '').split('/')[0])) {
+    return true;
+  }
   return false;
 }
 

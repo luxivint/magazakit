@@ -93,35 +93,17 @@ export default function UrunDetayScreen() {
               <Row label="İlan" value={product.listingId} />
               <Row label="SKU" value={product.sku} />
               <Row label="Barkod" value={product.barcode || '—'} />
-              <Row label="Son eşitleme" value={catalog.lastSync ?? '—'} />
 
-              <Text style={styles.section}>Desi ve tahmini kargo</Text>
+              <Text style={styles.section}>Kargo</Text>
               <View style={styles.moneyCard}>
-                <Row label="Trendyol desi" value={product.dimensionalWeight != null ? String(product.dimensionalWeight) : 'yok'} />
-                <Row label="Ağırlık (kg)" value={product.weightKg != null ? String(product.weightKg) : 'yok'} />
-                <Row
-                  label="Ölçü (en×boy×yükseklik)"
-                  value={
+                <Row label="Desi" value={product.billedDesi != null ? String(product.billedDesi) : '—'} />
+              <Row label="Ölçü" value={
                     product.widthCm && product.lengthCm && product.heightCm
                       ? `${product.widthCm}×${product.lengthCm}×${product.heightCm} cm`
-                      : 'yok'
-                  }
-                />
-                <Row label="Hacimsel desi" value={product.volumetricDesi != null ? String(product.volumetricDesi) : 'yok'} />
-                <Row label="Faturalanan desi" value={product.billedDesi != null ? String(product.billedDesi) : 'yok'} />
-                <Row label="Kargo firması" value={product.cargoProvider || 'Aras (varsayılan tarife)'} />
-                <Row
-                  label={`Tahmini kargo · ${product.estimateLabel ?? 'tahmini (tarife)'}`}
-                  value={product.cargoEstimateTry != null ? formatMoney(product.cargoEstimateTry) : 'yok'}
-                />
-                <Row
-                  label={`PHB 10,99 + KDV · ${product.estimateLabel ?? 'tahmini (tarife)'}`}
-                  value={product.phbEstimateTry != null ? formatMoney(product.phbEstimateTry) : 'yok'}
-                />
-                <Text style={styles.note}>
-                  Bu tutarlar sipariş faturası değildir; kesinleşmiş sayılmaz. Kaynak: Mağazalarım tarife v1 (Akademi
-                  10 Ağustos 2026 + PHB sayfası).
-                </Text>
+                      : '—'
+                  } />
+              <Row label="Kargo" value={product.cargoEstimateTry != null ? `${formatMoney(product.cargoEstimateTry)} tahmini` : '—'} />
+              <Row label="PHB" value={product.phbEstimateTry != null ? `${formatMoney(product.phbEstimateTry)} tahmini` : '—'} />
               </View>
 
               <Button

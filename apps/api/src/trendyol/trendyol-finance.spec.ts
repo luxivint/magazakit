@@ -213,7 +213,7 @@ describe('trendyol-finance', () => {
     const estimated = applyFinanceMap([order()], new Map(), tariff)[0].money;
     expect(estimated?.cargoFeeTry).toBe(57.99);
     expect(estimated?.cargoFeeSource).toBe('tarife');
-    expect(estimated?.cargoFeeLabel).toBe('tahmini (tarife v1)');
+    expect(estimated?.cargoFeeLabel).toBe('tahmini');
     expect(estimated?.serviceFeeTry).toBe(13.19);
     expect(estimated?.serviceFeeSource).toBe('tarife');
     expect(estimated?.estimatedEarningsTry).toBe(25.42);

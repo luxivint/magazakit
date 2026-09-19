@@ -321,9 +321,8 @@ function finalizeMoney(money: OrderMoney): OrderMoney {
 function applyTariff(
   money: OrderMoney,
   tariff: TrendyolTariff,
-  status: OrderListItem['status'],
+  _status: OrderListItem['status'],
 ): OrderMoney {
-  if (status !== 'delivered' && status !== 'shipped') return money;
   let next = { ...money };
   if (next.cargoFeeTry == null) {
     const cargo = estimateCargoTry(next, tariff);
