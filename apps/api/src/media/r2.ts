@@ -1,4 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
+import { request as httpsRequest } from 'node:https';
 
 export type R2Config = {
   endpoint: string;
@@ -100,14 +101,31 @@ export async function putR2Object(
   contentType: string,
 ): Promise<string> {
   const signed = signR2Put({ config, key, body, contentType });
-  const res = await fetch(signed.url, {
-    method: 'PUT',
-    headers: signed.headers,
-    body: new Uint8Array(body),
+  await new Promise<void>((resolve, reject) => {
+    const req = httpsRequest(
+      signed.url,
+      {
+        method: 'PUT',
+        headers: {
+          ...signed.headers,
+          'Content-Length': String(body.length),
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          if ((res.statusCode ?? 500) >= 300) {
+            reject(new Error(`R2 PUT ${res.statusCode}`));
+            return;
+          }
+          resolve();
+        });
+      },
+    );
+    req.on('error', reject);
+    req.end(body);
   });
-  if (!res.ok) {
-    throw new Error(`R2 PUT ${res.status}`);
-  }
   return `${config.publicBaseUrl}/${key}`;
 }
 
