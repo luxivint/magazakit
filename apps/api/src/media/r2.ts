@@ -103,7 +103,7 @@ export async function putR2Object(
   const res = await fetch(signed.url, {
     method: 'PUT',
     headers: signed.headers,
-    body,
+    body: new Uint8Array(body),
   });
   if (!res.ok) {
     throw new Error(`R2 PUT ${res.status}`);
