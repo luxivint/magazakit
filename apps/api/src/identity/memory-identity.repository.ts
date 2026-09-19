@@ -596,17 +596,17 @@ export class MemoryIdentityRepository implements IdentityRepository {
     fill(this.mappings, entries('mappings'));
     fill(this.stock, entries('stock'));
     fill(this.movements, entries('movements'));
-    this.outbox.splice(0, this.outbox.length, ...arr('outbox'));
-    this.operations.splice(0, this.operations.length, ...arr('operations'));
+    this.outbox.splice(0, this.outbox.length, ...arr<OutboxEntry>('outbox'));
+    this.operations.splice(0, this.operations.length, ...arr<OperationEvent>('operations'));
     fill(this.returns, entries('returns'));
     fill(this.members, entries('members'));
     fill(this.invites, entries('invites'));
     fill(this.drafts, entries('drafts'));
     fill(this.suppliers, entries('suppliers'));
-    this.purchaseOrders.splice(0, this.purchaseOrders.length, ...arr('purchaseOrders'));
+    this.purchaseOrders.splice(0, this.purchaseOrders.length, ...arr<PurchaseOrderStub>('purchaseOrders'));
     fill(this.warehouses, entries('warehouses'));
-    this.transfers.splice(0, this.transfers.length, ...arr('transfers'));
-    this.einvoices.splice(0, this.einvoices.length, ...arr('einvoices'));
+    this.transfers.splice(0, this.transfers.length, ...arr<WarehouseTransfer>('transfers'));
+    this.einvoices.splice(0, this.einvoices.length, ...arr<EinvoiceDraft>('einvoices'));
     fill(this.printers, entries('printers'));
   }
 }
