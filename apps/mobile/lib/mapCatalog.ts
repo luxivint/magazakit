@@ -27,7 +27,18 @@ function mapStatus(status: string, label: string): Pick<Order, 'status' | 'statu
   return { status: 'hazirlanacak', statusLabel: label || 'Hazırlanacak' };
 }
 
-function dueLabel(iso: string | null, warn: boolean): { due: string; dueTone: 'warn' | 'idle' } {
+function dueLabel(
+  iso: string | null,
+  warn: boolean,
+  status?: Order['status'],
+  cargoProvider?: string | null,
+): { due: string; dueTone: 'warn' | 'idle' } {
+  if (status === 'kargoda') {
+    return { due: cargoProvider ? `Kargo · ${cargoProvider}` : 'Kargoya verildi', dueTone: 'idle' };
+  }
+  if (status === 'iade') {
+    return { due: 'İade / iptal', dueTone: 'idle' };
+  }
   if (!iso) return { due: warn ? 'Kargo süresi doluyor' : 'Termin yok', dueTone: warn ? 'warn' : 'idle' };
   const d = new Date(iso);
   const clock = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
@@ -81,7 +92,14 @@ export function shopStatusLabel(status: string, fallback: string): string {
 }
 
 export function mapApiOrder(item: OrderListItem, index: number): Order {
-  const due = dueLabel(item.cargoDeadlineAt, item.cargoWarning);
+  const mapped = mapStatus(item.status, item.statusLabel);
+  const closed = mapped.status !== 'hazirlanacak';
+  const due = dueLabel(
+    item.cargoDeadlineAt,
+    item.cargoWarning && !closed,
+    mapped.status,
+    item.money?.cargoProvider,
+  );
   return {
     id: item.id,
     channel: item.channel,
@@ -95,7 +113,7 @@ export function mapApiOrder(item: OrderListItem, index: number): Order {
     createdAt: item.createdAt,
     due: due.due,
     dueTone: due.dueTone,
-    ...mapStatus(item.status, item.statusLabel),
+    ...mapped,
     thumb: THUMBS[index % THUMBS.length],
     imageUrl: item.imageUrl ?? item.lines.find((l) => l.imageUrl)?.imageUrl ?? null,
     lines: item.lines.map((l) => ({
@@ -103,10 +121,13 @@ export function mapApiOrder(item: OrderListItem, index: number): Order {
       qty: l.qty,
       title: l.title,
       imageUrl: l.imageUrl ?? null,
+      unitPriceTry: l.unitPriceTry,
+      commissionRate: l.commissionRate,
     })),
     reserved: !!item.reserved,
     packed: !!item.packed,
     labeled: !!item.labeled,
     shipped: !!item.shipped,
+    money: item.money,
   };
 }

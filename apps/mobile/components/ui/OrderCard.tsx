@@ -53,11 +53,19 @@ export function OrderCard({
         {compact ? null : <Text style={styles.time}>{order.time}</Text>}
         <MoneyText value={order.amount} />
         {compact ? (
-          <StatusDot tone={order.status === 'kargoda' ? 'idle' : 'warn'} label={order.statusLabel} />
-        ) : (
+          <StatusDot
+            tone={order.status === 'hazirlanacak' ? 'warn' : order.status === 'kargoda' ? 'success' : 'idle'}
+            label={order.statusLabel}
+          />
+        ) : order.status === 'hazirlanacak' ? (
           <View style={styles.cta}>
             <Text style={styles.ctaText}>Hazırla</Text>
             <Ionicons name="arrow-forward" size={14} color={colors.white} />
+          </View>
+        ) : (
+          <View style={styles.ctaIdle}>
+            <Text style={styles.ctaIdleText}>{order.status === 'iade' ? 'İade' : 'Detay'}</Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.ink} />
           </View>
         )}
       </View>
@@ -92,4 +100,15 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   ctaText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.white },
+  ctaIdle: {
+    marginTop: 4,
+    backgroundColor: colors.sheetLine,
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ctaIdleText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink },
 });

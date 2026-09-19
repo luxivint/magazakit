@@ -159,6 +159,14 @@ export function withOrderDefaults(
     scannedQty: 0,
     ...(line.title ? { title: line.title } : {}),
     ...(line.imageUrl ? { imageUrl: line.imageUrl } : {}),
+    ...(line.unitPriceTry != null ? { unitPriceTry: line.unitPriceTry } : {}),
+    ...(line.grossTry != null ? { grossTry: line.grossTry } : {}),
+    ...(line.sellerDiscountTry != null ? { sellerDiscountTry: line.sellerDiscountTry } : {}),
+    ...(line.tyDiscountTry != null ? { tyDiscountTry: line.tyDiscountTry } : {}),
+    ...(line.commissionRate != null ? { commissionRate: line.commissionRate } : {}),
+    ...(line.commissionTry != null ? { commissionTry: line.commissionTry } : {}),
+    ...(line.sgrFeeTry != null ? { sgrFeeTry: line.sgrFeeTry } : {}),
+    ...(line.vatRate != null ? { vatRate: line.vatRate } : {}),
   }));
   if (!existing) {
     return {
@@ -167,10 +175,10 @@ export function withOrderDefaults(
       lines: seedLines,
       reserved: false,
       reservationKey: null,
-      packed: false,
-      labeled: false,
-      shipped: false,
-      labelUrl: null,
+      packed: incoming.packed ?? false,
+      labeled: incoming.labeled ?? false,
+      shipped: incoming.shipped ?? false,
+      labelUrl: incoming.labelUrl ?? null,
     };
   }
   return {
@@ -188,6 +196,7 @@ export function withOrderDefaults(
     createdAt: incoming.createdAt,
     productTitle: incoming.productTitle ?? existing.productTitle,
     imageUrl: incoming.imageUrl ?? existing.imageUrl,
+    money: incoming.money ?? existing.money,
     lines: seedLines.map((line) => ({
       ...line,
       scannedQty: existing.lines.find((old) => old.listingId === line.listingId)?.scannedQty ?? 0,

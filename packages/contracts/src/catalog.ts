@@ -4,6 +4,28 @@ export type OrderLine = {
   scannedQty: number;
   title?: string;
   imageUrl?: string | null;
+  unitPriceTry?: number;
+  grossTry?: number;
+  sellerDiscountTry?: number;
+  tyDiscountTry?: number;
+  commissionRate?: number;
+  commissionTry?: number;
+  sgrFeeTry?: number;
+  vatRate?: number;
+};
+
+/** Settlement is the current-account statement. These figures are package estimates. */
+export type OrderMoney = {
+  grossTry: number;
+  sellerDiscountTry: number;
+  tyDiscountTry: number;
+  customerTry: number;
+  commissionRate: number | null;
+  commissionTry: number | null;
+  sgrFeeTry: number;
+  estimatedEarningsTry: number | null;
+  earningsEstimated: boolean;
+  cargoProvider: string | null;
 };
 
 export type Channel =
@@ -74,6 +96,7 @@ export type OrderListItem = {
   labeled: boolean;
   shipped: boolean;
   labelUrl: string | null;
+  money?: OrderMoney;
 };
 
 export type ListingMapping = {

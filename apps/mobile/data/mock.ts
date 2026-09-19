@@ -2,6 +2,15 @@ import type { Channel } from '@/lib/api';
 
 export type OrderStatus = 'hazirlanacak' | 'kargoda' | 'iade';
 
+export type OrderLineView = {
+  listingId: string;
+  qty: number;
+  title?: string;
+  imageUrl?: string | null;
+  unitPriceTry?: number;
+  commissionRate?: number;
+};
+
 export type Order = {
   id: string;
   channel: Channel;
@@ -19,13 +28,23 @@ export type Order = {
   statusLabel: string;
   thumb: ProductThumbKind;
   imageUrl?: string | null;
-  lines: { listingId: string; qty: number; title?: string; imageUrl?: string | null }[];
-  reserved?: boolean;
-  imageUrl?: string | null;
+  lines: OrderLineView[];
   reserved?: boolean;
   packed?: boolean;
   labeled?: boolean;
   shipped?: boolean;
+  money?: {
+    grossTry: number;
+    sellerDiscountTry: number;
+    tyDiscountTry: number;
+    customerTry: number;
+    commissionRate: number | null;
+    commissionTry: number | null;
+    sgrFeeTry: number;
+    estimatedEarningsTry: number | null;
+    earningsEstimated: boolean;
+    cargoProvider: string | null;
+  };
 };
 
 export type ProductThumbKind = 'mug' | 'towel' | 'thermos' | 'lamp';

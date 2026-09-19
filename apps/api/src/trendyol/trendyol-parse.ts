@@ -1,4 +1,10 @@
-import type { OrderLine, OrderListItem, OrderStatus, ProductStatus } from '@magazakit/contracts';
+import type {
+  OrderLine,
+  OrderListItem,
+  OrderMoney,
+  OrderStatus,
+  ProductStatus,
+} from '@magazakit/contracts';
 import { allHttpImages, firstHttpImage } from '../channels/map';
 import type { MockListingSeed } from './mock-feed';
 
@@ -113,15 +119,19 @@ export function mapApprovedProducts(payload: unknown): MockListingSeed[] {
 }
 
 function mapPackageStatus(raw: string): { status: OrderStatus; statusLabel: string } {
-  const s = raw.trim();
-  if (s === 'Shipped') return { status: 'shipped', statusLabel: 'Kargoda' };
-  if (s === 'Delivered') return { status: 'delivered', statusLabel: 'Teslim' };
-  if (s === 'Cancelled' || s === 'UnSupplied' || s === 'UnDelivered') {
-    return { status: 'cancelled', statusLabel: 'İptal' };
+  const s = raw.trim().toLowerCase();
+  if (s === 'shipped' || s === 'atcollectionpoint') {
+    return { status: 'shipped', statusLabel: s === 'atcollectionpoint' ? 'Teslim noktasında' : 'Kargoda' };
   }
-  if (s === 'Returned') return { status: 'cancelled', statusLabel: 'İade' };
-  if (s === 'Picking') return { status: 'picking', statusLabel: 'Hazırlanacak' };
-  return { status: 'created', statusLabel: s || 'Oluşturuldu' };
+  if (s === 'delivered') return { status: 'delivered', statusLabel: 'Teslim' };
+  if (s === 'cancelled' || s === 'unsupplied' || s === 'undelivered') {
+    return { status: 'cancelled', statusLabel: s === 'undelivered' ? 'Teslim edilemedi' : 'İptal' };
+  }
+  if (s === 'returned') return { status: 'cancelled', statusLabel: 'İade' };
+  if (s === 'picking') return { status: 'picking', statusLabel: 'Hazırlanacak' };
+  if (s === 'invoiced') return { status: 'picking', statusLabel: 'Faturalandı' };
+  if (s === 'awaiting') return { status: 'created', statusLabel: 'Bekliyor' };
+  return { status: 'created', statusLabel: raw.trim() || 'Oluşturuldu' };
 }
 
 function customerLabel(pkg: Record<string, unknown>): string {
@@ -138,6 +148,59 @@ function isoFromMillis(value: unknown): string | null {
   return new Date(n).toISOString();
 }
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function closedStatus(status: OrderStatus): boolean {
+  return status === 'shipped' || status === 'delivered' || status === 'cancelled';
+}
+
+/** Commission on the package is a percent. Amount and sellerRevenue are settlement, not this feed. */
+export function estimatePackageMoney(
+  pkg: Record<string, unknown>,
+  lines: OrderLine[],
+  customerTry: number,
+): OrderMoney {
+  const commissionRates = lines
+    .map((l) => l.commissionRate)
+    .filter((n): n is number => typeof n === 'number' && n > 0);
+  const commissionTry = lines.every((l) => l.commissionTry != null)
+    ? round2(lines.reduce((s, l) => s + (l.commissionTry ?? 0), 0))
+    : null;
+  const sgrFeeTry = round2(lines.reduce((s, l) => s + (l.sgrFeeTry ?? 0), 0));
+  const sellerDiscountTry = round2(
+    num(pkg.packageSellerDiscount) ||
+      lines.reduce((s, l) => s + (l.sellerDiscountTry ?? 0), 0),
+  );
+  const tyDiscountTry = round2(
+    num(pkg.packageTyDiscount) || lines.reduce((s, l) => s + (l.tyDiscountTry ?? 0), 0),
+  );
+  const grossTry = round2(
+    num(pkg.packageGrossAmount) ||
+      lines.reduce((s, l) => s + (l.grossTry ?? 0), 0) ||
+      customerTry + sellerDiscountTry + tyDiscountTry,
+  );
+  const rate =
+    commissionRates.length === 0
+      ? null
+      : round2(commissionRates.reduce((s, n) => s + n, 0) / commissionRates.length);
+  const estimatedEarningsTry =
+    commissionTry == null ? null : round2(customerTry - commissionTry - sgrFeeTry);
+  return {
+    grossTry,
+    sellerDiscountTry,
+    tyDiscountTry,
+    customerTry,
+    commissionRate: rate,
+    commissionTry,
+    sgrFeeTry,
+    estimatedEarningsTry,
+    earningsEstimated: estimatedEarningsTry != null,
+    cargoProvider: str(pkg.cargoProviderName) || null,
+  };
+}
+
 /** Official getShipmentPackages / v2/orders content[]. */
 export function mapShipmentPackages(payload: unknown): Omit<OrderListItem, 'organizationId'>[] {
   const out: Omit<OrderListItem, 'organizationId'>[] = [];
@@ -148,7 +211,7 @@ export function mapShipmentPackages(payload: unknown): Omit<OrderListItem, 'orga
     const orderNumber = str(pkg.orderNumber) || packageId;
     if (!packageId) continue;
     const rawStatus = str(pkg.status ?? pkg.shipmentPackageStatus);
-    const mapped = mapPackageStatus(rawStatus);
+    let mapped = mapPackageStatus(rawStatus);
     const linesRaw = Array.isArray(pkg.lines) ? pkg.lines : [];
     const lines: OrderLine[] = [];
     let itemCount = 0;
@@ -159,17 +222,57 @@ export function mapShipmentPackages(payload: unknown): Omit<OrderListItem, 'orga
       const qty = Math.max(1, Math.floor(num(line.quantity)));
       itemCount += qty;
       const title = str(line.productName) || str(line.productTitle) || barcode;
+      const unit = num(line.lineUnitPrice || line.price);
+      const grossUnit = num(line.lineGrossAmount) || unit;
+      const sellerDisc = num(line.lineSellerDiscount);
+      const tyDisc = num(line.lineTyDiscount);
+      const commissionRate = num(line.commission);
+      const lineNet = round2((unit || grossUnit) * qty);
+      const commissionTry =
+        commissionRate > 0 ? round2(lineNet * (commissionRate / 100)) : undefined;
+      const sgrUnit = num(line.lineSgrFee);
       lines.push({
         listingId: barcode ? `ty-${barcode}` : `ty-line-${str(line.lineId) || lines.length}`,
         qty,
         scannedQty: 0,
         title: title || undefined,
         imageUrl: firstHttpImage(line.productImage, line.imageUrl, line.images),
+        unitPriceTry: unit || undefined,
+        grossTry: round2(grossUnit * qty) || undefined,
+        sellerDiscountTry: sellerDisc || undefined,
+        tyDiscountTry: tyDisc || undefined,
+        commissionRate: commissionRate || undefined,
+        commissionTry,
+        sgrFeeTry: sgrUnit ? round2(sgrUnit * qty) : undefined,
+        vatRate: num(line.vatRate) || undefined,
       });
     }
+    if (!closedStatus(mapped.status)) {
+      const lineStates = linesRaw
+        .map((raw) => asRecord(raw))
+        .filter(Boolean)
+        .map((line) => mapPackageStatus(str(line?.orderLineItemStatusName)).status);
+      const allGone =
+        lineStates.length > 0 &&
+        lineStates.every((s) => s === 'shipped' || s === 'delivered' || s === 'cancelled');
+      if (allGone) {
+        mapped = lineStates.every((s) => s === 'delivered')
+          ? mapPackageStatus('Delivered')
+          : lineStates.every((s) => s === 'cancelled')
+            ? mapPackageStatus('Cancelled')
+            : mapPackageStatus('Shipped');
+      } else if (str(pkg.cargoTrackingNumber)) {
+        mapped = mapPackageStatus('Shipped');
+      }
+    }
+    const customerTry = num(pkg.packageTotalPrice ?? pkg.packageGrossAmount);
+    const money = estimatePackageMoney(pkg, lines, customerTry);
+    const closed = closedStatus(mapped.status);
     const deadline = isoFromMillis(pkg.agreedDeliveryDate ?? pkg.estimatedDeliveryEndDate);
     const warn =
-      deadline != null && new Date(deadline).getTime() - Date.now() < 4 * 60 * 60 * 1000;
+      !closed &&
+      deadline != null &&
+      new Date(deadline).getTime() - Date.now() < 4 * 60 * 60 * 1000;
     const productTitle =
       lines.map((l) => l.title).filter(Boolean).join(', ') || `${itemCount} adet`;
     out.push({
@@ -182,7 +285,7 @@ export function mapShipmentPackages(payload: unknown): Omit<OrderListItem, 'orga
       itemCount,
       productTitle,
       imageUrl: lines.find((l) => l.imageUrl)?.imageUrl ?? null,
-      totalTry: num(pkg.packageTotalPrice ?? pkg.packageGrossAmount),
+      totalTry: customerTry,
       cargoDeadlineAt: deadline,
       cargoWarning: warn,
       createdAt: isoFromMillis(pkg.orderDate) ?? new Date().toISOString(),
@@ -193,6 +296,7 @@ export function mapShipmentPackages(payload: unknown): Omit<OrderListItem, 'orga
       labeled: false,
       shipped: mapped.status === 'shipped' || mapped.status === 'delivered',
       labelUrl: null,
+      money,
     });
   }
   return out;

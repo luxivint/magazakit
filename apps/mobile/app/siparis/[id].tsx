@@ -6,7 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PorcelainSheet } from '@/components/shell/PorcelainSheet';
 import { Button } from '@/components/ui/Button';
+import { ChannelBadge } from '@/components/ui/ChannelBadge';
 import { ConfigBanner } from '@/components/ui/ConfigBanner';
+import { MoneyText } from '@/components/ui/MoneyText';
 import { ProductThumb } from '@/components/ui/ProductThumb';
 import { TextField } from '@/components/ui/TextField';
 import { useCatalog } from '@/context/CatalogContext';
@@ -20,7 +22,8 @@ import {
   type LabelResult,
   type OrderListItem,
 } from '@/lib/apiClient';
-import { colors, fonts, space } from '@/theme/tokens';
+import { formatMoney } from '@/lib/money';
+import { colors, fonts, radii, space } from '@/theme/tokens';
 
 function LabelPdfFrame({ uri }: { uri: string }) {
   if (Platform.OS !== 'web') {
@@ -39,10 +42,11 @@ function LabelPdfFrame({ uri }: { uri: string }) {
   });
 }
 
-export default function HazirlaScreen() {
+export default function SiparisDetayScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const catalog = useCatalog();
   const order = catalog.orders.find((o) => o.id === id);
+  const needsPrepare = order?.status === 'hazirlanacak';
   const mappedSkus = useMemo(
     () => catalog.products.filter((p) => p.mapped).map((p) => p.sku),
     [catalog.products],
@@ -66,6 +70,7 @@ export default function HazirlaScreen() {
   const reserved = !!(work?.reserved ?? order?.reserved);
   const packed = !!(work?.packed ?? order?.packed);
   const shipped = !!(work?.shipped ?? order?.shipped);
+  const money = order?.money;
 
   const onReserve = async () => {
     if (!id || reserveLock.current || busy) return;
@@ -150,7 +155,7 @@ export default function HazirlaScreen() {
         <Pressable style={styles.back} onPress={() => router.back()} accessibilityLabel="Geri">
           <Ionicons name="chevron-back" size={22} color={colors.white} />
         </Pressable>
-        <Text style={styles.kicker}>Sipariş</Text>
+        <Text style={styles.kicker}>{order?.statusLabel ?? 'Sipariş'}</Text>
         <Text style={styles.title}>{order?.number ?? 'Sipariş'}</Text>
         <Text style={styles.lead}>
           {order ? `${order.customer} · ${order.qty} adet` : 'Katalogda yok — içeri al.'}
@@ -165,6 +170,10 @@ export default function HazirlaScreen() {
           {order ? (
             <>
               <View style={styles.summary}>
+                <View style={styles.metaRow}>
+                  <ChannelBadge channel={order.channel} />
+                  <Text style={styles.meta}>{order.due}</Text>
+                </View>
                 {order.lines.length ? (
                   order.lines.map((line) => (
                     <View key={`${line.listingId}-${line.qty}`} style={styles.lineRow}>
@@ -175,65 +184,139 @@ export default function HazirlaScreen() {
                       />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.lineTitle}>{line.title || line.listingId}</Text>
-                        <Text style={styles.body}>{line.qty} adet</Text>
+                        <Text style={styles.body}>
+                          {line.qty} adet
+                          {line.unitPriceTry != null ? ` · ${formatMoney(line.unitPriceTry)}` : ''}
+                          {line.commissionRate != null ? ` · kom. %${line.commissionRate}` : ''}
+                        </Text>
                       </View>
                     </View>
                   ))
                 ) : (
                   <Text style={styles.body}>{order.product}</Text>
                 )}
-                <View style={styles.metaRow}>
-                  <Text style={styles.meta}>{order.statusLabel}</Text>
-                  <Text style={styles.meta}>{order.due}</Text>
-                </View>
               </View>
+
+              <Text style={styles.section}>Tahmini kazanç</Text>
+              {money ? (
+                <View style={styles.moneyCard}>
+                  <MoneyRow label="Müşteri ödemesi" value={money.customerTry} />
+                  <MoneyRow label="Brüt" value={money.grossTry} />
+                  {money.sellerDiscountTry > 0 ? (
+                    <MoneyRow label="Satıcı indirimi" value={-money.sellerDiscountTry} muted />
+                  ) : null}
+                  {money.tyDiscountTry > 0 ? (
+                    <MoneyRow label="Trendyol indirimi" value={-money.tyDiscountTry} muted />
+                  ) : null}
+                  <MoneyRow
+                    label={
+                      money.commissionRate != null
+                        ? `Komisyon (~%${money.commissionRate})`
+                        : 'Komisyon'
+                    }
+                    value={money.commissionTry == null ? null : -money.commissionTry}
+                    muted
+                  />
+                  {money.sgrFeeTry > 0 ? (
+                    <MoneyRow label="SGR kesintisi" value={-money.sgrFeeTry} muted />
+                  ) : null}
+                  <View style={styles.earnRow}>
+                    <Text style={styles.earnLabel}>Tahmini hakediş</Text>
+                    {money.estimatedEarningsTry == null ? (
+                      <Text style={styles.missing}>oran yok</Text>
+                    ) : (
+                      <MoneyText value={money.estimatedEarningsTry} size="metric" />
+                    )}
+                  </View>
+                  {money.cargoProvider ? (
+                    <Text style={styles.body}>Kargo: {money.cargoProvider}</Text>
+                  ) : null}
+                  <Text style={styles.note}>
+                    Komisyon siparişte yüzde olarak gelir. Kesin tutar cari hesap ekstresindedir;
+                    kargo faturası bu pakette yok.
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.note}>
+                  Kazanç kalemleri bu kayıtta yok. İçeri al ile siparişi yeniden çek.
+                </Text>
+              )}
             </>
           ) : null}
 
-          <Text style={styles.section}>1. Rezerve</Text>
-          <Text style={styles.body}>
-            Satılabilir stok, fiziksel eksi rezervedir. Eşleşmeyen ürün rezerve edilemez ve kargolanamaz.
-          </Text>
-          <Button
-            label="Stoğu rezerve et"
-            loading={busy && !packed}
-            onPress={() => void onReserve()}
-          />
+          {needsPrepare ? (
+            <>
+              <Text style={styles.section}>1. Rezerve</Text>
+              <Text style={styles.body}>
+                Satılabilir stok, fiziksel eksi rezervedir. Eşleşmeyen ürün rezerve edilemez ve kargolanamaz.
+              </Text>
+              <Button
+                label="Stoğu rezerve et"
+                loading={busy && !packed}
+                onPress={() => void onReserve()}
+              />
 
-          <Text style={styles.section}>2. Barkod / SKU</Text>
-          <Text style={styles.body}>
-            Kamerayla oku; web’de yaz. {scanHint ? `Örnek: ${scanHint}` : 'Önce ürünü eşleştir.'}
-          </Text>
-          <TextField
-            label="SKU veya barkod"
-            value={sku}
-            onChangeText={setSku}
-            autoCapitalize="characters"
-            placeholder="SKU veya barkod"
-          />
-          <Button
-            label={packed ? 'Paket tamam' : 'Tara ve eşle'}
-            icon="barcode-outline"
-            variant="lime"
-            disabled={!reserved || packed}
-            loading={busy && reserved && !packed}
-            onPress={() => void onScan()}
-          />
+              <Text style={styles.section}>2. Barkod / SKU</Text>
+              <Text style={styles.body}>
+                Kamerayla oku; web’de yaz. {scanHint ? `Örnek: ${scanHint}` : 'Önce ürünü eşleştir.'}
+              </Text>
+              <TextField
+                label="SKU veya barkod"
+                value={sku}
+                onChangeText={setSku}
+                autoCapitalize="characters"
+                placeholder="SKU veya barkod"
+              />
+              <Button
+                label={packed ? 'Paket tamam' : 'Tara ve eşle'}
+                icon="barcode-outline"
+                variant="lime"
+                disabled={!reserved || packed}
+                loading={busy && reserved && !packed}
+                onPress={() => void onScan()}
+              />
 
-          <Text style={styles.section}>3. Kargo etiketi</Text>
-          <Text style={styles.body}>Etiketi yazdırmak siparişi kargoda yapmaz.</Text>
-          {pdfUri ? <LabelPdfFrame uri={pdfUri} /> : null}
-          {label && !pdfUri ? <Text style={styles.meta}>Etiket hazır.</Text> : null}
-          {printNote ? <Text style={styles.ok}>{printNote}</Text> : null}
-          <Button
-            label="Etiketi yazdır"
-            icon="print-outline"
-            disabled={!packed && !label}
-            loading={busy && packed}
-            onPress={() => void onPrint()}
-          />
+              <Text style={styles.section}>3. Kargo etiketi</Text>
+              <Text style={styles.body}>Etiketi yazdırmak siparişi kargoda yapmaz.</Text>
+              {pdfUri ? <LabelPdfFrame uri={pdfUri} /> : null}
+              {label && !pdfUri ? <Text style={styles.meta}>Etiket hazır.</Text> : null}
+              {printNote ? <Text style={styles.ok}>{printNote}</Text> : null}
+              <Button
+                label="Etiketi yazdır"
+                icon="print-outline"
+                disabled={!packed && !label}
+                loading={busy && packed}
+                onPress={() => void onPrint()}
+              />
+            </>
+          ) : order ? (
+            <Text style={styles.note}>
+              Bu paket kargoda veya kapalı. Hazırlama adımları yalnızca bekleyen siparişlerde açılır.
+            </Text>
+          ) : null}
         </ScrollView>
       </PorcelainSheet>
+    </View>
+  );
+}
+
+function MoneyRow({
+  label,
+  value,
+  muted,
+}: {
+  label: string;
+  value: number | null;
+  muted?: boolean;
+}) {
+  return (
+    <View style={styles.moneyRow}>
+      <Text style={styles.label}>{label}</Text>
+      {value == null ? (
+        <Text style={styles.missing}>yok</Text>
+      ) : (
+        <Text style={[styles.value, muted && { color: colors.muted }]}>{formatMoney(value)}</Text>
+      )}
     </View>
   );
 }
@@ -253,5 +336,27 @@ const styles = StyleSheet.create({
   summary: { gap: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#E6E6E0' },
   lineRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   lineTitle: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  moneyCard: {
+    backgroundColor: colors.white,
+    borderRadius: radii.card,
+    padding: 14,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.sheetLine,
+  },
+  moneyRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  label: { fontFamily: fonts.medium, fontSize: 13, color: colors.muted },
+  value: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink },
+  missing: { fontFamily: fonts.medium, fontSize: 13, color: colors.muted },
+  earnRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.sheetLine,
+  },
+  earnLabel: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink },
+  note: { fontFamily: fonts.regular, fontSize: 12, color: colors.muted, lineHeight: 17 },
 });

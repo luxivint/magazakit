@@ -87,11 +87,75 @@ describe('trendyol-parse', () => {
     expect(orders[0].productTitle).toContain('8683772071724');
   });
 
+  it('does not treat shipped packages as to-prepare and estimates commission', () => {
+    const orders = mapShipmentPackages({
+      content: [
+        {
+          shipmentPackageId: 2,
+          orderNumber: 'TY-9',
+          status: 'Shipped',
+          packageGrossAmount: 200,
+          packageSellerDiscount: 20,
+          packageTyDiscount: 0,
+          packageTotalPrice: 180,
+          cargoProviderName: 'Trendyol Express',
+          agreedDeliveryDate: Date.now() - 86_400_000,
+          orderDate: Date.now() - 2 * 86_400_000,
+          customerFirstName: 'A',
+          customerLastName: 'B',
+          lines: [
+            {
+              barcode: 'B1',
+              productName: 'Klip',
+              quantity: 2,
+              lineGrossAmount: 100,
+              lineSellerDiscount: 20,
+              lineTyDiscount: 0,
+              lineUnitPrice: 90,
+              commission: 15,
+              lineSgrFee: 1,
+              vatRate: 20,
+            },
+          ],
+        },
+      ],
+    });
+    expect(orders[0].status).toBe('shipped');
+    expect(orders[0].statusLabel).toBe('Kargoda');
+    expect(orders[0].cargoWarning).toBe(false);
+    expect(orders[0].money).toMatchObject({
+      customerTry: 180,
+      sellerDiscountTry: 20,
+      commissionRate: 15,
+      cargoProvider: 'Trendyol Express',
+      earningsEstimated: true,
+    });
+    expect(orders[0].money?.commissionTry).toBe(27);
+    expect(orders[0].money?.sgrFeeTry).toBe(2);
+    expect(orders[0].money?.estimatedEarningsTry).toBe(151);
+  });
+
   it('keeps packages when orderNumber is missing', () => {
     const orders = mapShipmentPackages({
       content: [{ shipmentPackageId: 9, status: 'Created', lines: [] }],
     });
     expect(orders[0].id).toBe('ty-9');
     expect(orders[0].orderNumber).toBe('9');
+  });
+
+  it('uses line item status when the package is still Created', () => {
+    const orders = mapShipmentPackages({
+      content: [
+        {
+          shipmentPackageId: 3,
+          orderNumber: 'TY-10',
+          status: 'Created',
+          packageTotalPrice: 10,
+          lines: [{ barcode: 'B', quantity: 1, orderLineItemStatusName: 'Delivered' }],
+        },
+      ],
+    });
+    expect(orders[0].status).toBe('delivered');
+    expect(orders[0].statusLabel).toBe('Teslim');
   });
 });
