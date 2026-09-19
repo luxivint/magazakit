@@ -193,8 +193,7 @@ export function estimatePackageMoney(
     commissionRates.length === 0
       ? null
       : round2(commissionRates.reduce((s, n) => s + n, 0) / commissionRates.length);
-  const estimatedEarningsTry =
-    commissionTry == null ? null : round2(customerTry - commissionTry - sgrFeeTry);
+  const estimatedEarningsTry = null;
   const deci = num(pkg.cargoDeci);
   return {
     grossTry,
@@ -211,8 +210,17 @@ export function estimatePackageMoney(
     storeFeeTry: null,
     stoppageTry: null,
     sellerRevenueTry: null,
+    cancelTry: 0,
+    returnTry: 0,
+    returnCargoTry: 0,
+    intlReturnOpTry: 0,
+    intlServiceTry: 0,
+    penaltyTry: 0,
+    paymentMethod: str(pkg.paymentType ?? pkg.paymentTypeName) || null,
+    cargoFeeRate: null,
+    financeLoaded: false,
     estimatedEarningsTry,
-    earningsEstimated: estimatedEarningsTry != null,
+    earningsEstimated: true,
     cargoProvider: str(pkg.cargoProviderName) || null,
     cargoTrackingNumber: str(pkg.cargoTrackingNumber) || null,
     cargoDeci: deci > 0 ? deci : null,

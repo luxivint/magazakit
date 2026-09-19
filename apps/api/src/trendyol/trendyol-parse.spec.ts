@@ -136,7 +136,8 @@ describe('trendyol-parse', () => {
     });
     expect(orders[0].money?.commissionTry).toBe(27);
     expect(orders[0].money?.sgrFeeTry).toBe(2);
-    expect(orders[0].money?.estimatedEarningsTry).toBe(151);
+    expect(orders[0].money?.estimatedEarningsTry).toBeNull();
+    expect(orders[0].money?.financeLoaded).toBe(false);
   });
 
   it('keeps packages when orderNumber is missing', () => {

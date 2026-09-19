@@ -281,108 +281,58 @@ export default function SiparisDetayScreen() {
   );
 }
 
+function signed(value: number | null | undefined): number | null {
+  if (value == null) return null;
+  return -Math.abs(value);
+}
+
 function PayoutCard({ money }: { money: Order['money'] }) {
   if (!money) {
     return (
       <Text style={styles.note}>Kazanç kalemleri bu kayıtta yok. İçeri al ile siparişi yeniden çek.</Text>
     );
   }
-  const commissionHint =
-    money.commissionSource === 'settlement'
-      ? 'cari'
-      : money.commissionRate != null
-        ? `paket %${money.commissionRate}`
-        : 'paket';
-  const cargoHint =
-    money.cargoFeeLabel ||
-    (money.cargoPayer === 'seller'
-      ? 'satıcı öder'
-      : money.cargoPayer === 'marketplace'
-        ? 'Trendyol öder'
-        : 'kargo faturası');
+  const cargoLabel =
+    money.cargoFeeRate != null ? `Kargo (%${money.cargoFeeRate})` : 'Kargo';
+  const netReady = money.estimatedEarningsTry != null && money.cargoFeeTry != null && money.serviceFeeTry != null;
   return (
     <>
-      <Text style={styles.section}>Sipariş tutarı</Text>
+      <Text style={styles.section}>Kesinti (panel)</Text>
       <View style={styles.moneyCard}>
-        <MoneyRow label="Müşteri ödemesi" value={money.customerTry} />
-        <MoneyRow label="Brüt" value={money.grossTry} />
-        <MoneyRow
-          label="Satıcı indirimi"
-          value={money.sellerDiscountTry ? -money.sellerDiscountTry : 0}
-          muted
-        />
-        <MoneyRow
-          label="Trendyol indirimi"
-          value={money.tyDiscountTry ? -money.tyDiscountTry : 0}
-          muted
-        />
-      </View>
-
-      <Text style={styles.section}>Kesintiler</Text>
-      <View style={styles.moneyCard}>
-        <MoneyRow
-          label={`Komisyon (${commissionHint})`}
-          value={money.commissionTry == null ? null : -money.commissionTry}
-          muted
-        />
-        <MoneyRow label="SGR" value={money.sgrFeeTry ? -money.sgrFeeTry : 0} muted />
-        <MoneyRow
-          label={`Kargo ücreti (${cargoHint})`}
-          value={money.cargoFeeTry == null ? null : -money.cargoFeeTry}
-          muted
-        />
-        <MoneyRow
-          label="Hizmet bedeli"
-          value={money.serviceFeeTry == null ? null : -money.serviceFeeTry}
-          muted
-        />
-        <MoneyRow
-          label="Mağaza / Market ücreti"
-          value={money.storeFeeTry == null ? null : -money.storeFeeTry}
-          muted
-        />
-        <MoneyRow
-          label="Stopaj"
-          value={money.stoppageTry == null ? null : -money.stoppageTry}
-          muted
-        />
-        {money.sellerRevenueTry != null ? (
-          <MoneyRow label="Cari satıcı payı" value={money.sellerRevenueTry} />
-        ) : null}
+        <MoneyRow label="Sipariş tutarı" value={money.customerTry} />
+        <MoneyRow label="Komisyon" value={signed(money.commissionTry)} muted />
+        <MoneyRow label={cargoLabel} value={signed(money.cargoFeeTry)} muted />
+        <MoneyRow label="İndirim" value={-(money.sellerDiscountTry || 0)} muted />
+        <MoneyRow label="Ceza" value={-(money.penaltyTry || 0)} muted />
+        <MoneyRow label="İptal" value={-(money.cancelTry || 0)} muted />
+        <MoneyRow label="İade" value={-(money.returnTry || 0)} muted />
+        <MoneyRow label="İade kargo" value={-(money.returnCargoTry || 0)} muted />
+        <MoneyRow label="Yurtdışı operasyon iade" value={-(money.intlReturnOpTry || 0)} muted />
+        <MoneyRow label="Uluslararası hizmet bedeli" value={-(money.intlServiceTry || 0)} muted />
+        <MoneyRow label="Platform hizmet bedeli" value={signed(money.serviceFeeTry)} muted />
+        <MoneyRow label="Stopaj" value={-(money.stoppageTry || 0)} muted />
+        <MoneyRow label="SGR" value={-(money.sgrFeeTry || 0)} muted />
         <View style={styles.earnRow}>
-          <Text style={styles.earnLabel}>
-            {money.sellerRevenueTry != null && money.cargoFeeTry != null ? 'Hakediş' : 'Tahmini hakediş'}
-          </Text>
-          {money.estimatedEarningsTry == null ? (
-            <Text style={styles.missing}>oran yok</Text>
+          <Text style={styles.earnLabel}>Net tutar</Text>
+          {netReady ? (
+            <MoneyText value={money.estimatedEarningsTry ?? 0} size="metric" />
           ) : (
-            <MoneyText value={money.estimatedEarningsTry} size="metric" />
+            <Text style={styles.missing}>kargo/hizmet cari yok</Text>
           )}
         </View>
-      </View>
-
-      <Text style={styles.section}>Kargo</Text>
-      <View style={styles.moneyCard}>
-        <InfoRow label="Firma" value={money.cargoProvider || 'yok'} />
-        <InfoRow label="Takip no" value={money.cargoTrackingNumber || 'yok'} />
-        <InfoRow
-          label="Desi"
-          value={money.cargoDeci != null ? String(money.cargoDeci) : 'yok'}
-        />
-        <InfoRow
-          label="Kargo kim öder"
-          value={
-            money.cargoPayer === 'seller'
-              ? 'Satıcı'
-              : money.cargoPayer === 'marketplace'
-                ? 'Trendyol anlaşması'
-                : 'pakette yok'
-          }
-        />
+        {money.paymentMethod ? (
+          <Text style={styles.body}>Ödeme: {money.paymentMethod}</Text>
+        ) : null}
+        {money.cargoProvider ? (
+          <Text style={styles.body}>
+            {money.cargoProvider}
+            {money.cargoTrackingNumber ? ` · ${money.cargoTrackingNumber}` : ''}
+          </Text>
+        ) : null}
         <Text style={styles.note}>
-          Komisyon siparişte yüzde; cari Satış kaydı gelince tutar kesinleşir. Kargo ve hizmet
-          bedeli kargo faturası / kesinti faturasında. Market mağaza ücreti pazaryeri satıcısında
-          yok. İçeri al, cariyi de çeker.
+          Aynı kalemler Trendyol satıcı paneli sipariş tablosu. Net = tutar − komisyon − kargo −
+          platform hizmet − diğer kesintiler. Kargo ve hizmet cari/faturadan gelir; yoksa 96 ₺
+          yazılmaz.
         </Text>
       </View>
     </>
@@ -406,15 +356,6 @@ function MoneyRow({
       ) : (
         <Text style={[styles.value, muted && { color: colors.muted }]}>{formatMoney(value)}</Text>
       )}
-    </View>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.moneyRow}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>{value}</Text>
     </View>
   );
 }

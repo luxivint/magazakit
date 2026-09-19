@@ -48,6 +48,15 @@ export type Order = {
     storeFeeTry?: number | null;
     stoppageTry?: number | null;
     sellerRevenueTry?: number | null;
+    cancelTry?: number;
+    returnTry?: number;
+    returnCargoTry?: number;
+    intlReturnOpTry?: number;
+    intlServiceTry?: number;
+    penaltyTry?: number;
+    paymentMethod?: string | null;
+    cargoFeeRate?: number | null;
+    financeLoaded?: boolean;
     estimatedEarningsTry: number | null;
     earningsEstimated: boolean;
     cargoProvider: string | null;

@@ -35,7 +35,8 @@ import { sellableOf, toProductListItem } from './identity.repository';
 import { trendyolMode } from '../config/trendyol-env';
 import { mockTrendyolOutboxStatus } from '../outbox/mock-trendyol-write';
 import { CHANNEL_LABELS, HARD_BLOCK, channelCatalog } from '../channels/registry';
-import { liveAdapterFromSecrets, parseShopConnect } from '../channels/shop-secrets';
+import { liveAdapterFromSecrets, parseShopConnect, trendyolLiveFromSecrets } from '../channels/shop-secrets';
+import { enrichOrdersWithFinance } from '../trendyol/trendyol-finance';
 import { SHOP_CHANNELS, type ChannelAdapterMap, type ChannelCatalogRow, type ChannelReadAdapter } from '../channels/types';
 import type { Channel, ShopConnectRequest } from '@magazakit/contracts';
 import { mirrorListingImages } from '../media/ingest-images';
@@ -295,11 +296,33 @@ export class IdentityStore {
     pageSize?: string,
   ): Promise<PreviewList<OrderListItem>> {
     const org = await this.assertOrgAccess(uid, organizationId);
-    const orders = await this.repo.listOrgOrders(org.id);
+    let orders = await this.repo.listOrgOrders(org.id);
+    orders = await this.attachTrendyolFinance(uid, org.id, orders);
     return asPreviewList(
       paginate(orders, parsePageQuery({ page, pageSize })),
       await this.previewIsMock(uid),
     );
+  }
+
+  private async attachTrendyolFinance(
+    uid: string,
+    orgId: string,
+    orders: OrderListItem[],
+  ): Promise<OrderListItem[]> {
+    if (orders.length === 0 || orders.every((o) => o.money?.financeLoaded)) return orders;
+    const shop = (await this.repo.listShopsForUid(uid)).find(
+      (s) => s.organizationId === orgId && s.channel === 'trendyol' && s.status === 'live_connected' && !s.mock,
+    );
+    if (!shop) return orders;
+    const secrets = await this.repo.getShopSecrets(shop.id, orgId);
+    if (!secrets) return orders;
+    try {
+      const next = await enrichOrdersWithFinance(trendyolLiveFromSecrets(secrets), orders);
+      await this.repo.upsertOrders(orgId, next);
+      return next.map((row) => ({ ...row, organizationId: orgId }));
+    } catch {
+      return orders;
+    }
   }
 
   private async previewIsMock(uid: string): Promise<boolean> {
