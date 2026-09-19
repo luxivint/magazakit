@@ -157,9 +157,10 @@ describe('authenticated mock Firebase (e2e)', () => {
     const shop = await request(app.getHttpServer())
       .post('/v1/shops/trendyol/connect')
       .set(auth)
-      .send({ sellerId: '123', apiKey: 'should-not-be-stored', apiSecret: 'nope' })
+      .send({ sellerId: '123', apiKey: 'should-not-be-stored' })
       .expect(201);
     expect(shop.body.channel).toBe('trendyol');
+    expect(shop.body.mock).toBe(true);
     expect(JSON.stringify(shop.body)).not.toContain('should-not-be-stored');
 
     const sync = await request(app.getHttpServer())

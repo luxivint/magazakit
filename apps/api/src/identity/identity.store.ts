@@ -32,11 +32,12 @@ import {
 } from '@magazakit/contracts';
 import type { IdentityRepository, PersistenceBackend } from './identity.repository';
 import { sellableOf, toProductListItem } from './identity.repository';
-import { K01_NOTE, readTrendyolLiveConfig, trendyolMode } from '../config/trendyol-env';
+import { trendyolMode } from '../config/trendyol-env';
 import { mockTrendyolOutboxStatus } from '../outbox/mock-trendyol-write';
-import { CHANNEL_LABELS, channelCatalog } from '../channels/registry';
-import { SHOP_CHANNELS, type ChannelAdapterMap, type ChannelCatalogRow } from '../channels/types';
-import type { Channel } from '@magazakit/contracts';
+import { CHANNEL_LABELS, HARD_BLOCK, channelCatalog } from '../channels/registry';
+import { liveAdapterFromSecrets, parseShopConnect } from '../channels/shop-secrets';
+import { SHOP_CHANNELS, type ChannelAdapterMap, type ChannelCatalogRow, type ChannelReadAdapter } from '../channels/types';
+import type { Channel, ShopConnectRequest } from '@magazakit/contracts';
 
 function boom(code: string, message: string, status: HttpStatus): never {
   throw new HttpException({ code, message }, status);
@@ -79,19 +80,6 @@ export class IdentityStore {
 
   private get trendyol() {
     return this.adapters.trendyol;
-  }
-
-  private assertMarketplaceOwner(uid: string): void {
-    const ownerUid = process.env.MARKETPLACE_OWNER_UID?.trim();
-    if (!ownerUid || ownerUid !== uid) {
-      boom(
-        ErrorCodes.FORBIDDEN,
-        ownerUid
-          ? 'Bu hesap sunucudaki pazaryeri kimlik bilgilerini kullanamaz.'
-          : 'Canlı pazaryeri kimlik bilgileri için MARKETPLACE_OWNER_UID yapılandırılmalı.',
-        ownerUid ? HttpStatus.FORBIDDEN : HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
   }
 
   get backend(): PersistenceBackend {
@@ -145,66 +133,79 @@ export class IdentityStore {
     return this.repo.saveDevice(uid, fcmToken);
   }
 
-  async connectTrendyolMock(uid: string, sellerId?: string): Promise<ShopStatus> {
+  async connectTrendyolMock(uid: string, body?: ShopConnectRequest): Promise<ShopStatus> {
     const org = await this.requireOrg(uid);
-    const mode = trendyolMode();
-    if (mode === 'unconfigured') {
-      boom(ErrorCodes.K01_TRENDYOL_UNAVAILABLE, K01_NOTE, HttpStatus.SERVICE_UNAVAILABLE);
-    }
-    if (mode === 'live') {
-      this.assertMarketplaceOwner(uid);
-      const live = readTrendyolLiveConfig();
-      if (!live) {
-        boom(ErrorCodes.K01_TRENDYOL_UNAVAILABLE, K01_NOTE, HttpStatus.SERVICE_UNAVAILABLE);
-      }
-      const asked = sellerId?.trim();
-      if (asked && asked !== live.sellerId) {
-        boom(
-          ErrorCodes.VALIDATION,
-          'Satıcı ID, sunucudaki TRENDYOL_SELLER_ID ile aynı olmalı. Anahtar telefonda tutulmaz.',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-      if (this.trendyol.probe) {
-        await this.trendyol.probe();
-      }
-      return this.repo.upsertTrendyolMockShop(org, {
+    const liveKeys = Boolean(body?.apiKey?.trim() && body?.apiSecret?.trim() && body?.sellerId?.trim());
+    if (liveKeys) {
+      const secrets = parseShopConnect('trendyol', body);
+      const adapter = liveAdapterFromSecrets(secrets);
+      await adapter.probe?.();
+      const shop = await this.repo.upsertTrendyolMockShop(org, {
         status: 'live_connected',
         statusLabel: 'Bağlı (Trendyol V2 okuma)',
-        sellerLabel: `Trendyol ${live.sellerId}`,
+        sellerLabel: `Trendyol ${secrets.sellerId}`,
         mock: false,
       });
+      await this.repo.saveShopSecrets(shop.id, org.id, secrets);
+      return shop;
     }
-    return this.repo.upsertTrendyolMockShop(org);
+    if (trendyolMode() === 'mock') {
+      return this.repo.upsertTrendyolMockShop(org);
+    }
+    boom(
+      ErrorCodes.K01_TRENDYOL_UNAVAILABLE,
+      'Trendyol bağlamak için satıcı ID, API key ve secret gönderin. Anahtar telefonda saklanmaz.',
+      HttpStatus.BAD_REQUEST,
+    );
   }
 
-  async connectChannel(uid: string, channel: string, sellerId?: string): Promise<ShopStatus> {
+  async connectChannel(uid: string, channel: string, body?: ShopConnectRequest): Promise<ShopStatus> {
     if (!(SHOP_CHANNELS as string[]).includes(channel)) {
       boom(ErrorCodes.VALIDATION, 'Bilinmeyen kanal.', HttpStatus.BAD_REQUEST);
     }
     const ch = channel as Channel;
     if (ch === 'trendyol') {
-      return this.connectTrendyolMock(uid, sellerId);
+      return this.connectTrendyolMock(uid, body);
     }
     const org = await this.requireOrg(uid);
-    const adapter = this.adapters[ch];
-    const catalogEntry = channelCatalog(this.adapters).find((entry) => entry.channel === ch);
-    if (catalogEntry?.mode === 'blocked') {
-      await adapter.probe?.();
+    if ((HARD_BLOCK as string[]).includes(ch)) {
+      await this.adapters[ch].probe?.();
     }
-    this.assertMarketplaceOwner(uid);
+    const secrets = parseShopConnect(ch, body);
+    const adapter = liveAdapterFromSecrets(secrets);
     await adapter.probe?.();
-    return this.repo.upsertShop(org, ch, {
+    const shop = await this.repo.upsertShop(org, ch, {
       status: 'live_connected',
       statusLabel: `Bağlı (${CHANNEL_LABELS[ch]} okuma)`,
-      sellerLabel: sellerId?.trim() ? `${CHANNEL_LABELS[ch]} ${sellerId.trim()}` : CHANNEL_LABELS[ch],
+      sellerLabel: secrets.sellerId
+        ? `${CHANNEL_LABELS[ch]} ${secrets.sellerId}`
+        : secrets.shopDomain
+          ? `${CHANNEL_LABELS[ch]} ${secrets.shopDomain}`
+          : CHANNEL_LABELS[ch],
       mock: false,
-      k01: 'Salt okuma. Yazma kapalı. Anahtar telefonda yok.',
+      k01: 'Salt okuma. Yazma kapalı. Anahtar mağaza kaydında şifreli; telefonda yok.',
     });
+    await this.repo.saveShopSecrets(shop.id, org.id, secrets);
+    return shop;
   }
 
   listShops(uid: string): Promise<ShopStatus[]> {
     return this.repo.listShopsForUid(uid);
+  }
+
+  private async adapterForShop(orgId: string, shop: ShopStatus): Promise<ChannelReadAdapter> {
+    if (shop.mock || (shop.channel === 'trendyol' && shop.status !== 'live_connected')) {
+      return this.trendyol;
+    }
+    const secrets = await this.repo.getShopSecrets(shop.id, orgId);
+    if (!secrets) {
+      boom(
+        ErrorCodes.CHANNEL_UNAVAILABLE,
+        'Bu mağaza için kayıtlı kimlik bilgisi yok. Tekrar bağlayın.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    return liveAdapterFromSecrets(secrets);
   }
 
   async syncShop(uid: string, shopId: string): Promise<ShopSyncResult> {
@@ -216,10 +217,7 @@ export class IdentityStore {
         HttpStatus.NOT_FOUND,
       );
     }
-    const adapter = this.adapters[shop.channel];
-    if (!adapter.mock) {
-      this.assertMarketplaceOwner(uid);
-    }
+    const adapter = await this.adapterForShop(org.id, shop);
     const feed = await adapter.pullFeed();
     const productsUpserted = await this.repo.upsertListings(org.id, shop.id, feed.listings);
     const ordersUpserted = await this.repo.upsertOrders(org.id, feed.orders);

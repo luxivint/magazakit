@@ -1,20 +1,11 @@
-import { readTrendyolLiveConfig, trendyolMode } from './trendyol-env';
+import { trendyolMode } from './trendyol-env';
 
 describe('trendyolMode', () => {
-  const keys = [
-    'TRENDYOL_USE_MOCK',
-    'TRENDYOL_SELLER_ID',
-    'TRENDYOL_API_KEY',
-    'TRENDYOL_API_SECRET',
-    'TRENDYOL_BASE_URL',
-    'TRENDYOL_ENV',
-  ] as const;
+  const keys = ['TRENDYOL_USE_MOCK'] as const;
   const prev: Record<string, string | undefined> = {};
 
   beforeEach(() => {
-    for (const key of keys) {
-      prev[key] = process.env[key];
-    }
+    for (const key of keys) prev[key] = process.env[key];
   });
 
   afterEach(() => {
@@ -24,31 +15,13 @@ describe('trendyolMode', () => {
     }
   });
 
-  it('defaults to mock even if live env is set', () => {
+  it('defaults to mock', () => {
     delete process.env.TRENDYOL_USE_MOCK;
-    process.env.TRENDYOL_SELLER_ID = '1';
-    process.env.TRENDYOL_API_KEY = 'k';
-    process.env.TRENDYOL_API_SECRET = 's';
     expect(trendyolMode()).toBe('mock');
   });
 
-  it('is live only when mock is off and seller+key+secret exist', () => {
+  it('is unconfigured when mock is off — live keys are per shop, not env', () => {
     process.env.TRENDYOL_USE_MOCK = 'false';
-    process.env.TRENDYOL_SELLER_ID = '4321';
-    process.env.TRENDYOL_API_KEY = 'k';
-    process.env.TRENDYOL_API_SECRET = 's';
-    delete process.env.TRENDYOL_BASE_URL;
-    expect(trendyolMode()).toBe('live');
-    expect(readTrendyolLiveConfig()?.baseUrl).toBe('https://apigw.trendyol.com');
-    expect(readTrendyolLiveConfig()?.userAgent).toBe('4321 - SelfIntegration');
-  });
-
-  it('is unconfigured when mock is off but secrets missing', () => {
-    process.env.TRENDYOL_USE_MOCK = 'false';
-    delete process.env.TRENDYOL_SELLER_ID;
-    delete process.env.TRENDYOL_API_KEY;
-    delete process.env.TRENDYOL_API_SECRET;
     expect(trendyolMode()).toBe('unconfigured');
-    expect(readTrendyolLiveConfig()).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,16 +12,55 @@ import { ConfigBanner } from '@/components/ui/ConfigBanner';
 import { TextField } from '@/components/ui/TextField';
 import { useAuth } from '@/context/AuthContext';
 import { useShops } from '@/context/ShopContext';
-import type { Channel, ChannelCatalogRow } from '@/lib/api';
+import type { Channel, ChannelCatalogRow, ShopConnectRequest } from '@/lib/api';
 import { ApiError, fetchChannels } from '@/lib/apiClient';
 import { shopStatusLabel } from '@/lib/mapCatalog';
 import { colors, fonts, radii, space } from '@/theme/tokens';
+
+type Field = { key: keyof ShopConnectRequest; label: string; placeholder: string; secure?: boolean };
+
+const FIELDS: Partial<Record<Channel, Field[]>> = {
+  trendyol: [
+    { key: 'sellerId', label: 'Satıcı ID', placeholder: 'Trendyol sellerId' },
+    { key: 'apiKey', label: 'API key', placeholder: 'Sunucuya bir kez gider', secure: true },
+    { key: 'apiSecret', label: 'API secret', placeholder: 'Telefonda saklanmaz', secure: true },
+  ],
+  hepsiburada: [
+    { key: 'merchantId', label: 'Merchant ID', placeholder: 'merchantId' },
+    { key: 'apiKey', label: 'API key', placeholder: 'Basic kullanıcı', secure: true },
+    { key: 'apiSecret', label: 'API secret', placeholder: 'Basic parola', secure: true },
+  ],
+  n11: [
+    { key: 'appKey', label: 'appKey', placeholder: 'n11 appKey', secure: true },
+    { key: 'appSecret', label: 'appSecret', placeholder: 'n11 appSecret', secure: true },
+  ],
+  shopify: [
+    { key: 'shopDomain', label: 'Mağaza', placeholder: 'magaza.myshopify.com' },
+    { key: 'accessToken', label: 'Admin token', placeholder: 'shpat_…', secure: true },
+  ],
+  woocommerce: [
+    { key: 'host', label: 'Mağaza HTTPS', placeholder: 'https://ornek.com' },
+    { key: 'consumerKey', label: 'Consumer key', placeholder: 'ck_…', secure: true },
+    { key: 'consumerSecret', label: 'Consumer secret', placeholder: 'cs_…', secure: true },
+  ],
+  ciceksepeti: [{ key: 'apiKey', label: 'API key', placeholder: 'x-api-key', secure: true }],
+  ikas: [
+    { key: 'clientId', label: 'client_id', placeholder: 'ikas private app', secure: true },
+    { key: 'clientSecret', label: 'client_secret', placeholder: 'ikas secret', secure: true },
+  ],
+  amazon: [
+    { key: 'clientId', label: 'LWA client id', placeholder: 'amzn1.application…', secure: true },
+    { key: 'clientSecret', label: 'LWA secret', placeholder: 'LWA secret', secure: true },
+    { key: 'refreshToken', label: 'Refresh token', placeholder: 'Atzr|…', secure: true },
+    { key: 'sellerId', label: 'Seller ID (ürünler)', placeholder: 'isteğe bağlı' },
+  ],
+};
 
 export default function MagazaBaglaScreen() {
   const { orgName } = useAuth();
   const { connectChannel } = useShops();
   const [storeName, setStoreName] = useState(orgName ?? '');
-  const [sellerId, setSellerId] = useState('');
+  const [values, setValues] = useState<ShopConnectRequest>({});
   const [catalog, setCatalog] = useState<ChannelCatalogRow[]>([]);
   const [channel, setChannel] = useState<Channel>('trendyol');
   const [busy, setBusy] = useState(false);
@@ -34,14 +73,16 @@ export default function MagazaBaglaScreen() {
   }, []);
 
   const selected = catalog.find((c) => c.channel === channel);
-  const blocked = selected?.mode === 'blocked' || selected?.mode === 'unconfigured';
+  const blocked = selected?.mode === 'blocked';
+  const fields = useMemo(() => FIELDS[channel] ?? [], [channel]);
 
   const test = async () => {
     setBusy(true);
     setResult(null);
     try {
-      const shop = await connectChannel(channel, sellerId);
-      setResult(`${shopStatusLabel(shop.status, shop.statusLabel)}. Anahtar gönderilmedi.`);
+      const shop = await connectChannel(channel, values);
+      setValues({});
+      setResult(`${shopStatusLabel(shop.status, shop.statusLabel)}. Anahtar telefonda tutulmadı.`);
     } catch (e) {
       setResult(e instanceof ApiError ? e.message : 'Bağlantı denendi sayılmaz.');
     } finally {
@@ -57,7 +98,7 @@ export default function MagazaBaglaScreen() {
         </Pressable>
         <BrandMark />
         <Text style={styles.headline}>Mağazanı bağla</Text>
-        <Text style={styles.lead}>Satış kanalını hesabına ekle. Anahtar telefonda durmaz.</Text>
+        <Text style={styles.lead}>Anahtar bir kez API’ye gider, org mağazasında şifrelenir. Telefonda ve .env’de durmaz.</Text>
         <View style={styles.steps}>
           <Text style={styles.stepMuted}>1 İşletme</Text>
           <Text style={styles.stepOn}>2 Mağaza</Text>
@@ -78,17 +119,16 @@ export default function MagazaBaglaScreen() {
                   style={[styles.channelOn, on && styles.channelSelected]}
                   onPress={() => {
                     setChannel(row.channel);
+                    setValues({});
                     setResult(null);
                   }}
                 >
                   <View style={{ flex: 1, gap: 4 }}>
                     <ChannelBadge channel={row.channel} />
                     <Text style={styles.hint}>
-                      {row.mode === 'live'
-                        ? 'Nest .env hazır · salt okuma'
-                        : row.mode === 'mock'
-                          ? 'Test okuma'
-                          : row.note}
+                      {row.mode === 'mock'
+                        ? 'Anahtarsız test okuma (Trendyol mock)'
+                        : row.note}
                     </Text>
                   </View>
                   {on ? <Ionicons name="checkmark-circle" size={22} color={colors.success} /> : null}
@@ -103,14 +143,22 @@ export default function MagazaBaglaScreen() {
             onChangeText={setStoreName}
             autoCapitalize="words"
           />
-          <TextField
-            label="Satıcı / mağaza etiketi"
-            placeholder="Gönderilir; anahtar değil"
-            value={sellerId}
-            onChangeText={setSellerId}
-          />
+          {channel === 'trendyol' ? (
+            <Text style={styles.hint}>Boş bırakırsan mock bağlanır. Canlı için üç alan da gerekir.</Text>
+          ) : null}
+          {fields.map((field) => (
+            <TextField
+              key={field.key}
+              label={field.label}
+              placeholder={field.placeholder}
+              value={String(values[field.key] ?? '')}
+              onChangeText={(text) => setValues((prev) => ({ ...prev, [field.key]: text }))}
+              secureTextEntry={field.secure}
+              autoCapitalize="none"
+            />
+          ))}
           {result ? <ConfigBanner text={result} /> : null}
-          {result && !result.includes('sayılmaz') && !result.includes('yok') ? (
+          {result && !result.includes('sayılmaz') && !result.includes('yok') && !result.includes('gerekli') ? (
             <Button label="Ürünleri içeri al" variant="ghost" onPress={() => router.push('/(tabs)/icerik-al')} />
           ) : null}
           <Button

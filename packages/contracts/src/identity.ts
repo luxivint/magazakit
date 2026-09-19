@@ -1,3 +1,5 @@
+import type { Channel } from './catalog';
+
 export type CurrentUserResponse = {
   uid: string;
   email: string | null;
@@ -17,7 +19,24 @@ export type DeviceRegistration = {
   durable: boolean;
 };
 
-import type { Channel } from './catalog';
+/** Sent once on connect. API encrypts and stores per shop. Never returned. */
+export type ShopConnectRequest = {
+  sellerId?: string;
+  merchantId?: string;
+  apiKey?: string;
+  apiSecret?: string;
+  appKey?: string;
+  appSecret?: string;
+  shopDomain?: string;
+  accessToken?: string;
+  host?: string;
+  consumerKey?: string;
+  consumerSecret?: string;
+  clientId?: string;
+  clientSecret?: string;
+  refreshToken?: string;
+  sandbox?: boolean;
+};
 
 export type ShopChannel = Channel;
 

@@ -30,6 +30,7 @@ import {
   type PrinterTestResult,
   type Channel,
   type ChannelCatalogRow,
+  type ShopConnectRequest,
 } from '@/lib/api';
 import { getIdToken } from '@/lib/firebase';
 
@@ -181,22 +182,29 @@ const CHANNELS: Channel[] = [
   'ideasoft',
 ];
 
-/** Connect a channel. Never send apiKey/apiSecret from the phone. */
-export async function connectShop(channel: Channel, sellerId?: string): Promise<ShopStatus> {
+/** Connect a channel. Keys go to the API once; they are not stored on the phone. */
+export async function connectShop(channel: Channel, body: ShopConnectRequest = {}): Promise<ShopStatus> {
   if (!CHANNELS.includes(channel)) {
     throw new ApiError('Bilinmeyen kanal.', 400, 'VALIDATION');
   }
-  const body: { sellerId?: string } = {};
-  if (sellerId?.trim()) body.sellerId = sellerId.trim();
+  const payload: ShopConnectRequest = {};
+  for (const [key, value] of Object.entries(body) as [keyof ShopConnectRequest, unknown][]) {
+    if (typeof value === 'string' && value.trim()) {
+      payload[key] = value.trim() as never;
+    } else if (typeof value === 'boolean') {
+      payload[key] = value as never;
+    }
+  }
   return request(`/v1/shops/${encodeURIComponent(channel)}/connect`, {
     method: 'POST',
     headers: await headers(true),
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
 }
 
-export async function connectTrendyolShop(sellerId?: string): Promise<ShopStatus> {
-  return connectShop('trendyol', sellerId);
+export async function connectTrendyolShop(body?: ShopConnectRequest | string): Promise<ShopStatus> {
+  if (typeof body === 'string') return connectShop('trendyol', { sellerId: body });
+  return connectShop('trendyol', body);
 }
 
 export async function syncShop(shopId: string): Promise<ShopSyncResult> {

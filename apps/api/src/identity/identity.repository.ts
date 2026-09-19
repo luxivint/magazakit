@@ -20,6 +20,7 @@ import type {
   Warehouse,
   WarehouseTransfer,
 } from '@magazakit/contracts';
+import type { ChannelSecrets } from '../channels/shop-secrets';
 import type { MockListingSeed } from '../trendyol/mock-feed';
 
 export type PersistenceBackend = 'memory' | 'postgres';
@@ -58,6 +59,8 @@ export interface IdentityRepository {
   ): Promise<ShopStatus>;
   listShopsForUid(uid: string): Promise<ShopStatus[]>;
   getShopById(shopId: string): Promise<ShopStatus | null>;
+  saveShopSecrets(shopId: string, orgId: string, secrets: ChannelSecrets): Promise<void>;
+  getShopSecrets(shopId: string, orgId: string): Promise<ChannelSecrets | null>;
   markShopSynced(shopId: string, checkpoint: string, lastSyncAt: string): Promise<ShopStatus>;
   upsertListings(orgId: string, shopId: string, listings: MockListingSeed[]): Promise<number>;
   upsertOrders(orgId: string, orders: Omit<OrderListItem, 'organizationId'>[]): Promise<number>;

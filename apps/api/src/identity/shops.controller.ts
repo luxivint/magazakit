@@ -1,14 +1,7 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import type { ShopStatus, ShopSyncResult } from '@magazakit/contracts';
+import type { ShopConnectRequest, ShopStatus, ShopSyncResult } from '@magazakit/contracts';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { IdentityStore } from './identity.store';
-
-type ConnectBody = {
-  sellerId?: string;
-  /** Ignored. Never stored or logged (K01). */
-  apiKey?: string;
-  apiSecret?: string;
-};
 
 @Controller('v1/shops')
 export class ShopsController {
@@ -23,18 +16,18 @@ export class ShopsController {
   @Post('trendyol/connect')
   async connectTrendyol(
     @CurrentUser() user: AuthUser,
-    @Body() body: ConnectBody,
+    @Body() body: ShopConnectRequest,
   ): Promise<ShopStatus> {
-    return this.identity.connectTrendyolMock(user.uid, body?.sellerId);
+    return this.identity.connectTrendyolMock(user.uid, body);
   }
 
   @Post(':channel/connect')
   async connectChannel(
     @CurrentUser() user: AuthUser,
     @Param('channel') channel: string,
-    @Body() body: ConnectBody,
+    @Body() body: ShopConnectRequest,
   ): Promise<ShopStatus> {
-    return this.identity.connectChannel(user.uid, channel, body?.sellerId);
+    return this.identity.connectChannel(user.uid, channel, body);
   }
 
   @Post(':id/sync')

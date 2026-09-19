@@ -21,6 +21,8 @@ import type {
   Warehouse,
   WarehouseTransfer,
 } from '@magazakit/contracts';
+import { decryptJson, encryptJson } from '../channels/crypto';
+import type { ChannelSecrets } from '../channels/shop-secrets';
 import { K01_NOTE } from '../config/trendyol-env';
 import { shopRecordId } from '../channels/registry';
 import { SHOP_CHANNELS } from '../channels/types';
@@ -230,6 +232,28 @@ export class PostgresIdentityRepository implements IdentityRepository {
     );
     const row = res.rows[0];
     return row ? rowToShop(row) : null;
+  }
+
+  async saveShopSecrets(shopId: string, orgId: string, secrets: ChannelSecrets): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO shop_credentials (shop_id, organization_id, ciphertext)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (shop_id) DO UPDATE SET
+         organization_id = EXCLUDED.organization_id,
+         ciphertext = EXCLUDED.ciphertext,
+         updated_at = now()`,
+      [shopId, orgId, encryptJson(secrets)],
+    );
+  }
+
+  async getShopSecrets(shopId: string, orgId: string): Promise<ChannelSecrets | null> {
+    const res = await this.pool.query(
+      `SELECT ciphertext FROM shop_credentials WHERE shop_id = $1 AND organization_id = $2`,
+      [shopId, orgId],
+    );
+    const blob = res.rows[0]?.ciphertext;
+    if (!blob) return null;
+    return decryptJson<ChannelSecrets>(String(blob));
   }
 
   async markShopSynced(

@@ -3,6 +3,7 @@ import { mockTrendyolFeed } from './mock-feed';
 import type { TrendyolReadAdapter } from './trendyol-read.adapter';
 
 export class MockTrendyolReadAdapter implements TrendyolReadAdapter {
+  readonly channel = 'trendyol' as const;
   readonly mock = true;
 
   async probe(): Promise<void> {

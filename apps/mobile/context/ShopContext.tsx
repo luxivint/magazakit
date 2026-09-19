@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { useAuth } from '@/context/AuthContext';
 import { ApiError, connectShop, fetchShops, type ShopStatus } from '@/lib/apiClient';
-import type { Channel } from '@/lib/api';
+import type { Channel, ShopConnectRequest } from '@/lib/api';
 
 type ShopContextValue = {
   shops: ShopStatus[];
@@ -10,7 +10,7 @@ type ShopContextValue = {
   error: string | null;
   refresh: () => void;
   connectMock: (sellerId?: string) => Promise<ShopStatus>;
-  connectChannel: (channel: Channel, sellerId?: string) => Promise<ShopStatus>;
+  connectChannel: (channel: Channel, body?: ShopConnectRequest | string) => Promise<ShopStatus>;
 };
 
 const ShopContext = createContext<ShopContextValue | null>(null);
@@ -53,13 +53,14 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       error,
       refresh: () => setTick((n) => n + 1),
       connectMock: async (sellerId) => {
-        const shop = await connectShop('trendyol', sellerId);
+        const shop = await connectShop('trendyol', sellerId ? { sellerId } : {});
         setShops((prev) => [...prev.filter((s) => s.id !== shop.id), shop]);
         setError(null);
         return shop;
       },
-      connectChannel: async (channel, sellerId) => {
-        const shop = await connectShop(channel, sellerId);
+      connectChannel: async (channel, body) => {
+        const payload: ShopConnectRequest = typeof body === 'string' ? { sellerId: body } : (body ?? {});
+        const shop = await connectShop(channel, payload);
         setShops((prev) => [...prev.filter((s) => s.id !== shop.id), shop]);
         setError(null);
         return shop;

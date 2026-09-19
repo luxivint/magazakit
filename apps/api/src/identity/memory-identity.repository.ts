@@ -19,6 +19,8 @@ import type {
   Warehouse,
   WarehouseTransfer,
 } from '@magazakit/contracts';
+import { decryptJson, encryptJson } from '../channels/crypto';
+import type { ChannelSecrets } from '../channels/shop-secrets';
 import { K01_NOTE } from '../config/trendyol-env';
 import { shopRecordId } from '../channels/registry';
 import type { MockListingSeed } from '../trendyol/mock-feed';
@@ -63,6 +65,7 @@ export class MemoryIdentityRepository implements IdentityRepository {
   private readonly fcmByUid = new Map<string, string>();
   private readonly shopsById = new Map<string, ShopStatus>();
   private readonly shopsByOrgChannel = new Map<string, string>();
+  private readonly shopSecrets = new Map<string, string>();
   private readonly listings = new Map<string, StoredListing>();
   private readonly orders = new Map<string, OrderListItem>();
   private readonly mappings = new Map<string, ListingMapping>();
@@ -174,6 +177,16 @@ export class MemoryIdentityRepository implements IdentityRepository {
 
   async getShopById(shopId: string): Promise<ShopStatus | null> {
     return this.shopsById.get(shopId) ?? null;
+  }
+
+  async saveShopSecrets(shopId: string, orgId: string, secrets: ChannelSecrets): Promise<void> {
+    this.shopSecrets.set(`${orgId}:${shopId}`, encryptJson(secrets));
+  }
+
+  async getShopSecrets(shopId: string, orgId: string): Promise<ChannelSecrets | null> {
+    const blob = this.shopSecrets.get(`${orgId}:${shopId}`);
+    if (!blob) return null;
+    return decryptJson<ChannelSecrets>(blob);
   }
 
   async markShopSynced(

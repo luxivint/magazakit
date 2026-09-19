@@ -15,17 +15,21 @@ import { colors, fonts, radii, space } from '@/theme/tokens';
 
 export default function HepsiburadaScreen() {
   const { connectChannel } = useShops();
-  const [sellerId, setSellerId] = useState('');
+  const [merchantId, setMerchantId] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [apiSecret, setApiSecret] = useState('');
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<string | null>(
-    'Anahtar Nest .env’de. Telefondan gönderilmez. Env yoksa 503 — bağlı sayılmaz.',
+    'Merchant + key/secret bir kez API’ye gider, org mağazasında şifrelenir. Telefonda kalmaz.',
   );
 
   const connect = async () => {
     setBusy(true);
     try {
-      const shop = await connectChannel('hepsiburada', sellerId);
-      setBanner(`${shop.statusLabel}. Yazma kapalı.`);
+      const shop = await connectChannel('hepsiburada', { merchantId, apiKey, apiSecret });
+      setApiKey('');
+      setApiSecret('');
+      setBanner(`${shop.statusLabel}. Yazma kapalı. Anahtar telefonda yok.`);
     } catch (e) {
       setBanner(e instanceof ApiError ? e.message : 'Hepsiburada bağlı sayılmaz.');
     } finally {
@@ -54,16 +58,13 @@ export default function HepsiburadaScreen() {
             </View>
             <Text style={styles.name}>Hepsiburada</Text>
             <Text style={styles.meta}>
-              MerchantId + Basic key/secret Nest’te olmalı. User-Agent: merchantId - SelfIntegration.
+              User-Agent yalın Magazam. SIT için bağlarken sandbox işaretlenmez; prod host kullanılır.
             </Text>
           </View>
-          <TextField
-            label="Satıcı / merchant etiketi"
-            value={sellerId}
-            onChangeText={setSellerId}
-            placeholder="Gönderilir; anahtar değil"
-          />
-          <Button label="Bağlamayı dene" onPress={() => void connect()} loading={busy} />
+          <TextField label="Merchant ID" value={merchantId} onChangeText={setMerchantId} placeholder="merchantId" />
+          <TextField label="API key" value={apiKey} onChangeText={setApiKey} placeholder="Basic kullanıcı" secureTextEntry />
+          <TextField label="API secret" value={apiSecret} onChangeText={setApiSecret} placeholder="Basic parola" secureTextEntry />
+          <Button label="Bağla" onPress={() => void connect()} loading={busy} />
         </ScrollView>
       </PorcelainSheet>
     </View>
@@ -99,4 +100,3 @@ const styles = StyleSheet.create({
   name: { fontFamily: fonts.semibold, fontSize: 16, color: colors.ink },
   meta: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, lineHeight: 18 },
 });
-

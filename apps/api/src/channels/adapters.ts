@@ -11,7 +11,7 @@ import {
 } from '@magazakit/contracts';
 import type { ChannelReadAdapter } from './types';
 import { assertPublicHttps, channelFetchJson, num, rec, str } from './http';
-import { envTriple, httpImage, listing, order, pageItems } from './map';
+import { httpImage, listing, order, pageItems } from './map';
 
 function emptyLists(
   query: PageQuery,
@@ -25,6 +25,7 @@ export class BlockedChannelAdapter implements ChannelReadAdapter {
   constructor(
     readonly channel: Channel,
     private readonly reason: string,
+    readonly kind: 'blocked' | 'needs_credentials' = 'blocked',
   ) {}
 
   async probe(): Promise<void> {
@@ -54,7 +55,9 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
   readonly channel = 'hepsiburada' as const;
   readonly mock = false;
 
-  constructor(private readonly cred = envTriple('HEPSIBURADA')) {}
+  constructor(
+    private readonly cred: { id: string; key: string; secret: string; sit?: boolean },
+  ) {}
 
   private cfg() {
     if (!this.cred?.id || !this.cred.key || !this.cred.secret) {
@@ -66,7 +69,7 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    const sit = (process.env.HEPSIBURADA_ENV ?? 'prod').toLowerCase() === 'sit';
+    const sit = this.cred.sit === true;
     const listingHost = sit
       ? 'https://listing-external-sit.hepsiburada.com'
       : 'https://listing-external.hepsiburada.com';
@@ -80,10 +83,7 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
     const headers = {
       Authorization: `Basic ${auth}`,
       /* Lonca SIT: yalın integrator adı. `{merchantId} - SelfIntegration` (TY kopyası) 401/403. */
-      'User-Agent':
-        process.env.HEPSIBURADA_USER_AGENT?.trim() ||
-        process.env.HEPSIBURADA_INTEGRATOR_NAME?.trim() ||
-        'Magazam',
+      'User-Agent': 'Magazam',
       Accept: 'application/json',
     };
     return { merchantId: this.cred.id, listingHost, omsHost, headers };
@@ -222,7 +222,7 @@ export class HepsiburadaReadAdapter implements ChannelReadAdapter {
 export class N11ReadAdapter implements ChannelReadAdapter {
   readonly channel = 'n11' as const;
   readonly mock = false;
-  constructor(private readonly cred = envTriple('N11')) {}
+  constructor(private readonly cred: { key: string; secret: string }) {}
 
   private headers() {
     if (!this.cred) {
@@ -391,20 +391,22 @@ export class ShopifyReadAdapter implements ChannelReadAdapter {
   readonly channel = 'shopify' as const;
   readonly mock = false;
 
+  constructor(private readonly cred: { shop: string; accessToken: string }) {}
+
   private shop() {
-    const domain = process.env.SHOPIFY_SHOP?.trim();
-    const token = process.env.SHOPIFY_ACCESS_TOKEN?.trim();
+    const domain = this.cred.shop.trim();
+    const token = this.cred.accessToken.trim();
     if (!domain || !token) {
       throw new HttpException(
         {
           code: ErrorCodes.CHANNEL_UNAVAILABLE,
-          message: 'SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN yok.',
+          message: 'Shopify mağaza / token yok.',
         },
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
     const host = domain.includes('.') ? domain : `${domain}.myshopify.com`;
-    const version = process.env.SHOPIFY_API_VERSION?.trim() || '2026-07';
+    const version = '2026-07';
     const url = assertPublicHttps(
       `https://${host}/admin/api/${version}/graphql.json`,
       'Shopify',
@@ -568,10 +570,14 @@ export class WooCommerceReadAdapter implements ChannelReadAdapter {
   readonly channel = 'woocommerce' as const;
   readonly mock = false;
 
+  constructor(
+    private readonly cred: { host: string; consumerKey: string; consumerSecret: string },
+  ) {}
+
   private cfg() {
-    const host = process.env.WOOCOMMERCE_HOST?.trim();
-    const key = process.env.WOOCOMMERCE_CONSUMER_KEY?.trim();
-    const secret = process.env.WOOCOMMERCE_CONSUMER_SECRET?.trim();
+    const host = this.cred.host.trim();
+    const key = this.cred.consumerKey.trim();
+    const secret = this.cred.consumerSecret.trim();
     if (!host || !key || !secret) {
       throw new HttpException(
         {
@@ -725,8 +731,12 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
   readonly channel = 'ciceksepeti' as const;
   readonly mock = false;
 
+  constructor(
+    private readonly cred: { apiKey: string; sandbox?: boolean; sellerId?: string },
+  ) {}
+
   private cfg() {
-    const key = process.env.CICEKSEPETI_API_KEY?.trim();
+    const key = this.cred.apiKey.trim();
     if (!key) {
       throw new HttpException(
         {
@@ -736,8 +746,7 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    const sandbox =
-      (process.env.CICEKSEPETI_ENV ?? 'prod').toLowerCase() === 'sandbox';
+    const sandbox = this.cred.sandbox === true;
     const base = sandbox
       ? 'https://sandbox-apis.ciceksepeti.com/api/v1'
       : 'https://apis.ciceksepeti.com/api/v1';
@@ -745,10 +754,7 @@ export class CiceksepetiReadAdapter implements ChannelReadAdapter {
       base,
       headers: {
         'x-api-key': key,
-        'User-Agent':
-          process.env.CICEKSEPETI_USER_AGENT?.trim() ||
-          process.env.CICEKSEPETI_SELLER_ID?.trim() ||
-          'Magazam',
+        'User-Agent': this.cred.sellerId?.trim() || 'Magazam',
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
@@ -884,11 +890,15 @@ export class IkasReadAdapter implements ChannelReadAdapter {
   readonly mock = false;
   private cachedToken: { value: string; expiresAt: number } | null = null;
 
+  constructor(
+    private readonly cred: { clientId?: string; clientSecret?: string; accessToken?: string },
+  ) {}
+
   private async token(): Promise<string> {
     if (this.cachedToken && this.cachedToken.expiresAt > Date.now() + 60_000)
       return this.cachedToken.value;
-    const clientId = process.env.IKAS_CLIENT_ID?.trim();
-    const clientSecret = process.env.IKAS_CLIENT_SECRET?.trim();
+    const clientId = this.cred.clientId?.trim();
+    const clientSecret = this.cred.clientSecret?.trim();
     if (clientId && clientSecret) {
       const body = new URLSearchParams({
         grant_type: 'client_credentials',
@@ -915,7 +925,7 @@ export class IkasReadAdapter implements ChannelReadAdapter {
         return value;
       }
     }
-    const fallback = process.env.IKAS_ACCESS_TOKEN?.trim();
+    const fallback = this.cred.accessToken?.trim();
     if (!fallback) {
       throw new HttpException(
         {
@@ -1097,12 +1107,21 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
   readonly mock = false;
   private cachedToken: { value: string; expiresAt: number } | null = null;
 
+  constructor(
+    private readonly cred: {
+      lwaClientId: string;
+      lwaClientSecret: string;
+      refreshToken: string;
+      sellerId?: string;
+    },
+  ) {}
+
   private async accessToken(): Promise<string> {
     if (this.cachedToken && this.cachedToken.expiresAt > Date.now() + 60_000)
       return this.cachedToken.value;
-    const clientId = process.env.AMAZON_LWA_CLIENT_ID?.trim();
-    const clientSecret = process.env.AMAZON_LWA_CLIENT_SECRET?.trim();
-    const refresh = process.env.AMAZON_REFRESH_TOKEN?.trim();
+    const clientId = this.cred.lwaClientId.trim();
+    const clientSecret = this.cred.lwaClientSecret.trim();
+    const refresh = this.cred.refreshToken.trim();
     if (!clientId || !clientSecret || !refresh) {
       throw new HttpException(
         {
@@ -1150,18 +1169,15 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
     return {
       'x-amz-access-token': token,
       Accept: 'application/json',
-      'User-Agent':
-        process.env.AMAZON_USER_AGENT?.trim() ||
-        'Magazam/1.0 (Language=JavaScript)',
+      'User-Agent': 'Magazam/1.0 (Language=JavaScript)',
     };
   }
 
   private ordersUrl(limit: number, paginationToken?: string): string {
     const marketplace =
-      process.env.AMAZON_MARKETPLACE_ID?.trim() || 'A33AVAJ2PDY3EV';
+      'A33AVAJ2PDY3EV';
     const host = assertPublicHttps(
-      process.env.AMAZON_SP_HOST?.trim() ||
-        'https://sellingpartnerapi-eu.amazon.com',
+      'https://sellingpartnerapi-eu.amazon.com',
       'Amazon SP-API',
     ).origin;
     const after = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -1192,14 +1208,13 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
   }
 
   private async collectProducts() {
-    const sellerId = process.env.AMAZON_SELLER_ID?.trim();
+    const sellerId = this.cred.sellerId?.trim();
     if (!sellerId) return [];
     const token = await this.accessToken();
     const marketplace =
-      process.env.AMAZON_MARKETPLACE_ID?.trim() || 'A33AVAJ2PDY3EV';
+      'A33AVAJ2PDY3EV';
     const host = assertPublicHttps(
-      process.env.AMAZON_SP_HOST?.trim() ||
-        'https://sellingpartnerapi-eu.amazon.com',
+      'https://sellingpartnerapi-eu.amazon.com',
       'Amazon SP-API',
     ).origin;
     const rows: unknown[] = [];

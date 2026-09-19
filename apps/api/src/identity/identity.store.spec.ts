@@ -281,6 +281,7 @@ describe('IdentityStore multi-channel', () => {
     expect(catalog).toHaveLength(11);
     expect(catalog.every((c) => c.write === false)).toBe(true);
     expect(catalog.find((c) => c.channel === 'trendyol')?.mode).toBe('mock');
+    expect(catalog.find((c) => c.channel === 'hepsiburada')?.mode).toBe('unconfigured');
     expect(catalog.find((c) => c.channel === 'pazarama')?.mode).toBe('blocked');
     expect(catalog.find((c) => c.channel === 'ticimax')?.mode).toBe('blocked');
     expect(catalog.find((c) => c.channel === 'ideasoft')?.mode).toBe('blocked');
@@ -290,29 +291,32 @@ describe('IdentityStore multi-channel', () => {
     try {
       await s.connectChannel('uid-a', 'hepsiburada');
     } catch (err) {
-      expect(code(err)).toBe(ErrorCodes.CHANNEL_UNAVAILABLE);
-      expect((err as HttpException).getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+      expect(code(err)).toBe(ErrorCodes.VALIDATION);
+      expect((err as HttpException).getStatus()).toBe(HttpStatus.BAD_REQUEST);
     }
     expect(await s.listShops('uid-a')).toEqual([]);
   });
 
-  it('does not expose server marketplace credentials to another Firebase user', async () => {
-    const previous = process.env.MARKETPLACE_OWNER_UID;
-    const previousShop = process.env.SHOPIFY_SHOP;
-    const previousToken = process.env.SHOPIFY_ACCESS_TOKEN;
-    process.env.MARKETPLACE_OWNER_UID = 'uid-owner';
-    process.env.SHOPIFY_SHOP = 'owner-store.myshopify.com';
-    process.env.SHOPIFY_ACCESS_TOKEN = 'server-secret';
+  it('keeps marketplace secrets on the org shop record, not in process env', async () => {
+    process.env.SHOPIFY_ACCESS_TOKEN = 'env-leak';
     const s = testIdentityStore();
-    await s.createOrg('uid-other', 'Diğer');
-    await expect(s.connectChannel('uid-other', 'shopify')).rejects.toMatchObject({
-      status: HttpStatus.FORBIDDEN,
-    });
-    if (previous === undefined) delete process.env.MARKETPLACE_OWNER_UID;
-    else process.env.MARKETPLACE_OWNER_UID = previous;
-    if (previousShop === undefined) delete process.env.SHOPIFY_SHOP;
-    else process.env.SHOPIFY_SHOP = previousShop;
-    if (previousToken === undefined) delete process.env.SHOPIFY_ACCESS_TOKEN;
-    else process.env.SHOPIFY_ACCESS_TOKEN = previousToken;
+    await s.createOrg('uid-a', 'A');
+    await s.createOrg('uid-b', 'B');
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ data: { shop: { name: 'A' } } }), { status: 200 }),
+    );
+    try {
+      const shop = await s.connectChannel('uid-a', 'shopify', {
+        shopDomain: 'a.myshopify.com',
+        accessToken: 'tok-a',
+      });
+      expect(shop.mock).toBe(false);
+      expect(JSON.stringify(shop)).not.toContain('tok-a');
+      await expect(s.syncShop('uid-b', shop.id)).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+      await expect(s.connectChannel('uid-b', 'shopify')).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.SHOPIFY_ACCESS_TOKEN;
+    }
   });
 });

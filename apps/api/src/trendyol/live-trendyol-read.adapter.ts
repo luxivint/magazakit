@@ -23,6 +23,7 @@ const ORDER_SIZE = 50;
 const MAX_OFFSET = 10_000;
 
 export class LiveTrendyolReadAdapter implements TrendyolReadAdapter {
+  readonly channel = 'trendyol' as const;
   readonly mock = false;
 
   constructor(

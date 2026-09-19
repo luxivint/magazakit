@@ -302,6 +302,24 @@ export type PrinterTestResult = {
   note: 'Termal yazıcıya gönderilmedi.';
 };
 
+export type ShopConnectRequest = {
+  sellerId?: string;
+  merchantId?: string;
+  apiKey?: string;
+  apiSecret?: string;
+  appKey?: string;
+  appSecret?: string;
+  shopDomain?: string;
+  accessToken?: string;
+  host?: string;
+  consumerKey?: string;
+  consumerSecret?: string;
+  clientId?: string;
+  clientSecret?: string;
+  refreshToken?: string;
+  sandbox?: boolean;
+};
+
 export type ChannelCatalogRow = {
   channel: Channel;
   label: string;

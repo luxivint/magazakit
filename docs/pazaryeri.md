@@ -1,10 +1,8 @@
 # Pazaryeri entegrasyonu (11 kanal)
 
-Doğrulama: 19 Eylül 2026, resmi portallar. **Canlı yazma yok** (`write: false`). Anahtar Expo’da yok. 8 salt-okuma adapter + 3 BLOKE kanal; “11 kanal yazıyor” değil.
+Doğrulama: 19 Eylül 2026. **Canlı yazma yok.** Pazaryeri anahtarları `.env` ve Expo’da yok: `POST /v1/shops/:channel/connect` ile org mağazasına AES-256-GCM yazılır. Tek sunucu sırrı `CREDENTIALS_ENCRYPTION_KEY` (sarmalama). Trendyol mock `TRENDYOL_USE_MOCK=true` anahtarsız demo.
 
-Organizasyon bazlı şifreli mağaza anahtarı henüz yok: sunucu `.env` ortak, erişim `MARKETPLACE_OWNER_UID` ile tek Firebase hesabına kilitli.
-
-`GET /v1/channels` → `mode` + `write: false`. `POST /v1/shops/:channel/connect` Nest `.env` probe; BLOKE / eksik env → `CHANNEL_UNAVAILABLE` (503), shop yazılmaz. Canlı env anahtarlarını yalnızca `MARKETPLACE_OWNER_UID` ile eşleşen Firebase hesabı kullanabilir. Trendyol default `TRENDYOL_USE_MOCK=true` (mock); canlı için `false` + üç env.
+`GET /v1/channels` → `unconfigured` bağlanabilir, `blocked` (Pazarama/Ticimax/IdeaSoft) bağlanamaz, `mock` Trendyol demo. `write: false`.
 
 | Kanal | Kod | Resmi kaynak | Not |
 |---|---|---|---|

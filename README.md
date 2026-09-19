@@ -66,24 +66,18 @@ Authorization: Bearer <Firebase idToken from magazam-app>
 
 CORS: Expo localhost / LAN / `*.expo.dev`.
 
-F0–F2: `/v1/me`, org, shops (`GET /v1/channels` 11 kanal; connect Nest `.env` probe), sync, mappings, products, orders.
+F0–F2: `/v1/me`, org, shops (`GET /v1/channels` 11 kanal), connect (anahtar mağaza kaydında şifreli), sync, mappings, products, orders.
 
-Canlı bağlama (WSL, gitignored `apps/api/.env` veya kök `.env`). Expo key göndermez:
+Canlı bağlama Expo **Mağaza bağla** ekranından. Pazaryeri key `.env`’ye yazılmaz. Production’da sarmalama anahtarı:
 
 ```
-TRENDYOL_USE_MOCK=false
-TRENDYOL_BASE_URL=https://apigw.trendyol.com
-TRENDYOL_SELLER_ID=...
-TRENDYOL_API_KEY=...
-TRENDYOL_API_SECRET=...
-MARKETPLACE_OWNER_UID=<Firebase uid allowed to use server marketplace credentials>
+CREDENTIALS_ENCRYPTION_KEY=<32-byte hex or passphrase>
+TRENDYOL_USE_MOCK=true
 ```
 
-HB / n11 / Shopify / Woo / Çiçeksepeti / ikas / Amazon: aynı dosyada ilgili env (`.env.example`). ikas için kalıcı `IKAS_CLIENT_ID` + `IKAS_CLIENT_SECRET` kullanılır; token otomatik yenilenir. Amazon ürünleri için `AMAZON_SELLER_ID` gerekir. Pazarama, Ticimax, IdeaSoft path yok → `CHANNEL_UNAVAILABLE`, bağlı sayılmaz. Yazma kapalı.
+Pazarama, Ticimax, IdeaSoft path yok → `CHANNEL_UNAVAILABLE`, bağlı sayılmaz. Yazma kapalı.
 
-Sunucu-geneli pazaryeri anahtarları yalnızca `MARKETPLACE_OWNER_UID` ile eşleşen Firebase hesabınca bağlanabilir. Bu değer olmadan canlı bağlantı reddedilir; böylece başka bir uygulama kullanıcısı sunucudaki mağaza anahtarlarını kullanamaz.
-
-Satıcı paneli → Hesap → Entegrasyon Bilgileri. User-Agent `{sellerId} - SelfIntegration`. `GET /health` → `trendyol.mode` + `channels[]`. Stage (`stageapigw`) IP allowlist ister.
+Satıcı paneli entegrasyon bilgileri uygulamaya girilir; User-Agent Trendyol’da `{sellerId} - SelfIntegration`. `GET /health` → `trendyol.mode` + `channels[]`.
 
 F3: reserve, pack/scan, label PDF (yazdır ≠ kargo), stock, operations, `POST /v1/devices`.  
 F4/F5 stub: returns, team, reports (kâr yok), listing `mock: true`, billing `chargeable: false`.  
@@ -95,4 +89,4 @@ Katalog: `GET /v1/docs`. Satılabilir = fiziksel − rezerve. Yazdırma kargolam
 
 `DATABASE_URL` yoksa bellek (restart’ta silinir). Varsa `apps/api/migrations/*.sql` boot’ta uygulanır. URL var ama Postgres kapalıysa uyarı + bellek.
 
-Worker `GET http://127.0.0.1:43141/health` pending outbox sayar. Mock drain pazaryeri teslimatı iddia etmez; kayıtları `unknown` yapar. `TRENDYOL_API_KEY` git’te yok; loglanmaz. Redis yok.
+Worker `GET http://127.0.0.1:43141/health` pending outbox sayar. Mock drain pazaryeri teslimatı iddia etmez; kayıtları `unknown` yapar. Pazaryeri secret git’te yok; loglanmaz. Redis yok.

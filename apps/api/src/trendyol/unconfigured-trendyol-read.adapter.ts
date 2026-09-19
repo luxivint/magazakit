@@ -6,6 +6,7 @@ import type { TrendyolReadAdapter } from './trendyol-read.adapter';
 
 /** Live client is unimplemented until K01 credentials exist. No secrets are read. */
 export class UnconfiguredTrendyolReadAdapter implements TrendyolReadAdapter {
+  readonly channel = 'trendyol' as const;
   readonly mock = false;
 
   async probe(): Promise<void> {
