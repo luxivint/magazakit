@@ -3,27 +3,38 @@ import { ErrorCodes } from '@magazakit/contracts';
 import type { Request } from 'express';
 
 function isLoopbackIp(ip: string): boolean {
-  const v = ip.replace('::ffff:', '');
+  const v = ip.replace(/^::ffff:/i, '');
   return v === '127.0.0.1' || v === '::1' || v === 'localhost';
 }
 
-/** Production connect must be HTTPS except loopback. Tests skip. */
-export function assertConnectTransport(req: Request): void {
-  if (process.env.NODE_ENV === 'test') return;
-  const forwarded = String(req.headers['x-forwarded-proto'] ?? '')
-    .split(',')[0]
-    ?.trim()
-    .toLowerCase();
-  const proto = forwarded || req.protocol || '';
-  const ip = String(req.ip || req.socket?.remoteAddress || '');
-  if (proto === 'https' || isLoopbackIp(ip)) return;
-  if (process.env.NODE_ENV === 'production') {
-    throw new HttpException(
-      {
-        code: ErrorCodes.VALIDATION,
-        message: 'Mağaza anahtarları yalnızca HTTPS üzerinden gönderilir.',
-      },
-      HttpStatus.BAD_REQUEST,
-    );
+function isDirectTls(req: Request): boolean {
+  if (req.secure === true) return true;
+  return Boolean((req.socket as { encrypted?: boolean } | undefined)?.encrypted);
+}
+
+/** Express only honors X-Forwarded-* when `trust proxy` is set in main.ts via TRUST_PROXY. */
+export function trustsForwardedProto(req: Request): boolean {
+  const setting = req.app?.get?.('trust proxy');
+  if (setting === undefined || setting === false || setting === 0 || setting === 'false') {
+    return false;
   }
+  return true;
+}
+
+/**
+ * Shop secrets: loopback, real TLS, or HTTPS as seen by a configured reverse proxy.
+ * X-Forwarded-Proto is never read directly — spoofed headers on a public HTTP port do not pass.
+ */
+export function assertConnectTransport(req: Request): void {
+  const ip = String(req.ip || req.socket?.remoteAddress || '');
+  if (isLoopbackIp(ip)) return;
+  if (isDirectTls(req)) return;
+  if (trustsForwardedProto(req) && req.protocol === 'https') return;
+  throw new HttpException(
+    {
+      code: ErrorCodes.VALIDATION,
+      message: 'Mağaza anahtarları yalnızca HTTPS üzerinden gönderilir.',
+    },
+    HttpStatus.BAD_REQUEST,
+  );
 }

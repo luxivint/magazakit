@@ -406,6 +406,13 @@ function graphQlFailed(payload: unknown): boolean {
   return Array.isArray(errors) && errors.length > 0;
 }
 
+function graphQlUnknownField(payload: unknown, field: string): boolean {
+  const errors = rec(payload)?.errors;
+  if (!Array.isArray(errors)) return false;
+  const needle = field.toLowerCase();
+  return errors.some((err) => str(rec(err)?.message).toLowerCase().includes(needle));
+}
+
 export class ShopifyReadAdapter implements ChannelReadAdapter {
   readonly channel = 'shopify' as const;
   readonly mock = false;
@@ -908,6 +915,8 @@ export class IkasReadAdapter implements ChannelReadAdapter {
   readonly channel = 'ikas' as const;
   readonly mock = false;
   private cachedToken: { value: string; expiresAt: number } | null = null;
+  /** Official Order type has orderLineItems; builders.ikas.com listOrder sample omits it. Probe once. */
+  private listOrderHasLines: boolean | null = null;
 
   constructor(
     private readonly cred: { clientId?: string; clientSecret?: string; accessToken?: string },
@@ -957,11 +966,11 @@ export class IkasReadAdapter implements ChannelReadAdapter {
     return fallback;
   }
 
-  private async gql(
+  private async gqlRaw(
     query: string,
     variables?: Record<string, unknown>,
   ): Promise<unknown> {
-    const payload = await channelFetchJson(
+    return channelFetchJson(
       'https://api.myikas.com/api/v2/admin/graphql',
       {
         method: 'POST',
@@ -973,6 +982,13 @@ export class IkasReadAdapter implements ChannelReadAdapter {
       },
       'ikas GraphQL',
     );
+  }
+
+  private async gql(
+    query: string,
+    variables?: Record<string, unknown>,
+  ): Promise<unknown> {
+    const payload = await this.gqlRaw(query, variables);
     if (graphQlFailed(payload)) {
       throw new HttpException(
         {
@@ -1054,12 +1070,12 @@ export class IkasReadAdapter implements ChannelReadAdapter {
     return listings;
   }
 
-  private async collectOrders() {
-    const orderRows: unknown[] = [];
-    for (let page = 1; page <= 1000; page += 1) {
-      const payload = rec(
-        await this.gql(
-          `query ListOrder($pagination: PaginationInput, $sort: String) {
+  private listOrderQuery(withLines: boolean): string {
+    const lines = withLines
+      ? `
+                orderLineItems { quantity variant { sku } }`
+      : '';
+    return `query ListOrder($pagination: PaginationInput, $sort: String) {
             listOrder(pagination: $pagination, sort: $sort) {
               count
               hasNext
@@ -1068,14 +1084,42 @@ export class IkasReadAdapter implements ChannelReadAdapter {
                 orderNumber
                 orderedAt
                 status
-                totalFinalPrice
-                orderLineItems { quantity variant { sku } }
+                totalFinalPrice${lines}
               }
             }
-          }`,
-          { pagination: { page, limit: 100 }, sort: '-orderedAt' },
-        ),
-      );
+          }`;
+  }
+
+  private async fetchOrderPage(page: number): Promise<unknown> {
+    const variables = { pagination: { page, limit: 100 }, sort: '-orderedAt' };
+    if (this.listOrderHasLines === false) {
+      return this.gql(this.listOrderQuery(false), variables);
+    }
+    if (this.listOrderHasLines === true) {
+      return this.gql(this.listOrderQuery(true), variables);
+    }
+    const withLines = await this.gqlRaw(this.listOrderQuery(true), variables);
+    if (!graphQlFailed(withLines)) {
+      this.listOrderHasLines = true;
+      return withLines;
+    }
+    if (graphQlUnknownField(withLines, 'orderLineItems')) {
+      this.listOrderHasLines = false;
+      return this.gql(this.listOrderQuery(false), variables);
+    }
+    throw new HttpException(
+      {
+        code: ErrorCodes.CHANNEL_UNAVAILABLE,
+        message: 'ikas GraphQL errors (token loglanmaz).',
+      },
+      HttpStatus.BAD_GATEWAY,
+    );
+  }
+
+  private async collectOrders() {
+    const orderRows: unknown[] = [];
+    for (let page = 1; page <= 1000; page += 1) {
+      const payload = rec(await this.fetchOrderPage(page));
       const root = rec(rec(payload?.data)?.listOrder);
       const batch = pageItems(root?.data);
       orderRows.push(...batch);

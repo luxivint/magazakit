@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { ErrorCodes } from '@magazakit/contracts';
-import { AmazonReadAdapter, BlockedChannelAdapter, ShopifyReadAdapter } from './adapters';
+import { AmazonReadAdapter, BlockedChannelAdapter, IkasReadAdapter, ShopifyReadAdapter } from './adapters';
 import { assertPublicHttps, channelFetchJson, isBlockedIp } from './http';
 import { createChannelAdapters } from './registry';
 import { MockTrendyolReadAdapter } from '../trendyol/mock-trendyol-read.adapter';
@@ -152,6 +152,63 @@ describe('channel adapters', () => {
       expect(feed.warnings).toEqual([
         expect.objectContaining({ scope: 'orders' }),
       ]);
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it('falls back to documented listOrder headers when orderLineItems is not on the schema', async () => {
+    const bodies: string[] = [];
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes('/oauth/token')) {
+        return new Response(JSON.stringify({ access_token: 'ikas-token', expires_in: 14400 }), {
+          status: 200,
+        });
+      }
+      bodies.push(String(init?.body ?? ''));
+      if (String(init?.body ?? '').includes('orderLineItems')) {
+        return new Response(
+          JSON.stringify({
+            errors: [{ message: 'Cannot query field "orderLineItems" on type "Order".' }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          data: {
+            listOrder: {
+              count: 1,
+              hasNext: false,
+              data: [
+                {
+                  id: 'o1',
+                  orderNumber: 'IK-1',
+                  orderedAt: 1_700_000_000_000,
+                  status: 'CREATED',
+                  totalFinalPrice: 10,
+                },
+              ],
+            },
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    try {
+      const feed = await new IkasReadAdapter({
+        clientId: 'id',
+        clientSecret: 'secret',
+      }).pullFeed();
+      expect(bodies.some((b) => b.includes('orderLineItems'))).toBe(true);
+      expect(bodies.some((b) => b.includes('listOrder') && !b.includes('orderLineItems'))).toBe(
+        true,
+      );
+      expect(feed.orders).toHaveLength(1);
+      expect(feed.orders[0].orderNumber).toBe('IK-1');
+      expect(feed.orders[0].lines).toEqual([]);
+      expect(feed.warnings).toBeUndefined();
     } finally {
       fetchMock.mockRestore();
     }

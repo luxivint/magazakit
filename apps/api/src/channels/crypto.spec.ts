@@ -21,4 +21,18 @@ describe('shop credential crypto', () => {
       else process.env.CREDENTIALS_ENCRYPTION_KEY = prevKey;
     }
   });
+
+  it('rejects placeholder wrapping keys even when set', () => {
+    const prevKey = process.env.CREDENTIALS_ENCRYPTION_KEY;
+    const prevEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    process.env.CREDENTIALS_ENCRYPTION_KEY = 'replace-me-local-only';
+    try {
+      expect(() => encryptJson({ a: 1 })).toThrow(/placeholder|zayıf|32-byte/i);
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      if (prevKey === undefined) delete process.env.CREDENTIALS_ENCRYPTION_KEY;
+      else process.env.CREDENTIALS_ENCRYPTION_KEY = prevKey;
+    }
+  });
 });

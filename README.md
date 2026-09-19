@@ -68,10 +68,10 @@ CORS: Expo localhost / LAN / `*.expo.dev`.
 
 F0–F2: `/v1/me`, org, shops (`GET /v1/channels` 11 kanal), connect (anahtar mağaza kaydında şifreli), sync, mappings, products, orders.
 
-Canlı bağlama Expo **Mağaza bağla** ekranından. Pazaryeri key `.env`’ye yazılmaz. Sarmalama anahtarı (test dışında zorunlu):
+Canlı bağlama Expo **Mağaza bağla** ekranından. Pazaryeri key `.env`’ye yazılmaz. Sarmalama anahtarı (test dışında zorunlu, 32-byte hex/base64; placeholder reddedilir):
 
 ```
-CREDENTIALS_ENCRYPTION_KEY=<32-byte hex or passphrase>
+CREDENTIALS_ENCRYPTION_KEY=<openssl rand -hex 32>
 TRENDYOL_USE_MOCK=true
 ```
 
