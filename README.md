@@ -39,7 +39,7 @@ pnpm dev:worker       # :43141 — stock_outbox pending → sent/failed (mock TY
 
 `GET http://127.0.0.1:43140/health` 200 olmalı. Kapalı API’de işlem tamamlanmış sayılmaz.
 
-**Fiziksel telefon:** `127.0.0.1` WSL Nest’e gitmez. `EXPO_PUBLIC_API_URL` olarak telefonun gördüğü host’u yaz (`hostname -I` / `ip.config`). LAN adresi commit etme.
+**Fiziksel telefon:** `127.0.0.1` WSL Nest’e gitmez. Mağaza anahtarları **HTTP/LAN ile gönderilmez** (`EXPO_PUBLIC_API_URL` HTTPS veya `http://127.0.0.1`). USB: `adb reverse tcp:43140 tcp:43140` sonra `http://127.0.0.1:43140`. LAN adresi commit etme.
 
 ## Expo Go vs EAS
 
@@ -68,7 +68,7 @@ CORS: Expo localhost / LAN / `*.expo.dev`.
 
 F0–F2: `/v1/me`, org, shops (`GET /v1/channels` 11 kanal), connect (anahtar mağaza kaydında şifreli), sync, mappings, products, orders.
 
-Canlı bağlama Expo **Mağaza bağla** ekranından. Pazaryeri key `.env`’ye yazılmaz. Production’da sarmalama anahtarı:
+Canlı bağlama Expo **Mağaza bağla** ekranından. Pazaryeri key `.env`’ye yazılmaz. Sarmalama anahtarı (test dışında zorunlu):
 
 ```
 CREDENTIALS_ENCRYPTION_KEY=<32-byte hex or passphrase>

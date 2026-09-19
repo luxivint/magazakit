@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { ShopConnectRequest, ShopStatus, ShopSyncResult } from '@magazakit/contracts';
+import type { Request } from 'express';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
+import { assertConnectTransport } from './connect-transport';
 import { IdentityStore } from './identity.store';
 
 @Controller('v1/shops')
@@ -16,17 +18,21 @@ export class ShopsController {
   @Post('trendyol/connect')
   async connectTrendyol(
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
     @Body() body: ShopConnectRequest,
   ): Promise<ShopStatus> {
+    assertConnectTransport(req);
     return this.identity.connectTrendyolMock(user.uid, body);
   }
 
   @Post(':channel/connect')
   async connectChannel(
     @CurrentUser() user: AuthUser,
+    @Req() req: Request,
     @Param('channel') channel: string,
     @Body() body: ShopConnectRequest,
   ): Promise<ShopStatus> {
+    assertConnectTransport(req);
     return this.identity.connectChannel(user.uid, channel, body);
   }
 

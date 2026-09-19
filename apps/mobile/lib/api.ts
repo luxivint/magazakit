@@ -7,6 +7,18 @@ export const API_URL = (
 
 export const API_BASE_URL = API_URL;
 
+export function apiUrlAllowsSecrets(raw = API_URL): boolean {
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    const loopback = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+    if (u.protocol === 'https:') return true;
+    return u.protocol === 'http:' && loopback;
+  } catch {
+    return false;
+  }
+}
+
 export type Channel =
   | 'trendyol'
   | 'hepsiburada'
@@ -126,6 +138,9 @@ export type ShopSyncResult = {
   checkpoint: string;
   lastSyncAt: string;
   mock: boolean;
+  partial?: boolean;
+  checkpointUpdated?: boolean;
+  warnings?: { scope: 'products' | 'orders'; message: string }[];
 };
 
 export type StockBalance = {

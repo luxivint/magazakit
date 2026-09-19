@@ -9,7 +9,7 @@ import {
   type PreviewList,
   type ProductListItem,
 } from '@magazakit/contracts';
-import type { ChannelReadAdapter } from './types';
+import type { ChannelFeed, ChannelFeedWarning, ChannelReadAdapter } from './types';
 import { assertPublicHttps, channelFetchJson, num, rec, str } from './http';
 import { httpImage, listing, order, pageItems } from './map';
 
@@ -366,20 +366,39 @@ function arrFirst(value: unknown): unknown {
   return Array.isArray(value) ? value[0] : value;
 }
 
-/** A missing product or order scope must not fail the other feed. */
+/** A missing product or order scope must not fail the other feed, but must be visible. */
 async function independentFeed(
   products: () => Promise<ReturnType<typeof listing>[]>,
   orders: () => Promise<Omit<OrderListItem, 'organizationId'>[]>,
-) {
+): Promise<ChannelFeed> {
   const [listingPart, orderPart] = await Promise.allSettled([products(), orders()]);
   if (listingPart.status === 'rejected' && orderPart.status === 'rejected') {
     throw listingPart.reason;
   }
+  const warnings: ChannelFeedWarning[] = [];
+  if (listingPart.status === 'rejected') {
+    warnings.push({ scope: 'products', message: feedErr(listingPart.reason) });
+  }
+  if (orderPart.status === 'rejected') {
+    warnings.push({ scope: 'orders', message: feedErr(orderPart.reason) });
+  }
   return {
     listings: listingPart.status === 'fulfilled' ? listingPart.value : [],
     orders: orderPart.status === 'fulfilled' ? orderPart.value : [],
-    returns: [] as [],
+    returns: [],
+    warnings: warnings.length ? warnings : undefined,
   };
+}
+
+function feedErr(reason: unknown): string {
+  if (reason instanceof HttpException) {
+    const body = reason.getResponse();
+    if (typeof body === 'object' && body && 'message' in body) {
+      return String((body as { message: string }).message);
+    }
+    return reason.message;
+  }
+  return reason instanceof Error ? reason.message : 'Kanal isteği başarısız.';
 }
 
 function graphQlFailed(payload: unknown): boolean {
@@ -1044,7 +1063,14 @@ export class IkasReadAdapter implements ChannelReadAdapter {
             listOrder(pagination: $pagination, sort: $sort) {
               count
               hasNext
-              data { id orderNumber orderedAt status totalFinalPrice }
+              data {
+                id
+                orderNumber
+                orderedAt
+                status
+                totalFinalPrice
+                orderLineItems { quantity variant { sku } }
+              }
             }
           }`,
           { pagination: { page, limit: 100 }, sort: '-orderedAt' },
@@ -1060,6 +1086,14 @@ export class IkasReadAdapter implements ChannelReadAdapter {
     return orderRows.map((row) => {
       const r = rec(row) ?? {};
       const id = str(r.id) || str(r.orderNumber);
+      const lines = pageItems(r.orderLineItems).map((rawLine) => {
+        const line = rec(rawLine) ?? {};
+        const sku = str(rec(line.variant)?.sku);
+        return {
+          listingId: sku ? `ikas-${sku}` : `ikas-line-${id}`,
+          qty: Math.max(1, num(line.quantity)),
+        };
+      });
       return order({
         channel: 'ikas',
         id: `ikas-${id}`,
@@ -1069,6 +1103,7 @@ export class IkasReadAdapter implements ChannelReadAdapter {
         createdAt: num(r.orderedAt)
           ? new Date(num(r.orderedAt)).toISOString()
           : str(r.orderedAt) || undefined,
+        lines,
       });
     });
   }
@@ -1165,9 +1200,15 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
     return token;
   }
 
-  private spHeaders(token: string): Record<string, string> {
+  private amzDate(at = new Date()): string {
+    return at.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  }
+
+  private spHeaders(token: string, requestUrl: string): Record<string, string> {
     return {
+      host: new URL(requestUrl).host,
       'x-amz-access-token': token,
+      'x-amz-date': this.amzDate(),
       Accept: 'application/json',
       'User-Agent': 'Magazam/1.0 (Language=JavaScript)',
     };
@@ -1193,9 +1234,10 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
 
   async probe(): Promise<void> {
     const token = await this.accessToken();
+    const ordersUrl = this.ordersUrl(1);
     await channelFetchJson(
-      this.ordersUrl(1),
-      { headers: this.spHeaders(token) },
+      ordersUrl,
+      { headers: this.spHeaders(token, ordersUrl) },
       'Amazon orders',
     );
   }
@@ -1226,11 +1268,12 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
         pageSize: '20',
       });
       if (pageToken) query.set('pageToken', pageToken);
+      const listingsUrl = `${host}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}?${query.toString()}`;
       const payload =
         rec(
           await channelFetchJson(
-            `${host}/listings/2021-08-01/items/${encodeURIComponent(sellerId)}?${query.toString()}`,
-            { headers: this.spHeaders(token) },
+            listingsUrl,
+            { headers: this.spHeaders(token, listingsUrl) },
             'Amazon listings',
           ),
         ) ?? {};
@@ -1263,9 +1306,10 @@ export class AmazonReadAdapter implements ChannelReadAdapter {
     const rows: unknown[] = [];
     let paginationToken = '';
     for (let page = 0; page < 1000; page += 1) {
+      const ordersUrl = this.ordersUrl(100, paginationToken || undefined);
       const payload = await channelFetchJson(
-        this.ordersUrl(100, paginationToken || undefined),
-        { headers: this.spHeaders(token) },
+        ordersUrl,
+        { headers: this.spHeaders(token, ordersUrl) },
         'Amazon orders',
       );
       const root = rec(payload) ?? {};

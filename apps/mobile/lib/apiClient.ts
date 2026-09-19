@@ -1,5 +1,6 @@
 import {
   API_URL,
+  apiUrlAllowsSecrets,
   type CurrentUserResponse,
   type HealthResponse,
   type ListingMapping,
@@ -184,6 +185,13 @@ const CHANNELS: Channel[] = [
 
 /** Connect a channel. Keys go to the API once; they are not stored on the phone. */
 export async function connectShop(channel: Channel, body: ShopConnectRequest = {}): Promise<ShopStatus> {
+  if (!apiUrlAllowsSecrets()) {
+    throw new ApiError(
+      'Mağaza anahtarları HTTP/LAN üzerinden gönderilmez. EXPO_PUBLIC_API_URL HTTPS veya 127.0.0.1 olmalı.',
+      400,
+      'VALIDATION',
+    );
+  }
   if (!CHANNELS.includes(channel)) {
     throw new ApiError('Bilinmeyen kanal.', 400, 'VALIDATION');
   }

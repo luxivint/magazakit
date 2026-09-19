@@ -2,6 +2,10 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:
 
 const DEV_FALLBACK = 'magazam-dev-credentials-key';
 
+function isTestRuntime(): boolean {
+  return process.env.NODE_ENV === 'test';
+}
+
 function masterKey(): Buffer {
   const raw = process.env.CREDENTIALS_ENCRYPTION_KEY?.trim();
   if (raw) {
@@ -10,10 +14,15 @@ function masterKey(): Buffer {
     }
     return scryptSync(raw, 'magazam-shop-credentials', 32);
   }
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('CREDENTIALS_ENCRYPTION_KEY production’da zorunlu.');
+  if (isTestRuntime()) {
+    return scryptSync(DEV_FALLBACK, 'magazam-shop-credentials', 32);
   }
-  return scryptSync(DEV_FALLBACK, 'magazam-shop-credentials', 32);
+  throw new Error('CREDENTIALS_ENCRYPTION_KEY zorunlu (yalnızca test ortamında varsayılan anahtar kullanılır).');
+}
+
+/** Call after loading env. Throws if wrapping key is missing outside Jest. */
+export function assertCredentialsEncryptionKey(): void {
+  masterKey();
 }
 
 export function encryptJson(value: unknown): string {

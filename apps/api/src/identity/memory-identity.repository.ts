@@ -179,6 +179,18 @@ export class MemoryIdentityRepository implements IdentityRepository {
     return this.shopsById.get(shopId) ?? null;
   }
 
+  async connectShopWithSecrets(
+    org: OrganizationSummary,
+    channel: ShopChannel,
+    overlay: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'>>,
+    secrets: ChannelSecrets,
+  ): Promise<ShopStatus> {
+    const blob = encryptJson(secrets);
+    const shop = await this.upsertShop(org, channel, overlay);
+    this.shopSecrets.set(`${org.id}:${shop.id}`, blob);
+    return shop;
+  }
+
   async saveShopSecrets(shopId: string, orgId: string, secrets: ChannelSecrets): Promise<void> {
     this.shopSecrets.set(`${orgId}:${shopId}`, encryptJson(secrets));
   }

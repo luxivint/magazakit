@@ -78,6 +78,11 @@ export type ListingMapping = {
   stockSource: 'master_sku';
 };
 
+export type ShopSyncWarning = {
+  scope: 'products' | 'orders';
+  message: string;
+};
+
 export type ShopSyncResult = {
   shopId: string;
   organizationId: string;
@@ -86,6 +91,9 @@ export type ShopSyncResult = {
   checkpoint: string;
   lastSyncAt: string;
   mock: boolean;
+  partial: boolean;
+  checkpointUpdated: boolean;
+  warnings: ShopSyncWarning[];
 };
 
 export type StockBalance = {

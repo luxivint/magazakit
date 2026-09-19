@@ -33,6 +33,7 @@ describe('IdentityStore F2 catalog', () => {
 
     const page = await s.listProducts('uid-a', undefined);
     expect(page.total).toBe(3);
+    expect(page.mock).toBe(true);
     expect(page.items.every((p) => p.mapped === false && p.stockSource === 'none')).toBe(true);
     expect(page.items.every((p) => p.sellableStock === 0)).toBe(true);
 
@@ -297,6 +298,15 @@ describe('IdentityStore multi-channel', () => {
     expect(await s.listShops('uid-a')).toEqual([]);
   });
 
+  it('rejects partial Trendyol keys instead of silently mocking', async () => {
+    const s = testIdentityStore();
+    await s.createOrg('uid-a', 'Mağazam');
+    await expect(
+      s.connectTrendyolMock('uid-a', { sellerId: '123', apiKey: 'only-key' }),
+    ).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+    expect(await s.listShops('uid-a')).toEqual([]);
+  });
+
   it('keeps marketplace secrets on the org shop record, not in process env', async () => {
     process.env.SHOPIFY_ACCESS_TOKEN = 'env-leak';
     const s = testIdentityStore();
@@ -312,6 +322,7 @@ describe('IdentityStore multi-channel', () => {
       });
       expect(shop.mock).toBe(false);
       expect(JSON.stringify(shop)).not.toContain('tok-a');
+      expect((await s.listProducts('uid-a', undefined)).mock).toBe(false);
       await expect(s.syncShop('uid-b', shop.id)).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
       await expect(s.connectChannel('uid-b', 'shopify')).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
     } finally {

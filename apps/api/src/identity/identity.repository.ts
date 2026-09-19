@@ -59,6 +59,12 @@ export interface IdentityRepository {
   ): Promise<ShopStatus>;
   listShopsForUid(uid: string): Promise<ShopStatus[]>;
   getShopById(shopId: string): Promise<ShopStatus | null>;
+  connectShopWithSecrets(
+    org: OrganizationSummary,
+    channel: ShopChannel,
+    overlay: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'>>,
+    secrets: ChannelSecrets,
+  ): Promise<ShopStatus>;
   saveShopSecrets(shopId: string, orgId: string, secrets: ChannelSecrets): Promise<void>;
   getShopSecrets(shopId: string, orgId: string): Promise<ChannelSecrets | null>;
   markShopSynced(shopId: string, checkpoint: string, lastSyncAt: string): Promise<ShopStatus>;

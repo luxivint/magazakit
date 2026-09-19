@@ -38,11 +38,12 @@ import {
 } from './identity.repository';
 import { applySqlMigrations } from './run-migrations';
 
-type Pool = {
-  query: (
-    text: string,
-    params?: unknown[],
-  ) => Promise<{ rows: Record<string, unknown>[] }>;
+type QueryResult = { rows: Record<string, unknown>[] };
+type Queryable = {
+  query: (text: string, params?: unknown[]) => Promise<QueryResult>;
+};
+type Pool = Queryable & {
+  connect: () => Promise<Queryable & { release: () => void }>;
   end?: () => Promise<void>;
 };
 
@@ -180,6 +181,17 @@ export class PostgresIdentityRepository implements IdentityRepository {
       >
     >,
   ): Promise<ShopStatus> {
+    return this.upsertShopOn(this.pool, org, channel, overlay);
+  }
+
+  private async upsertShopOn(
+    db: Queryable,
+    org: OrganizationSummary,
+    channel: ShopStatus['channel'],
+    overlay?: Partial<
+      Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'>
+    >,
+  ): Promise<ShopStatus> {
     const id = shopRecordId(org.id, channel);
     const live =
       overlay?.status === 'live_connected' || overlay?.mock === false;
@@ -188,7 +200,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
     const statusLabel =
       overlay?.statusLabel ?? (live ? 'Bağlı (okuma)' : 'Bağlı (mock — K01)');
     const sellerLabel = overlay?.sellerLabel ?? channel;
-    const res = await this.pool.query(
+    const res = await db.query(
       `INSERT INTO shops (id, organization_id, channel, status, status_label, seller_label)
        VALUES ($1, $2, $6, $5, $3, $4)
        ON CONFLICT (id) DO UPDATE SET
@@ -232,6 +244,40 @@ export class PostgresIdentityRepository implements IdentityRepository {
     );
     const row = res.rows[0];
     return row ? rowToShop(row) : null;
+  }
+
+  async connectShopWithSecrets(
+    org: OrganizationSummary,
+    channel: ShopStatus['channel'],
+    overlay: Partial<Pick<ShopStatus, 'status' | 'statusLabel' | 'sellerLabel' | 'mock' | 'k01'>>,
+    secrets: ChannelSecrets,
+  ): Promise<ShopStatus> {
+    const ciphertext = encryptJson(secrets);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const shop = await this.upsertShopOn(client, org, channel, overlay);
+      await client.query(
+        `INSERT INTO shop_credentials (shop_id, organization_id, ciphertext)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (shop_id) DO UPDATE SET
+           organization_id = EXCLUDED.organization_id,
+           ciphertext = EXCLUDED.ciphertext,
+           updated_at = now()`,
+        [shop.id, org.id, ciphertext],
+      );
+      await client.query('COMMIT');
+      return shop;
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async saveShopSecrets(shopId: string, orgId: string, secrets: ChannelSecrets): Promise<void> {

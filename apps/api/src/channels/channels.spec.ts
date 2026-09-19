@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { ErrorCodes } from '@magazakit/contracts';
 import { AmazonReadAdapter, BlockedChannelAdapter, ShopifyReadAdapter } from './adapters';
-import { assertPublicHttps } from './http';
+import { assertPublicHttps, channelFetchJson, isBlockedIp } from './http';
 import { createChannelAdapters } from './registry';
 import { MockTrendyolReadAdapter } from '../trendyol/mock-trendyol-read.adapter';
 
@@ -9,8 +9,32 @@ describe('channel adapters', () => {
   it('rejects private Woo/Shopify hosts', () => {
     expect(() => assertPublicHttps('https://127.0.0.1/wp-json', 'WooCommerce')).toThrow(HttpException);
     expect(() => assertPublicHttps('http://example.com', 'WooCommerce')).toThrow(HttpException);
+    expect(() => assertPublicHttps('https://169.254.1.1/wp-json', 'WooCommerce')).toThrow(HttpException);
+    expect(() => assertPublicHttps('https://[fd00::1]/admin', 'Shopify')).toThrow(HttpException);
+    expect(isBlockedIp('100.64.0.1')).toBe(true);
+    expect(isBlockedIp('8.8.8.8')).toBe(false);
     const url = assertPublicHttps('https://shop.example.com/admin', 'Shopify');
     expect(url.hostname).toBe('shop.example.com');
+  });
+
+  it('refuses HTTP redirects onto loopback', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('shop.example.com')) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: 'https://127.0.0.1/steal' },
+        });
+      }
+      return new Response('nope', { status: 200 });
+    });
+    try {
+      await expect(
+        channelFetchJson('https://shop.example.com/wp-json/wc/v3', {}, 'WooCommerce'),
+      ).rejects.toBeInstanceOf(HttpException);
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 
   it('does not bind marketplace secrets from process env', () => {
@@ -38,9 +62,12 @@ describe('channel adapters', () => {
 
   it('maps the Amazon Orders 2026 schema and listing pagination fields', async () => {
     const urls: string[] = [];
-    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+    const dates: string[] = [];
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
       urls.push(url);
+      const headers = init?.headers as Record<string, string> | undefined;
+      if (headers?.['x-amz-date']) dates.push(headers['x-amz-date']);
       if (url.includes('/auth/o2/token')) {
         return new Response(JSON.stringify({ access_token: 'token', expires_in: 3600 }), { status: 200 });
       }
@@ -91,6 +118,8 @@ describe('channel adapters', () => {
       expect(feed.orders[1]).toMatchObject({ status: 'created', orderNumber: 'ORDER-2' });
       expect(urls.some((u) => u.includes('includedData=PROCEEDS%2CFULFILLMENT') || u.includes('includedData=PROCEEDS,FULFILLMENT'))).toBe(true);
       expect(urls.some((u) => u.includes('paginationToken=page-2'))).toBe(true);
+      expect(dates.length).toBeGreaterThan(0);
+      expect(dates.every((d) => /^\d{8}T\d{6}Z$/.test(d))).toBe(true);
     } finally {
       fetchMock.mockRestore();
     }
@@ -120,6 +149,9 @@ describe('channel adapters', () => {
       expect(feed.listings).toHaveLength(1);
       expect(feed.listings[0].sku).toBe('SH-1');
       expect(feed.orders).toEqual([]);
+      expect(feed.warnings).toEqual([
+        expect.objectContaining({ scope: 'orders' }),
+      ]);
     } finally {
       fetchMock.mockRestore();
     }

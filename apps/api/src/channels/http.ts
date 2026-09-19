@@ -1,33 +1,88 @@
+import { lookup } from 'node:dns/promises';
+import { isIP, isIPv4 } from 'node:net';
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { ErrorCodes } from '@magazakit/contracts';
 
-const PRIVATE =
-  /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|\[::1\])/i;
+const PRIVATE_HOST =
+  /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|169\.254\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|\[::1\]|::1$|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
+
+function allowPrivateHosts(): boolean {
+  return process.env.CHANNEL_ALLOW_PRIVATE_HOSTS === 'true';
+}
+
+export function isBlockedIp(address: string): boolean {
+  const mapped = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  const ip = mapped ? mapped[1] : address;
+  if (isIPv4(ip)) {
+    const p = ip.split('.').map((n) => Number(n));
+    if (p.length !== 4 || p.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+      return true;
+    }
+    const [a, b] = p;
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 192 && b === 0) return true;
+    if (a === 198 && (b === 18 || b === 19)) return true;
+    if (a === 198 && b === 51) return true;
+    if (a === 203 && b === 113) return true;
+    if (a >= 224) return true;
+    return false;
+  }
+  if (isIP(ip) !== 6) return true;
+  const v = ip.toLowerCase();
+  if (v === '::1' || v === '::') return true;
+  if (v.startsWith('fc') || v.startsWith('fd')) return true;
+  if (/^fe[89ab]/.test(v)) return true;
+  if (v.startsWith('ff')) return true;
+  if (v.startsWith('2001:db8:')) return true;
+  return false;
+}
+
+function reject(label: string, message: string, status = HttpStatus.BAD_REQUEST): never {
+  throw new HttpException({ code: ErrorCodes.VALIDATION, message: `${label} ${message}` }, status);
+}
 
 export function assertPublicHttps(raw: string, label: string): URL {
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw new HttpException(
-      { code: ErrorCodes.VALIDATION, message: `${label} geçersiz URL.` },
-      HttpStatus.BAD_REQUEST,
-    );
+    reject(label, 'geçersiz URL.');
   }
   if (url.protocol !== 'https:') {
-    throw new HttpException(
-      { code: ErrorCodes.VALIDATION, message: `${label} HTTPS olmalı.` },
-      HttpStatus.BAD_REQUEST,
-    );
+    reject(label, 'HTTPS olmalı.');
   }
-  if (
-    process.env.CHANNEL_ALLOW_PRIVATE_HOSTS !== 'true' &&
-    PRIVATE.test(url.hostname)
-  ) {
-    throw new HttpException(
-      { code: ErrorCodes.VALIDATION, message: `${label} özel ağa açılamaz.` },
-      HttpStatus.BAD_REQUEST,
-    );
+  if (!allowPrivateHosts() && PRIVATE_HOST.test(url.hostname)) {
+    reject(label, 'özel ağa açılamaz.');
+  }
+  if (!allowPrivateHosts() && isIP(url.hostname) && isBlockedIp(url.hostname)) {
+    reject(label, 'özel ağa açılamaz.');
+  }
+  return url;
+}
+
+export async function assertSafeChannelUrl(raw: string | URL, label: string): Promise<URL> {
+  const url = raw instanceof URL ? raw : assertPublicHttps(raw, label);
+  if (url.protocol !== 'https:') {
+    reject(label, 'HTTPS olmalı.');
+  }
+  if (allowPrivateHosts()) return url;
+  if (PRIVATE_HOST.test(url.hostname) || (isIP(url.hostname) && isBlockedIp(url.hostname))) {
+    reject(label, 'özel ağa açılamaz.');
+  }
+  if (isIP(url.hostname)) return url;
+  if (process.env.NODE_ENV === 'test') return url;
+  let records: { address: string }[];
+  try {
+    records = await lookup(url.hostname, { all: true });
+  } catch {
+    reject(label, 'çözülemedi.', HttpStatus.BAD_GATEWAY);
+  }
+  if (!records.length || records.some((r) => isBlockedIp(r.address))) {
+    reject(label, 'özel ağa açılamaz.');
   }
   return url;
 }
@@ -47,8 +102,9 @@ export async function channelFetchJson(
       ? AbortSignal.any([init.signal, timeout])
       : timeout;
     try {
-      res = await fetch(url, { ...init, signal });
-    } catch {
+      res = await fetchFollowingRedirects(url, { ...init, signal }, label);
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
       if (attempt + 1 < attempts && !init.signal?.aborted) {
         await delay(250 * 2 ** attempt);
         continue;
@@ -104,6 +160,40 @@ export async function channelFetchJson(
       HttpStatus.BAD_GATEWAY,
     );
   }
+}
+
+async function fetchFollowingRedirects(
+  start: string | URL,
+  init: RequestInit,
+  label: string,
+): Promise<Response> {
+  let current = start instanceof URL ? start : new URL(String(start));
+  for (let hop = 0; hop < 5; hop += 1) {
+    await assertSafeChannelUrl(current, label);
+    const res = await fetch(current, { ...init, redirect: 'manual' });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location');
+      if (!location) {
+        throw new HttpException(
+          {
+            code: ErrorCodes.CHANNEL_UNAVAILABLE,
+            message: `${label} yönlendirme hedefi yok.`,
+          },
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+      current = new URL(location, current);
+      continue;
+    }
+    return res;
+  }
+  throw new HttpException(
+    {
+      code: ErrorCodes.CHANNEL_UNAVAILABLE,
+      message: `${label} çok fazla yönlendirme.`,
+    },
+    HttpStatus.BAD_GATEWAY,
+  );
 }
 
 function delay(ms: number): Promise<void> {

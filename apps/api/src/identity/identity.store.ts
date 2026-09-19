@@ -135,19 +135,32 @@ export class IdentityStore {
 
   async connectTrendyolMock(uid: string, body?: ShopConnectRequest): Promise<ShopStatus> {
     const org = await this.requireOrg(uid);
-    const liveKeys = Boolean(body?.apiKey?.trim() && body?.apiSecret?.trim() && body?.sellerId?.trim());
-    if (liveKeys) {
+    const sellerId = body?.sellerId?.trim() || body?.merchantId?.trim();
+    const apiKey = body?.apiKey?.trim() || body?.appKey?.trim();
+    const apiSecret = body?.apiSecret?.trim() || body?.appSecret?.trim();
+    const anyLiveField = Boolean(sellerId || apiKey || apiSecret);
+    if (anyLiveField) {
+      if (!sellerId || !apiKey || !apiSecret) {
+        boom(
+          ErrorCodes.VALIDATION,
+          'Trendyol canlı bağlamak için satıcı ID, API key ve secret birlikte gerekli.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
       const secrets = parseShopConnect('trendyol', body);
       const adapter = liveAdapterFromSecrets(secrets);
       await adapter.probe?.();
-      const shop = await this.repo.upsertTrendyolMockShop(org, {
-        status: 'live_connected',
-        statusLabel: 'Bağlı (Trendyol V2 okuma)',
-        sellerLabel: `Trendyol ${secrets.sellerId}`,
-        mock: false,
-      });
-      await this.repo.saveShopSecrets(shop.id, org.id, secrets);
-      return shop;
+      return this.repo.connectShopWithSecrets(
+        org,
+        'trendyol',
+        {
+          status: 'live_connected',
+          statusLabel: 'Bağlı (Trendyol V2 okuma)',
+          sellerLabel: `Trendyol ${secrets.sellerId}`,
+          mock: false,
+        },
+        secrets,
+      );
     }
     if (trendyolMode() === 'mock') {
       return this.repo.upsertTrendyolMockShop(org);
@@ -174,19 +187,22 @@ export class IdentityStore {
     const secrets = parseShopConnect(ch, body);
     const adapter = liveAdapterFromSecrets(secrets);
     await adapter.probe?.();
-    const shop = await this.repo.upsertShop(org, ch, {
-      status: 'live_connected',
-      statusLabel: `Bağlı (${CHANNEL_LABELS[ch]} okuma)`,
-      sellerLabel: secrets.sellerId
-        ? `${CHANNEL_LABELS[ch]} ${secrets.sellerId}`
-        : secrets.shopDomain
-          ? `${CHANNEL_LABELS[ch]} ${secrets.shopDomain}`
-          : CHANNEL_LABELS[ch],
-      mock: false,
-      k01: 'Salt okuma. Yazma kapalı. Anahtar mağaza kaydında şifreli; telefonda yok.',
-    });
-    await this.repo.saveShopSecrets(shop.id, org.id, secrets);
-    return shop;
+    return this.repo.connectShopWithSecrets(
+      org,
+      ch,
+      {
+        status: 'live_connected',
+        statusLabel: `Bağlı (${CHANNEL_LABELS[ch]} okuma)`,
+        sellerLabel: secrets.sellerId
+          ? `${CHANNEL_LABELS[ch]} ${secrets.sellerId}`
+          : secrets.shopDomain
+            ? `${CHANNEL_LABELS[ch]} ${secrets.shopDomain}`
+            : CHANNEL_LABELS[ch],
+        mock: false,
+        k01: 'Salt okuma. Yazma kapalı. Anahtar mağaza kaydında şifreli; telefonda yok.',
+      },
+      secrets,
+    );
   }
 
   listShops(uid: string): Promise<ShopStatus[]> {
@@ -219,21 +235,30 @@ export class IdentityStore {
     }
     const adapter = await this.adapterForShop(org.id, shop);
     const feed = await adapter.pullFeed();
+    const warnings = feed.warnings ?? [];
+    const partial = warnings.length > 0;
     const productsUpserted = await this.repo.upsertListings(org.id, shop.id, feed.listings);
     const ordersUpserted = await this.repo.upsertOrders(org.id, feed.orders);
     await this.repo.upsertReturns(org.id, feed.returns ?? []);
     const lastSyncAt = new Date().toISOString();
     const prefix = adapter.mock ? 'mock' : 'live';
     const checkpoint = `${prefix}:${shop.channel}:${feed.listings.length}:${feed.orders.length}:${lastSyncAt}`;
-    await this.repo.markShopSynced(shop.id, checkpoint, lastSyncAt);
+    let checkpointUpdated = false;
+    if (!partial) {
+      await this.repo.markShopSynced(shop.id, checkpoint, lastSyncAt);
+      checkpointUpdated = true;
+    }
     return {
       shopId: shop.id,
       organizationId: org.id,
       productsUpserted,
       ordersUpserted,
-      checkpoint,
-      lastSyncAt,
+      checkpoint: checkpointUpdated ? checkpoint : (shop.checkpoint ?? ''),
+      lastSyncAt: checkpointUpdated ? lastSyncAt : (shop.lastSyncAt ?? lastSyncAt),
       mock: adapter.mock,
+      partial,
+      checkpointUpdated,
+      warnings,
     };
   }
 
@@ -255,7 +280,10 @@ export class IdentityStore {
       const stock = mapping ? await this.repo.getSkuStock(org.id, mapping.sku) : undefined;
       items.push(toProductListItem(listing, org.id, mapping, stock));
     }
-    return asPreviewList(paginate(items, parsePageQuery({ page, pageSize })), this.trendyol.mock);
+    return asPreviewList(
+      paginate(items, parsePageQuery({ page, pageSize })),
+      await this.previewIsMock(uid),
+    );
   }
 
   async listOrders(
@@ -266,7 +294,16 @@ export class IdentityStore {
   ): Promise<PreviewList<OrderListItem>> {
     const org = await this.assertOrgAccess(uid, organizationId);
     const orders = await this.repo.listOrgOrders(org.id);
-    return asPreviewList(paginate(orders, parsePageQuery({ page, pageSize })), this.trendyol.mock);
+    return asPreviewList(
+      paginate(orders, parsePageQuery({ page, pageSize })),
+      await this.previewIsMock(uid),
+    );
+  }
+
+  private async previewIsMock(uid: string): Promise<boolean> {
+    const shops = await this.repo.listShopsForUid(uid);
+    if (shops.length === 0) return true;
+    return shops.every((s) => s.mock);
   }
 
   async upsertMapping(uid: string, listingId: string, sku: string): Promise<ListingMapping> {

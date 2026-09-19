@@ -157,17 +157,25 @@ describe('authenticated mock Firebase (e2e)', () => {
     const shop = await request(app.getHttpServer())
       .post('/v1/shops/trendyol/connect')
       .set(auth)
-      .send({ sellerId: '123', apiKey: 'should-not-be-stored' })
+      .send({})
       .expect(201);
     expect(shop.body.channel).toBe('trendyol');
     expect(shop.body.mock).toBe(true);
-    expect(JSON.stringify(shop.body)).not.toContain('should-not-be-stored');
+
+    const partialKeys = await request(app.getHttpServer())
+      .post('/v1/shops/trendyol/connect')
+      .set(auth)
+      .send({ sellerId: '123', apiKey: 'only-one' })
+      .expect(400);
+    expect(partialKeys.body.error.code).toBe('VALIDATION');
 
     const sync = await request(app.getHttpServer())
       .post(`/v1/shops/${shop.body.id}/sync`)
       .set(auth)
       .expect(201);
     expect(sync.body.productsUpserted).toBe(3);
+    expect(sync.body.partial).toBe(false);
+    expect(sync.body.checkpointUpdated).toBe(true);
     await request(app.getHttpServer())
       .post(`/v1/shops/${shop.body.id}/sync`)
       .set(auth)

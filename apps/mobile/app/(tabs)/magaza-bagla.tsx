@@ -144,7 +144,7 @@ export default function MagazaBaglaScreen() {
             autoCapitalize="words"
           />
           {channel === 'trendyol' ? (
-            <Text style={styles.hint}>Boş bırakırsan mock bağlanır. Canlı için üç alan da gerekir.</Text>
+            <Text style={styles.hint}>Boş bırakırsan mock bağlanır. Canlı için üç alan da gerekir; biri doluysa üçünü de doldur. Anahtarlar yalnızca HTTPS veya 127.0.0.1 API’ye gider.</Text>
           ) : null}
           {fields.map((field) => (
             <TextField

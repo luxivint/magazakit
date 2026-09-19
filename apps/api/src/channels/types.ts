@@ -28,15 +28,20 @@ export type ChannelCatalogRow = {
   note: string;
 };
 
+export type ChannelFeedWarning = { scope: 'products' | 'orders'; message: string };
+
+export type ChannelFeed = {
+  listings: MockListingSeed[];
+  orders: Omit<OrderListItem, 'organizationId'>[];
+  returns: Omit<ReturnListItem, 'organizationId'>[];
+  warnings?: ChannelFeedWarning[];
+};
+
 export interface ChannelReadAdapter {
   readonly channel: Channel;
   readonly mock: boolean;
   probe?(): Promise<void>;
-  pullFeed(): Promise<{
-    listings: MockListingSeed[];
-    orders: Omit<OrderListItem, 'organizationId'>[];
-    returns: Omit<ReturnListItem, 'organizationId'>[];
-  }>;
+  pullFeed(): Promise<ChannelFeed>;
   listProducts(query: PageQuery): Promise<PreviewList<ProductListItem>>;
   listOrders(query: PageQuery): Promise<PreviewList<OrderListItem>>;
 }

@@ -11,6 +11,7 @@ export interface TrendyolReadAdapter {
     listings: MockListingSeed[];
     orders: Omit<OrderListItem, 'organizationId'>[];
     returns: Omit<ReturnListItem, 'organizationId'>[];
+    warnings?: { scope: 'products' | 'orders'; message: string }[];
   }>;
   listProducts(query: PageQuery): Promise<PreviewList<ProductListItem>>;
   listOrders(query: PageQuery): Promise<PreviewList<OrderListItem>>;

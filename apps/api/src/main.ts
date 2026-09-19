@@ -1,10 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { assertCredentialsEncryptionKey } from './channels/crypto';
 import { corsOptions } from './config/cors';
 import { loadEnvFiles } from './config/load-env';
 
 async function bootstrap() {
   loadEnvFiles();
+  assertCredentialsEncryptionKey();
   const app = await NestFactory.create(AppModule);
   app.enableCors(corsOptions());
   const port = Number(process.env.PORT ?? 43140);

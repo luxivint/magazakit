@@ -40,9 +40,14 @@ export default function IcerikAlScreen() {
           <Text style={styles.meta}>
             {catalog.products.length} ürün · {catalog.orders.length} sipariş
             {catalog.lastIngest
-              ? ` · +${catalog.lastIngest.productsUpserted} ürün / +${catalog.lastIngest.ordersUpserted} sipariş`
+              ? ` · +${catalog.lastIngest.productsUpserted} ürün / +${catalog.lastIngest.ordersUpserted} sipariş${catalog.lastIngest.partial ? ' (kısmi)' : ''}`
               : ''}
           </Text>
+          {catalog.lastIngest?.warnings?.length
+            ? catalog.lastIngest.warnings.map((w) => (
+                <PeachAlert key={w.scope} text={`${w.scope === 'products' ? 'Ürün' : 'Sipariş'} çekilemedi: ${w.message}`} />
+              ))
+            : null}
           {catalog.error ? <ConfigBanner text={catalog.error} /> : null}
           {note ? <Text style={styles.meta}>{note}</Text> : null}
           <Button
