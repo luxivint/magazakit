@@ -65,6 +65,12 @@ function order(over: Partial<OrderListItem> = {}): OrderListItem {
     cargoWarning: false,
     createdAt: '2026-02-10T12:00:00.000Z',
     lines: [],
+    reserved: false,
+    reservationKey: null,
+    packed: false,
+    labeled: false,
+    shipped: false,
+    labelUrl: null,
     money: baseMoney(),
     ...over,
   };
@@ -189,8 +195,7 @@ describe('trendyol-finance', () => {
           shipmentPackageId: '',
         },
       ],
-      13.19,
-    );
+      null,
     );
     const acc = map.get('11512925676');
     expect(acc?.serviceFeeTry).toBe(13.19);
