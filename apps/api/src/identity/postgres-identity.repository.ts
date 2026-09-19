@@ -31,6 +31,7 @@ import type { Channel } from '@magazakit/contracts';
 import type { MockListingSeed } from '../trendyol/mock-feed';
 import {
   emptyStock,
+  mergeListingDims,
   sellableOf,
   withOrderDefaults,
   withReturnDefaults,
@@ -324,12 +325,14 @@ export class PostgresIdentityRepository implements IdentityRepository {
     listings: MockListingSeed[],
   ): Promise<number> {
     for (const listing of listings) {
+      const existing = await this.getListing(orgId, listing.id);
+      const merged = mergeListingDims(existing ?? undefined, listing);
       await this.pool.query(
         `INSERT INTO listings (organization_id, listing_id, shop_id, payload)
          VALUES ($1, $2, $3, $4::jsonb)
          ON CONFLICT (organization_id, listing_id)
          DO UPDATE SET shop_id = EXCLUDED.shop_id, payload = EXCLUDED.payload`,
-        [orgId, listing.id, shopId, JSON.stringify(listing)],
+        [orgId, listing.id, shopId, JSON.stringify(merged)],
       );
     }
     // Treat an empty feed as ambiguous: some marketplace APIs return HTTP 200
@@ -827,6 +830,18 @@ export class PostgresIdentityRepository implements IdentityRepository {
       [draft.organizationId, draft.listingId, JSON.stringify(stored)],
     );
     return stored;
+  }
+
+  async saveListing(orgId: string, listing: StoredListing): Promise<StoredListing> {
+    const { shopId, ...payload } = listing;
+    await this.pool.query(
+      `INSERT INTO listings (organization_id, listing_id, shop_id, payload)
+       VALUES ($1, $2, $3, $4::jsonb)
+       ON CONFLICT (organization_id, listing_id)
+       DO UPDATE SET shop_id = EXCLUDED.shop_id, payload = EXCLUDED.payload`,
+      [orgId, listing.id, shopId, JSON.stringify(payload)],
+    );
+    return listing;
   }
 
   async listSuppliers(orgId: string): Promise<Supplier[]> {

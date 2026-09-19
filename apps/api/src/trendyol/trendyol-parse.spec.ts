@@ -15,6 +15,11 @@ describe('trendyol-parse', () => {
               archived: false,
               stock: { quantity: 4 },
               price: { salePrice: 222 },
+              dimensionalWeight: 1,
+              weight: 0.3,
+              width: 20,
+              height: 10,
+              length: 15,
             },
             {
               barcode: '12613876842A61',
@@ -35,6 +40,8 @@ describe('trendyol-parse', () => {
       priceTry: 222,
       status: 'active',
       imageUrl: 'https://cdn.example/a.jpg',
+      dimensionalWeight: 1,
+      weightKg: 0.3,
     });
     expect(listings[1].status).toBe('passive');
   });

@@ -14,7 +14,7 @@ import { OrderSkeleton } from '@/components/ui/Skeleton';
 import { TextField } from '@/components/ui/TextField';
 import { useAuth } from '@/context/AuthContext';
 import { useShops } from '@/context/ShopContext';
-import { fetchTrendyolTariff, saveTrendyolTariff } from '@/lib/apiClient';
+import { checkTrendyolTariff, fetchTrendyolTariff, saveTrendyolTariff, type TrendyolTariff } from '@/lib/apiClient';
 import { shopStatusLabel } from '@/lib/mapCatalog';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
@@ -29,51 +29,70 @@ export default function MagazalarScreen() {
   const { orgName } = useAuth();
   const { shops, loading, error, refresh } = useShops();
   const hasTrendyol = shops.some((s) => s.channel === 'trendyol');
-  const [bandLow, setBandLow] = useState('');
-  const [bandHigh, setBandHigh] = useState('');
-  const [phb, setPhb] = useState('');
-  const [cargoUrl, setCargoUrl] = useState('');
-  const [phbUrl, setPhbUrl] = useState('');
+  const [tariff, setTariff] = useState<TrendyolTariff | null>(null);
+  const [table, setTable] = useState('1');
+  const [carrier, setCarrier] = useState('Aras');
+  const [phb, setPhb] = useState('10.99');
+  const [sameDay, setSameDay] = useState('4.99');
+  const [arasNet, setArasNet] = useState('48.33');
   const [tariffNote, setTariffNote] = useState<string | null>(null);
   const [tariffBusy, setTariffBusy] = useState(false);
+
+  function applyTariff(row: TrendyolTariff) {
+    setTariff(row);
+    const v = row.versions?.find((item) => item.version === row.activeVersion) ?? row.versions?.[0];
+    if (!v) return;
+    setTable(String(v.defaultTable));
+    setCarrier(v.defaultCarrier);
+    setPhb(String(v.phbNetTry));
+    setSameDay(String(v.phbSameDayNetTry));
+    const cell = v.barem.find((b) => b.carrier === 'Aras' && b.table === v.defaultTable && b.bandMaxCustomerTry === 199.99);
+    if (cell) setArasNet(String(cell.netTry));
+  }
 
   useEffect(() => {
     if (!hasTrendyol) return;
     void fetchTrendyolTariff()
-      .then((row) => {
-        setBandLow(row.cargoBands.find((b) => b.maxCustomerTry <= 199.99)?.amountTry?.toString() ?? '');
-        setBandHigh(row.cargoBands.find((b) => b.maxCustomerTry > 199.99)?.amountTry?.toString() ?? '');
-        setPhb(row.phbGrossTry != null ? String(row.phbGrossTry) : '');
-        setCargoUrl(row.cargoRuleUrl);
-        setPhbUrl(row.phbRuleUrl);
-      })
-      .catch(() => {
-        setTariffNote('Tarife okunamadı.');
-      });
+      .then(applyTariff)
+      .catch(() => setTariffNote('Tarife okunamadı.'));
   }, [hasTrendyol]);
 
   async function onSaveTariff() {
+    if (!tariff?.versions?.length) return;
     setTariffBusy(true);
     setTariffNote(null);
     try {
-      const saved = await saveTrendyolTariff({
-        cargoBands: [
-          { maxCustomerTry: 199.99, amountTry: moneyInput(bandLow) },
-          { maxCustomerTry: 349.99, amountTry: moneyInput(bandHigh) },
-        ],
-        phbGrossTry: moneyInput(phb),
+      const versions = tariff.versions.map((row) => {
+        if (row.version !== (tariff.activeVersion ?? row.version)) return row;
+        const net = moneyInput(arasNet) ?? 48.33;
+        const vat = row.vatRate || 0.2;
+        const gross = net === 48.33 ? 57.99 : Math.round(net * (1 + vat) * 100) / 100;
+        const tbl = table === '2' ? 2 : 1;
+        return {
+          ...row,
+          defaultTable: tbl,
+          defaultCarrier: carrier.trim() || 'Aras',
+          phbNetTry: moneyInput(phb) ?? 10.99,
+          phbSameDayNetTry: moneyInput(sameDay) ?? 4.99,
+          barem: row.barem.map((b) =>
+            b.carrier === 'Aras' && b.bandMaxCustomerTry === 199.99 && b.table === tbl
+              ? { ...b, netTry: net, grossTry: gross }
+              : b,
+          ),
+        };
       });
-      setTariffNote(
-        saved.cargoBands[0]?.amountTry != null || saved.phbGrossTry != null
-          ? 'Tarife kaydedildi. Teslim siparişlerde tahmini (tarife); fatura gelince fatura yazar.'
-          : 'Tutar boş. 57,99 koda gömülmez; panelinden kopyala.',
-      );
+      const saved = await saveTrendyolTariff({ versions, activeVersion: tariff.activeVersion });
+      applyTariff(saved);
+      setTariffNote('Tarife v' + saved.activeVersion + ' kaydedildi. Değerler PDF kazınmaz; sen düzenlersin.');
+      refresh();
     } catch (err) {
       setTariffNote(err instanceof Error ? err.message : 'Tarife kaydedilemedi.');
     } finally {
       setTariffBusy(false);
     }
   }
+
+  const notices = shops.flatMap((shop) => [shop.tariffSourceNotice, shop.tariffMismatchNotice].filter(Boolean) as string[]);
 
   return (
     <View style={styles.root}>
@@ -98,23 +117,20 @@ export default function MagazalarScreen() {
           </View>
         ) : error ? (
           <View style={styles.sheet}>
-            <ErrorState
-              title="Mağazalar yüklenemedi"
-              body={error}
-              onRetry={refresh}
-            />
+            <ErrorState title="Mağazalar yüklenemedi" body={error} onRetry={refresh} />
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.sheet}>
             <PeachAlert text="Yazma kapalı. BLOKE kanallar bağlı sayılmaz." />
+            {notices.map((text) => (
+              <PeachAlert key={text} text={text} />
+            ))}
             <Text style={styles.section}>Bağlı mağazalar</Text>
             {shops.length === 0 ? (
               <View style={styles.emptyCard}>
                 <ChannelBadge />
                 <Text style={styles.emptyTitle}>Kanal bağlı değil</Text>
-                <Text style={styles.emptyBody}>
-                  {orgName ?? 'İşletme'} için henüz yetkili mağaza yok.
-                </Text>
+                <Text style={styles.emptyBody}>{orgName ?? 'İşletme'} için henüz yetkili mağaza yok.</Text>
               </View>
             ) : (
               shops.map((shop) => (
@@ -127,48 +143,39 @@ export default function MagazalarScreen() {
             )}
             {hasTrendyol ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>Trendyol kargo / PHB tarife tablosu</Text>
+                <Text style={styles.emptyTitle}>Trendyol tarife v{tariff?.activeVersion ?? 1}</Text>
                 <Text style={styles.emptyBody}>
-                  Akademi kargo baremi tutar basmaz. 57,99 panelden kopyalanır. PHB sayfasında da 10,99 koda
-                  gömülmez; KDV dahil tutarı sen yazarsın.
+                  Tohum: Akademi kargo baremi 10 Ağustos 2026 + desi PDF 13 Temmuz 2026. Aras Tablo 1 · 0–199,99 · 48,33 +
+                  %20 KDV = 57,99. PHB 10,99 + KDV; Bugün Kargoda 4,99 + KDV. PDF otomatik okunmaz.
                 </Text>
-                <Text style={styles.link}>{cargoUrl || 'https://akademi.trendyol.com/satici-bilgi-merkezi/detay/kargo-baremi-uygulamasi'}</Text>
-                <Text style={styles.link}>{phbUrl || 'https://akademi.trendyol.com/satici-bilgi-merkezi/detay/platform-hizmet-bedeli'}</Text>
-                <TextField
-                  label="Kargo 0–199,99 TL (KDV dahil, TL)"
-                  value={bandLow}
-                  onChangeText={setBandLow}
-                  keyboardType="decimal-pad"
-                  placeholder="Paneldeki tutar"
-                />
-                <TextField
-                  label="Kargo 200–349,99 TL (KDV dahil, TL)"
-                  value={bandHigh}
-                  onChangeText={setBandHigh}
-                  keyboardType="decimal-pad"
-                />
-                <TextField
-                  label="PHB sipariş başı (KDV dahil, TL)"
-                  value={phb}
-                  onChangeText={setPhb}
-                  keyboardType="decimal-pad"
-                  hint="Örnek doğrulama: 10,99 + %20 KDV = 13,19. Faturada n=1 ise tahsis bu tutara denk düşer."
-                />
+                <Text style={styles.link}>{tariff?.cargoRuleUrl}</Text>
+                <Text style={styles.link}>{tariff?.desiPdfUrl}</Text>
+                <Text style={styles.link}>{tariff?.phbRuleUrl}</Text>
+                <TextField label="Varsayılan tablo (1 avantajlı / 2 standart)" value={table} onChangeText={setTable} />
+                <TextField label="Varsayılan kargo firması" value={carrier} onChangeText={setCarrier} />
+                <TextField label="Aras 0–199,99 Tablo net (KDV hariç)" value={arasNet} onChangeText={setArasNet} keyboardType="decimal-pad" />
+                <TextField label="PHB net (KDV hariç)" value={phb} onChangeText={setPhb} keyboardType="decimal-pad" hint="10,99 + %20 = 13,19 tahmini; fatura değil." />
+                <TextField label="Bugün Kargoda PHB net" value={sameDay} onChangeText={setSameDay} keyboardType="decimal-pad" />
                 <Button label="Tarifeyi kaydet" loading={tariffBusy} onPress={() => void onSaveTariff()} />
+                <Button
+                  label="Kaynağı kontrol et"
+                  variant="ghost"
+                  onPress={() => {
+                    void checkTrendyolTariff()
+                      .then((row) => {
+                        applyTariff(row);
+                        setTariffNote(row.sourceCheckNotice || 'Kaynak aynı. Tutarlar değişmedi.');
+                        refresh();
+                      })
+                      .catch((err) => setTariffNote(err instanceof Error ? err.message : 'Kontrol başarısız.'));
+                  }}
+                />
                 {tariffNote ? <Text style={styles.emptyBody}>{tariffNote}</Text> : null}
               </View>
             ) : null}
-            <Button
-              label="Yeni mağaza bağla"
-              trailing="add"
-              onPress={() => router.push('/(tabs)/magaza-bagla')}
-            />
+            <Button label="Yeni mağaza bağla" trailing="add" onPress={() => router.push('/(tabs)/magaza-bagla')} />
             {shops.length > 0 ? (
-              <Button
-                label="Ürünleri içeri al"
-                variant="ghost"
-                onPress={() => router.push('/(tabs)/icerik-al')}
-              />
+              <Button label="Ürünleri içeri al" variant="ghost" onPress={() => router.push('/(tabs)/icerik-al')} />
             ) : null}
           </ScrollView>
         )}

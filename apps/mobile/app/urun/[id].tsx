@@ -10,6 +10,7 @@ import { ChannelBadge } from '@/components/ui/ChannelBadge';
 import { MoneyText } from '@/components/ui/MoneyText';
 import { ProductThumb } from '@/components/ui/ProductThumb';
 import { useCatalog } from '@/context/CatalogContext';
+import { formatMoney } from '@/lib/money';
 import { colors, fonts, radii, space } from '@/theme/tokens';
 
 export default function UrunDetayScreen() {
@@ -94,6 +95,40 @@ export default function UrunDetayScreen() {
               <Row label="Barkod" value={product.barcode || '—'} />
               <Row label="Son eşitleme" value={catalog.lastSync ?? '—'} />
 
+              <Text style={styles.section}>Desi ve tahmini kargo</Text>
+              <View style={styles.moneyCard}>
+                <Row label="Trendyol desi" value={product.dimensionalWeight != null ? String(product.dimensionalWeight) : 'yok'} />
+                <Row label="Ağırlık (kg)" value={product.weightKg != null ? String(product.weightKg) : 'yok'} />
+                <Row
+                  label="Ölçü (en×boy×yükseklik)"
+                  value={
+                    product.widthCm && product.lengthCm && product.heightCm
+                      ? `${product.widthCm}×${product.lengthCm}×${product.heightCm} cm`
+                      : 'yok'
+                  }
+                />
+                <Row label="Hacimsel desi" value={product.volumetricDesi != null ? String(product.volumetricDesi) : 'yok'} />
+                <Row label="Faturalanan desi" value={product.billedDesi != null ? String(product.billedDesi) : 'yok'} />
+                <Row label="Kargo firması" value={product.cargoProvider || 'Aras (varsayılan tarife)'} />
+                <Row
+                  label={`Tahmini kargo · ${product.estimateLabel ?? 'tahmini (tarife)'}`}
+                  value={product.cargoEstimateTry != null ? formatMoney(product.cargoEstimateTry) : 'yok'}
+                />
+                <Row
+                  label={`PHB 10,99 + KDV · ${product.estimateLabel ?? 'tahmini (tarife)'}`}
+                  value={product.phbEstimateTry != null ? formatMoney(product.phbEstimateTry) : 'yok'}
+                />
+                <Text style={styles.note}>
+                  Bu tutarlar sipariş faturası değildir; kesinleşmiş sayılmaz. Kaynak: Mağazalarım tarife v1 (Akademi
+                  10 Ağustos 2026 + PHB sayfası).
+                </Text>
+              </View>
+
+              <Button
+                label="Ürünü düzenle"
+                icon="create-outline"
+                onPress={() => router.push(`/urun/duzenle/${product.id}`)}
+              />
               <Button
                 label="Eşleştirmeyi düzenle"
                 icon="git-compare-outline"
@@ -173,4 +208,12 @@ const styles = StyleSheet.create({
   value: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink, flexShrink: 1, textAlign: 'right' },
   note: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, lineHeight: 18 },
   muted: { fontFamily: fonts.medium, fontSize: 12, color: colors.muted },
+  moneyCard: {
+    backgroundColor: colors.white,
+    borderRadius: radii.card,
+    padding: 14,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.sheetLine,
+  },
 });

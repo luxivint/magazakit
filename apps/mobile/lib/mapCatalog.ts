@@ -90,6 +90,17 @@ export function mapApiProduct(item: ProductListItem, index: number): Product {
     imageUrls: item.imageUrls?.length ? item.imageUrls : item.imageUrl ? [item.imageUrl] : [],
     critical: item.critical,
     statusLabel: item.statusLabel,
+    weightKg: item.weightKg ?? null,
+    widthCm: item.widthCm ?? null,
+    heightCm: item.heightCm ?? null,
+    lengthCm: item.lengthCm ?? null,
+    dimensionalWeight: item.dimensionalWeight ?? null,
+    volumetricDesi: item.volumetricDesi ?? null,
+    billedDesi: item.billedDesi ?? null,
+    cargoProvider: item.cargoProvider ?? null,
+    cargoEstimateTry: item.cargoEstimateTry ?? null,
+    phbEstimateTry: item.phbEstimateTry ?? null,
+    estimateLabel: item.estimateLabel ?? null,
   };
 }
 

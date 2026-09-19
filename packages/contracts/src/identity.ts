@@ -55,4 +55,6 @@ export type ShopStatus = {
   checkpoint: string | null;
   k01: string;
   mock: boolean;
+  tariffMismatchNotice?: string | null;
+  tariffSourceNotice?: string | null;
 };

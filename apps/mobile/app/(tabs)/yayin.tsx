@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { ChannelBadge } from '@/components/ui/ChannelBadge';
 import { ConfigBanner } from '@/components/ui/ConfigBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { TextField } from '@/components/ui/TextField';
+import { DesiFields, parseDim, type DesiValues } from '@/components/catalog/DesiFields';
 import { useCatalog } from '@/context/CatalogContext';
 import { ApiError, fetchListingDraft, publishListing, saveListingDraft, type ListingDraft } from '@/lib/apiClient';
 import { colors, fonts, radii, space } from '@/theme/tokens';
@@ -22,6 +22,7 @@ export default function YayinScreen() {
   const [draft, setDraft] = useState<ListingDraft | null>(null);
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
+  const [desi, setDesi] = useState<DesiValues>({ weightKg: '', widthCm: '', heightCm: '', lengthCm: '' });
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
 
@@ -33,6 +34,12 @@ export default function YayinScreen() {
       setDraft(next);
       setTitle(next.title);
       setPrice(String(next.priceTry));
+      setDesi({
+        weightKg: next.weightKg != null ? String(next.weightKg) : '',
+        widthCm: next.widthCm != null ? String(next.widthCm) : '',
+        heightCm: next.heightCm != null ? String(next.heightCm) : '',
+        lengthCm: next.lengthCm != null ? String(next.lengthCm) : '',
+      });
       setStep(3);
     } catch (e) {
       setBanner(e instanceof ApiError ? e.message : 'Taslak okunamadı.');
@@ -50,6 +57,10 @@ export default function YayinScreen() {
       const next = await saveListingDraft(listingId, {
         title: title.trim() || undefined,
         priceTry: Number.isFinite(parsed) ? parsed : undefined,
+        weightKg: parseDim(desi.weightKg),
+        widthCm: parseDim(desi.widthCm),
+        heightCm: parseDim(desi.heightCm),
+        lengthCm: parseDim(desi.lengthCm),
       });
       setDraft(next);
       setBanner('Taslak kaydedildi. Canlı pazaryeri yazılmadı.');
@@ -153,6 +164,7 @@ export default function YayinScreen() {
                   onChangeText={setPrice}
                   keyboardType="decimal-pad"
                 />
+                <DesiFields values={desi} onChange={setDesi} />
                 <Button label="Taslağı kaydet" variant="ghost" loading={busy} onPress={() => void save()} />
                 <Button label="Mock yayınla" variant="lime" loading={busy} onPress={() => void publish()} />
                 <Button label="Geri" variant="ghost" onPress={() => setStep(2)} />

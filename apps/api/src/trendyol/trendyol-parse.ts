@@ -47,6 +47,45 @@ export function trendyolPageMeta(payload: unknown): {
   };
 }
 
+function positive(value: unknown): number | null {
+  const n = num(value);
+  return n > 0 ? n : null;
+}
+
+function readPackageDims(
+  content: Record<string, unknown>,
+  variant: Record<string, unknown>,
+): Pick<
+  MockListingSeed,
+  | 'weightKg'
+  | 'widthCm'
+  | 'heightCm'
+  | 'lengthCm'
+  | 'dimensionalWeight'
+  | 'cargoProvider'
+> {
+  const providers = variant.cargoProviders ?? content.cargoProviders;
+  const providerName = Array.isArray(providers)
+    ? str((asRecord(providers[0]) ?? {}).name || (asRecord(providers[0]) ?? {}).code || providers[0])
+    : str(providers);
+  return {
+    weightKg:
+      positive(variant.weight ?? variant.kg ?? content.weight ?? content.kg) ?? null,
+    widthCm: positive(variant.width ?? content.width) ?? null,
+    heightCm: positive(variant.height ?? content.height) ?? null,
+    lengthCm: positive(variant.length ?? variant.depth ?? content.length ?? content.depth) ?? null,
+    dimensionalWeight:
+      positive(
+        variant.dimensionalWeight ??
+          variant.desi ??
+          variant.volumetricWeight ??
+          content.dimensionalWeight ??
+          content.desi,
+      ) ?? null,
+    cargoProvider: providerName || null,
+  };
+}
+
 function listingFromVariant(
   content: Record<string, unknown>,
   variant: Record<string, unknown>,
@@ -86,6 +125,7 @@ function listingFromVariant(
     statusLabel: status === 'active' ? 'Aktif' : 'Pasif',
     imageUrl: imageUrls[0] ?? null,
     imageUrls,
+    ...readPackageDims(content, variant),
   };
 }
 

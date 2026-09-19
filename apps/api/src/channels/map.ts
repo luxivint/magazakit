@@ -19,6 +19,12 @@ export function listing(input: {
   active?: boolean;
   imageUrl?: string | null;
   imageUrls?: string[];
+  weightKg?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  lengthCm?: number | null;
+  dimensionalWeight?: number | null;
+  cargoProvider?: string | null;
 }): MockListingSeed {
   const qty = input.marketplaceStock ?? 0;
   const status: ProductStatus = input.active === false ? 'passive' : 'active';
@@ -39,6 +45,12 @@ export function listing(input: {
     statusLabel: status === 'active' ? 'Aktif' : 'Pasif',
     imageUrl: input.imageUrl ?? null,
     imageUrls: input.imageUrls,
+    weightKg: input.weightKg ?? null,
+    widthCm: input.widthCm ?? null,
+    heightCm: input.heightCm ?? null,
+    lengthCm: input.lengthCm ?? null,
+    dimensionalWeight: input.dimensionalWeight ?? null,
+    cargoProvider: input.cargoProvider ?? null,
   };
 }
 

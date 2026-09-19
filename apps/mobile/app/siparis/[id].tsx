@@ -286,11 +286,11 @@ function signed(value: number | null | undefined): number | null {
   return -Math.abs(value);
 }
 
-function sourceLabel(source?: string): string {
+function sourceLabel(source?: string, label?: string | null): string {
   if (source === 'fatura') return 'fatura';
   if (source === 'fatura-tahsis') return 'fatura-tahsis';
   if (source === 'settlement') return 'cari';
-  if (source === 'tarife') return 'tahmini (tarife)';
+  if (source === 'tarife') return label || 'tahmini (tarife)';
   return 'yok';
 }
 
@@ -312,7 +312,7 @@ function PayoutCard({ money }: { money: Order['money'] }) {
         <MoneyRow label="Sipariş tutarı" value={money.customerTry} />
         <MoneyRow label="Komisyon" value={signed(money.commissionTry)} muted />
         <MoneyRow
-          label={`${cargoLabel} · ${sourceLabel(money.cargoFeeSource)}`}
+          label={`${cargoLabel} · ${sourceLabel(money.cargoFeeSource, money.cargoFeeLabel)}`}
           value={signed(money.cargoFeeTry)}
           muted
         />

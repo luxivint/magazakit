@@ -1,7 +1,7 @@
 import type { FeeSource, OrderListItem, OrderMoney, TrendyolTariff } from '@magazakit/contracts';
 import type { TrendyolLiveConfig } from '../config/trendyol-env';
 import { trendyolGetJson, type TrendyolQuery } from './trendyol-http';
-import { emptyTrendyolTariff, estimateCargoTry, estimatePhbTry } from './trendyol-tariff';
+import { emptyTrendyolTariff, estimateCargoTry, estimatePhbTry, tariffVersionLabel } from './trendyol-tariff';
 
 type GetJson = typeof trendyolGetJson;
 
@@ -332,7 +332,7 @@ function applyTariff(
         ...next,
         cargoFeeTry: cargo,
         cargoFeeSource: 'tarife',
-        cargoFeeLabel: 'tahmini (tarife)',
+        cargoFeeLabel: tariffVersionLabel(tariff),
         cargoFeeRate:
           next.customerTry > 0 ? Math.round((cargo / next.customerTry) * 1000) / 10 : null,
       };
@@ -390,6 +390,19 @@ export function applyFinanceMap(
     if (!order.money) return order;
     const estimated = applyTariff(order.money, tariff, order.status);
     return { ...order, money: applyFinanceAcc(estimated, lookup(map, order) ?? emptyFinance()) };
+  });
+}
+
+export function findCargoTariffMismatches(
+  orders: Array<{ money?: OrderListItem['money'] }>,
+  tariff: TrendyolTariff,
+): boolean {
+  return orders.some((order) => {
+    const money = order.money;
+    if (!money || money.cargoFeeSource !== 'fatura' || money.cargoFeeTry == null) return false;
+    const estimated = estimateCargoTry(money, tariff);
+    if (estimated == null) return false;
+    return Math.abs(money.cargoFeeTry - estimated) > 0.05;
   });
 }
 
@@ -508,7 +521,7 @@ export async function enrichOrdersWithFinance(
         );
       }
     }
-    allocatePhb(map, orders, phb, tariff.phbGrossTry);
+    allocatePhb(map, orders, phb, estimatePhbTry(tariff));
   } catch {
     return applyFinanceMap(orders, map, tariff);
   }

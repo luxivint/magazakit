@@ -21,13 +21,68 @@ export type FeeSource = 'none' | 'tarife' | 'fatura-tahsis' | 'settlement' | 'fa
 
 export type EarningsStatus = 'eksik' | 'tahmini' | 'kesinleşti';
 
-/** Seller-filled amounts. Band ceilings come from Trendyol Akademi; TL cells stay empty until the seller copies panel/tarife. */
+export type TrendyolTariffTable = 1 | 2;
+
+export type TrendyolTariffBaremRow = {
+  carrier: string;
+  bandMaxCustomerTry: number;
+  table: TrendyolTariffTable;
+  netTry: number;
+  grossTry: number;
+};
+
+export type TrendyolTariffDesiRow = {
+  carrier: string;
+  deci: number;
+  netTry: number;
+  grossTry: number;
+};
+
+export type TrendyolTariffVersion = {
+  version: number;
+  effectiveFrom: string;
+  sourceUrl: string;
+  sourceDate: string;
+  desiPdfUrl: string;
+  desiEffectiveFrom: string;
+  phbRuleUrl: string;
+  vatRate: number;
+  phbNetTry: number;
+  phbSameDayNetTry: number;
+  baremThresholdTry: number;
+  maxBaremDesi: number;
+  defaultTable: TrendyolTariffTable;
+  defaultCarrier: string;
+  barem: TrendyolTariffBaremRow[];
+  desi: TrendyolTariffDesiRow[];
+};
+
+export type TrendyolTariffWatch = {
+  pdfUrl: string;
+  pdfLastModified: string | null;
+  pdfEtag: string | null;
+  pdfContentLength: string | null;
+  akademiBaremHash: string | null;
+  akademiPhbHash: string | null;
+  checkedAt: string | null;
+  sourceChanged: boolean;
+};
+
+/** Versioned seller-editable copy of Akademi/PDF tables. Seeded from official pages; never auto-parsed from PDF. */
 export type TrendyolTariff = {
   cargoRuleUrl: string;
   phbRuleUrl: string;
+  desiPdfUrl: string;
+  vatRate: number;
+  phbGrossTry: number | null;
+  phbSameDayGrossTry: number | null;
   cargoBands: { maxCustomerTry: number; amountTry: number | null }[];
   cargoDesi: { deci: number; amountTry: number | null }[];
-  phbGrossTry: number | null;
+  versions: TrendyolTariffVersion[];
+  activeVersion: number;
+  mismatchNotice: string | null;
+  sourceCheckNotice: string | null;
+  watch: TrendyolTariffWatch;
 };
 
 /** Package figures plus optional current-account (cari) matches. Not a tax invoice. */
@@ -106,6 +161,17 @@ export type ProductListItem = {
   statusLabel: string;
   imageUrl: string | null;
   imageUrls?: string[];
+  weightKg?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  lengthCm?: number | null;
+  dimensionalWeight?: number | null;
+  volumetricDesi?: number | null;
+  billedDesi?: number | null;
+  cargoProvider?: string | null;
+  cargoEstimateTry?: number | null;
+  phbEstimateTry?: number | null;
+  estimateLabel?: string | null;
 };
 
 export type OrderStatus = 'created' | 'picking' | 'shipped' | 'delivered' | 'cancelled';

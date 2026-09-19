@@ -242,6 +242,43 @@ export async function fetchProducts(organizationId?: string): Promise<PreviewLis
   return request(`/v1/products?${params.toString()}`, { headers: await headers() });
 }
 
+export async function createProduct(body: {
+  title?: string;
+  sku?: string;
+  barcode?: string;
+  priceTry?: number;
+  weightKg?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  lengthCm?: number | null;
+}): Promise<ProductListItem> {
+  return request('/v1/products', {
+    method: 'POST',
+    headers: await headers(true),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateProduct(
+  productId: string,
+  body: {
+    title?: string;
+    sku?: string;
+    barcode?: string;
+    priceTry?: number;
+    weightKg?: number | null;
+    widthCm?: number | null;
+    heightCm?: number | null;
+    lengthCm?: number | null;
+  },
+): Promise<ProductListItem> {
+  return request(`/v1/products/${encodeURIComponent(productId)}`, {
+    method: 'PATCH',
+    headers: await headers(true),
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchOrders(organizationId?: string): Promise<PreviewList<OrderListItem>> {
   const params = new URLSearchParams({ pageSize: '200' });
   if (organizationId) params.set('organizationId', organizationId);
@@ -374,7 +411,14 @@ export async function fetchListingDraft(listingId: string): Promise<ListingDraft
 
 export async function saveListingDraft(
   listingId: string,
-  body: { title?: string; priceTry?: number },
+  body: {
+    title?: string;
+    priceTry?: number;
+    weightKg?: number | null;
+    widthCm?: number | null;
+    heightCm?: number | null;
+    lengthCm?: number | null;
+  },
 ): Promise<ListingDraft> {
   return request(`/v1/listings/${encodeURIComponent(listingId)}/draft`, {
     method: 'POST',
@@ -472,6 +516,13 @@ export async function saveTrendyolTariff(body: Partial<TrendyolTariff>): Promise
     method: 'PUT',
     headers: await headers(true),
     body: JSON.stringify(body),
+  });
+}
+
+export async function checkTrendyolTariff(): Promise<TrendyolTariff> {
+  return request('/v1/shops/trendyol/tariff/check', {
+    method: 'POST',
+    headers: await headers(),
   });
 }
 

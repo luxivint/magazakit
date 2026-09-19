@@ -21,6 +21,11 @@ const PRODUCTS: MockListingSeed[] = [
     status: 'active',
     statusLabel: 'Aktif',
     imageUrl: null,
+    weightKg: 0.18,
+    widthCm: 28,
+    heightCm: 2,
+    lengthCm: 22,
+    cargoProvider: 'Aras',
   },
   {
     id: 'ty-p-1002',
@@ -37,6 +42,11 @@ const PRODUCTS: MockListingSeed[] = [
     status: 'active',
     statusLabel: 'Aktif',
     imageUrl: null,
+    weightKg: 0.55,
+    widthCm: 40,
+    heightCm: 8,
+    lengthCm: 32,
+    cargoProvider: 'Aras',
   },
   {
     id: 'ty-p-1003',
@@ -53,6 +63,11 @@ const PRODUCTS: MockListingSeed[] = [
     status: 'passive',
     statusLabel: 'Pasif',
     imageUrl: null,
+    weightKg: 0.12,
+    widthCm: 18,
+    heightCm: 4,
+    lengthCm: 12,
+    cargoProvider: 'Aras',
   },
 ];
 

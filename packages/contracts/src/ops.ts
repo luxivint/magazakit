@@ -59,6 +59,10 @@ export type ListingDraft = {
   state: ListingPublishState;
   title: string;
   priceTry: number;
+  weightKg?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  lengthCm?: number | null;
   mock: boolean;
   liveTyWrite: false;
   updatedAt: string;

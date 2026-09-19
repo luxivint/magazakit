@@ -28,6 +28,11 @@ export class ShopsController {
     return this.identity.saveTrendyolTariff(user.uid, body ?? {});
   }
 
+  @Post('trendyol/tariff/check')
+  checkTariff(@CurrentUser() user: AuthUser): Promise<TrendyolTariff> {
+    return this.identity.checkTrendyolTariff(user.uid);
+  }
+
   @Post('trendyol/connect')
   async connectTrendyol(
     @CurrentUser() user: AuthUser,

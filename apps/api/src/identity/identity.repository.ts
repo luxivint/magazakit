@@ -28,6 +28,22 @@ export type PersistenceBackend = 'memory' | 'postgres' | 'file';
 
 export type StoredListing = MockListingSeed & { shopId: string };
 
+export function mergeListingDims(existing: MockListingSeed | null | undefined, incoming: MockListingSeed): MockListingSeed {
+  if (!existing) return incoming;
+  const keep = (fresh: number | null | undefined, prev: number | null | undefined) =>
+    fresh != null && fresh > 0 ? fresh : prev ?? null;
+  return {
+    ...existing,
+    ...incoming,
+    weightKg: keep(incoming.weightKg, existing.weightKg),
+    widthCm: keep(incoming.widthCm, existing.widthCm),
+    heightCm: keep(incoming.heightCm, existing.heightCm),
+    lengthCm: keep(incoming.lengthCm, existing.lengthCm),
+    dimensionalWeight: keep(incoming.dimensionalWeight, existing.dimensionalWeight),
+    cargoProvider: incoming.cargoProvider || existing.cargoProvider || null,
+  };
+}
+
 export function sellableOf(physical: number, reserved: number): number {
   return Math.max(0, physical - reserved);
 }
@@ -101,6 +117,7 @@ export interface IdentityRepository {
   saveInvite(invite: OrgInvite): Promise<OrgInvite>;
   getListingDraft(orgId: string, listingId: string): Promise<ListingDraft | null>;
   saveListingDraft(draft: ListingDraft): Promise<ListingDraft>;
+  saveListing(orgId: string, listing: StoredListing): Promise<StoredListing>;
   listSuppliers(orgId: string): Promise<Supplier[]>;
   getSupplier(orgId: string, supplierId: string): Promise<Supplier | null>;
   saveSupplier(supplier: Supplier): Promise<Supplier>;
@@ -148,6 +165,12 @@ export function toProductListItem(
     statusLabel: listing.statusLabel,
     imageUrl: listing.imageUrl,
     imageUrls: listing.imageUrls,
+    weightKg: listing.weightKg ?? null,
+    widthCm: listing.widthCm ?? null,
+    heightCm: listing.heightCm ?? null,
+    lengthCm: listing.lengthCm ?? null,
+    dimensionalWeight: listing.dimensionalWeight ?? null,
+    cargoProvider: listing.cargoProvider ?? null,
   };
 }
 

@@ -16,7 +16,14 @@ export class ListingPublishController {
   saveDraft(
     @CurrentUser() user: AuthUser,
     @Param('id') listingId: string,
-    @Body() body: { title?: string; priceTry?: number },
+    @Body() body: {
+      title?: string;
+      priceTry?: number;
+      weightKg?: number | null;
+      widthCm?: number | null;
+      heightCm?: number | null;
+      lengthCm?: number | null;
+    },
   ): Promise<ListingDraft> {
     return this.identity.saveListingDraft(user.uid, listingId, body ?? {});
   }

@@ -87,7 +87,7 @@ Katalog: `GET /v1/docs`. Satılabilir = fiziksel − rezerve. Yazdırma kargolam
 
 İçeri al ürün **ve** sipariş çeker. Trendyol sipariş API’si 2 haftalık pencerelerle son ~6 ayı tarar. İlan görselleri varsa Cloudflare R2’ye kopyalanır (`R2_*` gitignored `.env`); anahtar yoksa pazaryeri CDN URL’si kalır.
 
-Kargo ve PHB üç katman: her senkron `DeductionInvoices` → `cargo-invoice/{id}/items` (kaynak `fatura`); PHB satırı yoksa dönem tahsisi yalnız n=1 veya n×satıcı PHB (kaynak `fatura-tahsis`); Akademi tutar basmadığı için 57,99 koda gömülmez — `GET/PUT /v1/shops/trendyol/tariff` satıcı tablosu, kaynak `tahmini (tarife)`. Net **tahmini** / **kesinleşti**. Ayrıntı: sipariş kartı.
+Kargo ve PHB üç katman: fatura kalemi; PHB dönem tahsisi; tohumlu tarife v1 (Aras Tablo 1 48,33+KDV=57,99, PHB 10,99+KDV) satıcı düzenler. Ürün detay/gir/düzenle desi bloğu tahmini kargo+PHB gösterir — kesinleşmiş değil.
 
 ## Persistence
 

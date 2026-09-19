@@ -27,6 +27,7 @@ import { shopRecordId } from '../channels/registry';
 import type { MockListingSeed } from '../trendyol/mock-feed';
 import {
   emptyStock,
+  mergeListingDims,
   sellableOf,
   withOrderDefaults,
   withReturnDefaults,
@@ -241,8 +242,10 @@ export class MemoryIdentityRepository implements IdentityRepository {
       }
     }
     for (const listing of listings) {
-      this.listings.set(this.listingKey(orgId, listing.id), {
-        ...listing,
+      const key = this.listingKey(orgId, listing.id);
+      const prev = this.listings.get(key);
+      this.listings.set(key, {
+        ...mergeListingDims(prev, listing),
         shopId,
       });
     }
@@ -467,6 +470,11 @@ export class MemoryIdentityRepository implements IdentityRepository {
       liveTyWrite: false,
     });
     return { ...draft, liveTyWrite: false };
+  }
+
+  async saveListing(orgId: string, listing: StoredListing): Promise<StoredListing> {
+    this.listings.set(this.listingKey(orgId, listing.id), listing);
+    return listing;
   }
 
   async listSuppliers(orgId: string): Promise<Supplier[]> {

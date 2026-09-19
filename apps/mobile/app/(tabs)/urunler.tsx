@@ -51,10 +51,20 @@ export default function UrunlerScreen() {
               <Text style={styles.title}>Ürünler</Text>
               <Text style={styles.count}>{formatCount(catalog.loading ? 0 : products.length)} ürün</Text>
             </View>
-            <Pressable style={styles.ingestBtn} onPress={() => router.push('/(tabs)/icerik-al')}>
-              <Ionicons name="download-outline" size={16} color={colors.graphite} />
-              <Text style={styles.ingestText}>İçeri al</Text>
+            <Pressable style={styles.ingestBtn} onPress={() => router.push('/urun/yeni')}>
+              <Ionicons name="add" size={16} color={colors.graphite} />
+              <Text style={styles.ingestText}>Ürün gir</Text>
             </Pressable>
+            <View style={{ gap: 8, alignItems: 'flex-end' }}>
+              <Pressable style={styles.ingestBtn} onPress={() => router.push('/urun/yeni')}>
+                <Ionicons name="add" size={16} color={colors.graphite} />
+                <Text style={styles.ingestText}>Ürün gir</Text>
+              </Pressable>
+              <Pressable style={styles.ingestBtn} onPress={() => router.push('/(tabs)/icerik-al')}>
+                <Ionicons name="download-outline" size={16} color={colors.graphite} />
+                <Text style={styles.ingestText}>İçeri al</Text>
+              </Pressable>
+            </View>
           </View>
           <View style={styles.searchRow}>
             <SearchField

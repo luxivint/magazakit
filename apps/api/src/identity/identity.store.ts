@@ -37,8 +37,16 @@ import { trendyolMode } from '../config/trendyol-env';
 import { mockTrendyolOutboxStatus } from '../outbox/mock-trendyol-write';
 import { CHANNEL_LABELS, HARD_BLOCK, channelCatalog } from '../channels/registry';
 import { liveAdapterFromSecrets, parseShopConnect, trendyolLiveFromSecrets } from '../channels/shop-secrets';
-import { applyFinanceMap, enrichOrdersWithFinance } from '../trendyol/trendyol-finance';
-import { normalizeTariff } from '../trendyol/trendyol-tariff';
+import { applyFinanceMap, enrichOrdersWithFinance, findCargoTariffMismatches } from '../trendyol/trendyol-finance';
+import {
+  billedDesi,
+  estimateCargoTry,
+  estimatePhbTry,
+  normalizeTariff,
+  tariffVersionLabel,
+  volumetricDesi,
+} from '../trendyol/trendyol-tariff';
+import { watchTariffSources } from '../trendyol/trendyol-tariff-watch';
 import { SHOP_CHANNELS, type ChannelAdapterMap, type ChannelCatalogRow, type ChannelReadAdapter } from '../channels/types';
 import type { Channel, ShopConnectRequest } from '@magazakit/contracts';
 import { mirrorListingImages } from '../media/ingest-images';
@@ -211,8 +219,19 @@ export class IdentityStore {
     );
   }
 
-  listShops(uid: string): Promise<ShopStatus[]> {
-    return this.repo.listShopsForUid(uid);
+  async listShops(uid: string): Promise<ShopStatus[]> {
+    const shops = await this.repo.listShopsForUid(uid);
+    return Promise.all(
+      shops.map(async (shop) => {
+        if (shop.channel !== 'trendyol') return shop;
+        const tariff = normalizeTariff(await this.repo.getTrendyolTariff(shop.organizationId));
+        return {
+          ...shop,
+          tariffMismatchNotice: tariff.mismatchNotice,
+          tariffSourceNotice: tariff.sourceCheckNotice,
+        };
+      }),
+    );
   }
 
   private async adapterForShop(orgId: string, shop: ShopStatus): Promise<ChannelReadAdapter> {
@@ -285,10 +304,11 @@ export class IdentityStore {
     ]);
     const byListing = new Map(mappings.map((m) => [m.listingId, m]));
     const items: ProductListItem[] = [];
+    const tariff = normalizeTariff(await this.repo.getTrendyolTariff(org.id));
     for (const listing of listings) {
       const mapping = byListing.get(listing.id);
       const stock = mapping ? await this.repo.getSkuStock(org.id, mapping.sku) : undefined;
-      items.push(toProductListItem(listing, org.id, mapping, stock));
+      items.push(this.decorateProduct(toProductListItem(listing, org.id, mapping, stock), tariff));
     }
     return asPreviewList(
       paginate(items, parsePageQuery({ page, pageSize })),
@@ -325,7 +345,9 @@ export class IdentityStore {
     force = false,
   ): Promise<OrderListItem[]> {
     if (orders.length === 0) return orders;
-    const tariff = normalizeTariff(await this.repo.getTrendyolTariff(orgId));
+    const listings = await this.repo.listListings(orgId);
+    orders = this.withListingDeci(orders, listings);
+    const tariff = await this.ensureTariff(orgId);
     const withTariff = (rows: OrderListItem[]) =>
       applyFinanceMap(rows, new Map(), tariff).map((row) => ({ ...row, organizationId: orgId }));
     const allInvoiced = orders.every(
@@ -344,10 +366,73 @@ export class IdentityStore {
     try {
       const next = await enrichOrdersWithFinance(trendyolLiveFromSecrets(secrets), orders, undefined, tariff);
       await this.repo.upsertOrders(orgId, next);
+      await this.recordTariffMismatch(orgId, tariff, next);
       return next.map((row) => ({ ...row, organizationId: orgId }));
     } catch {
-      return withTariff(orders);
+      const fallback = withTariff(orders);
+      await this.recordTariffMismatch(orgId, tariff, fallback);
+      return fallback;
     }
+  }
+
+  private withListingDeci(orders: OrderListItem[], listings: Awaited<ReturnType<IdentityRepository['listListings']>>): OrderListItem[] {
+    return orders.map((order) => {
+      if (!order.money || (order.money.cargoDeci != null && order.money.cargoDeci > 0)) return order;
+      const listing = listings.find((row) => order.lines.some((line) => line.listingId === row.id));
+      if (!listing) return order;
+      const deci = billedDesi(listing);
+      if (!deci) return order;
+      return {
+        ...order,
+        money: {
+          ...order.money,
+          cargoDeci: deci,
+          cargoProvider: order.money.cargoProvider || listing.cargoProvider || null,
+        },
+      };
+    });
+  }
+
+  private decorateProduct(item: ProductListItem, tariff: TrendyolTariff): ProductListItem {
+    const volumetric = volumetricDesi(item.widthCm, item.heightCm, item.lengthCm);
+    const billed = billedDesi(item);
+    const cargo = estimateCargoTry(
+      { customerTry: item.priceTry, cargoDeci: billed, cargoProvider: item.cargoProvider ?? null },
+      tariff,
+    );
+    const phb = estimatePhbTry(tariff);
+    return {
+      ...item,
+      volumetricDesi: volumetric,
+      billedDesi: billed,
+      cargoEstimateTry: cargo,
+      phbEstimateTry: phb,
+      estimateLabel: cargo != null || phb != null ? tariffVersionLabel(tariff) : null,
+    };
+  }
+
+  private async ensureTariff(orgId: string): Promise<TrendyolTariff> {
+    const stored = await this.repo.getTrendyolTariff(orgId);
+    let tariff = normalizeTariff(stored);
+    if (!stored) await this.repo.saveTrendyolTariff(orgId, tariff);
+    const watched = await watchTariffSources(tariff);
+    if (watched.watch.checkedAt !== tariff.watch.checkedAt || watched.sourceCheckNotice !== tariff.sourceCheckNotice) {
+      await this.repo.saveTrendyolTariff(orgId, watched);
+    }
+    return watched;
+  }
+
+  private async recordTariffMismatch(
+    orgId: string,
+    tariff: TrendyolTariff,
+    orders: Array<Pick<OrderListItem, 'money'>>,
+  ): Promise<void> {
+    if (!findCargoTariffMismatches(orders, tariff)) return;
+    const next = {
+      ...tariff,
+      mismatchNotice: 'Tarife değişmiş olabilir — kargo faturası tahminden sapıyor.',
+    };
+    await this.repo.saveTrendyolTariff(orgId, next);
   }
 
   private async previewIsMock(uid: string): Promise<boolean> {
@@ -922,7 +1007,14 @@ export class IdentityStore {
   async saveListingDraft(
     uid: string,
     listingId: string,
-    body: { title?: string; priceTry?: number },
+    body: {
+      title?: string;
+      priceTry?: number;
+      weightKg?: number | null;
+      widthCm?: number | null;
+      heightCm?: number | null;
+      lengthCm?: number | null;
+    },
   ): Promise<ListingDraft> {
     const org = await this.requireOrg(uid);
     const listing = await this.repo.getListing(org.id, listingId);
@@ -936,10 +1028,23 @@ export class IdentityStore {
       state: prev?.state === 'mock_live' ? 'mock_live' : 'draft',
       title: body.title?.trim() || prev?.title || listing.title,
       priceTry: Number.isFinite(body.priceTry) ? Number(body.priceTry) : (prev?.priceTry ?? listing.priceTry),
+      weightKg: body.weightKg !== undefined ? body.weightKg : (prev?.weightKg ?? listing.weightKg ?? null),
+      widthCm: body.widthCm !== undefined ? body.widthCm : (prev?.widthCm ?? listing.widthCm ?? null),
+      heightCm: body.heightCm !== undefined ? body.heightCm : (prev?.heightCm ?? listing.heightCm ?? null),
+      lengthCm: body.lengthCm !== undefined ? body.lengthCm : (prev?.lengthCm ?? listing.lengthCm ?? null),
       mock: prev?.mock ?? true,
       liveTyWrite: false,
       updatedAt: nowIso(),
     };
+    await this.repo.saveListing(org.id, {
+      ...listing,
+      title: draft.title,
+      priceTry: draft.priceTry,
+      weightKg: draft.weightKg,
+      widthCm: draft.widthCm,
+      heightCm: draft.heightCm,
+      lengthCm: draft.lengthCm,
+    });
     return this.repo.saveListingDraft(draft);
   }
 
@@ -957,6 +1062,10 @@ export class IdentityStore {
         state: 'draft' as const,
         title: listing.title,
         priceTry: listing.priceTry,
+        weightKg: listing.weightKg ?? null,
+        widthCm: listing.widthCm ?? null,
+        heightCm: listing.heightCm ?? null,
+        lengthCm: listing.lengthCm ?? null,
         mock: true,
         liveTyWrite: false as const,
         updatedAt: nowIso(),
@@ -995,6 +1104,10 @@ export class IdentityStore {
       state: 'draft',
       title: listing.title,
       priceTry: listing.priceTry,
+      weightKg: listing.weightKg ?? null,
+      widthCm: listing.widthCm ?? null,
+      heightCm: listing.heightCm ?? null,
+      lengthCm: listing.lengthCm ?? null,
       mock: true,
       liveTyWrite: false,
       updatedAt: listing.id ? nowIso() : nowIso(),
@@ -1159,12 +1272,19 @@ export class IdentityStore {
 
   async getTrendyolTariff(uid: string): Promise<TrendyolTariff> {
     const org = await this.requireOrg(uid);
-    return normalizeTariff(await this.repo.getTrendyolTariff(org.id));
+    return this.ensureTariff(org.id);
   }
 
   async saveTrendyolTariff(uid: string, body: Partial<TrendyolTariff>): Promise<TrendyolTariff> {
     const org = await this.requireOrg(uid);
-    const tariff = normalizeTariff({ ...(await this.repo.getTrendyolTariff(org.id)), ...body });
+    const prev = normalizeTariff(await this.repo.getTrendyolTariff(org.id));
+    const tariff = normalizeTariff({
+      ...prev,
+      ...body,
+      mismatchNotice: null,
+      sourceCheckNotice: null,
+      watch: { ...prev.watch, sourceChanged: false },
+    });
     await this.repo.saveTrendyolTariff(org.id, tariff);
     const orders = await this.repo.listOrgOrders(org.id);
     if (orders.length > 0) {
@@ -1183,6 +1303,100 @@ export class IdentityStore {
       await this.repo.upsertOrders(org.id, next);
     }
     return tariff;
+  }
+
+  async checkTrendyolTariff(uid: string): Promise<TrendyolTariff> {
+    const org = await this.requireOrg(uid);
+    const tariff = await watchTariffSources(await this.ensureTariff(org.id), true);
+    await this.repo.saveTrendyolTariff(org.id, tariff);
+    return tariff;
+  }
+
+  async getProduct(uid: string, productId: string): Promise<ProductListItem> {
+    const org = await this.requireOrg(uid);
+    const listing = await this.repo.getListing(org.id, productId);
+    if (!listing) boom(ErrorCodes.NOT_FOUND, 'Ürün bulunamadı.', HttpStatus.NOT_FOUND);
+    const mapping = (await this.repo.listMappings(org.id)).find((row) => row.listingId === listing.id);
+    const stock = mapping ? await this.repo.getSkuStock(org.id, mapping.sku) : undefined;
+    return this.decorateProduct(
+      toProductListItem(listing, org.id, mapping, stock),
+      normalizeTariff(await this.repo.getTrendyolTariff(org.id)),
+    );
+  }
+
+  async createProduct(
+    uid: string,
+    body: {
+      title?: string;
+      sku?: string;
+      barcode?: string;
+      priceTry?: number;
+      weightKg?: number | null;
+      widthCm?: number | null;
+      heightCm?: number | null;
+      lengthCm?: number | null;
+    },
+  ): Promise<ProductListItem> {
+    const org = await this.requireOrg(uid);
+    const shops = await this.repo.listShopsForUid(uid);
+    const shop = shops.find((row) => row.organizationId === org.id && row.channel === 'trendyol') ?? shops[0];
+    const sku = body.sku?.trim() || `SKU-${Date.now()}`;
+    const listing = {
+      id: `cat-${randomUUID()}`,
+      sku,
+      barcode: body.barcode?.trim() || sku,
+      title: body.title?.trim() || sku,
+      channel: 'trendyol' as const,
+      priceTry: Number(body.priceTry) || 0,
+      marketplaceStock: 0,
+      physicalStock: 0,
+      reservedStock: 0,
+      sellableStock: 0,
+      critical: false,
+      status: 'active' as const,
+      statusLabel: 'Aktif',
+      imageUrl: null,
+      weightKg: body.weightKg ?? null,
+      widthCm: body.widthCm ?? null,
+      heightCm: body.heightCm ?? null,
+      lengthCm: body.lengthCm ?? null,
+      dimensionalWeight: null,
+      cargoProvider: 'Aras',
+      shopId: shop?.id ?? 'local',
+    };
+    await this.repo.saveListing(org.id, listing);
+    return this.getProduct(uid, listing.id);
+  }
+
+  async updateProduct(
+    uid: string,
+    productId: string,
+    body: {
+      title?: string;
+      sku?: string;
+      barcode?: string;
+      priceTry?: number;
+      weightKg?: number | null;
+      widthCm?: number | null;
+      heightCm?: number | null;
+      lengthCm?: number | null;
+    },
+  ): Promise<ProductListItem> {
+    const org = await this.requireOrg(uid);
+    const listing = await this.repo.getListing(org.id, productId);
+    if (!listing) boom(ErrorCodes.NOT_FOUND, 'Ürün bulunamadı.', HttpStatus.NOT_FOUND);
+    await this.repo.saveListing(org.id, {
+      ...listing,
+      title: body.title?.trim() || listing.title,
+      sku: body.sku?.trim() || listing.sku,
+      barcode: body.barcode?.trim() || listing.barcode,
+      priceTry: body.priceTry != null && Number.isFinite(body.priceTry) ? Number(body.priceTry) : listing.priceTry,
+      weightKg: body.weightKg !== undefined ? body.weightKg : listing.weightKg,
+      widthCm: body.widthCm !== undefined ? body.widthCm : listing.widthCm,
+      heightCm: body.heightCm !== undefined ? body.heightCm : listing.heightCm,
+      lengthCm: body.lengthCm !== undefined ? body.lengthCm : listing.lengthCm,
+    });
+    return this.getProduct(uid, productId);
   }
 
   async getPrinter(uid: string): Promise<PrinterSettings> {

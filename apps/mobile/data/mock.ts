@@ -93,6 +93,17 @@ export type Product = {
   imageUrl: string | null;
   imageUrls: string[];
   statusLabel?: string;
+  weightKg?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  lengthCm?: number | null;
+  dimensionalWeight?: number | null;
+  volumetricDesi?: number | null;
+  billedDesi?: number | null;
+  cargoProvider?: string | null;
+  cargoEstimateTry?: number | null;
+  phbEstimateTry?: number | null;
+  estimateLabel?: string | null;
 };
 
 export const STORE_NAME = 'Mağazam';

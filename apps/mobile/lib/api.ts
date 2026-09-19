@@ -61,6 +61,17 @@ export type ProductListItem = {
   statusLabel: string;
   imageUrl: string | null;
   imageUrls?: string[];
+  weightKg?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  lengthCm?: number | null;
+  dimensionalWeight?: number | null;
+  volumetricDesi?: number | null;
+  billedDesi?: number | null;
+  cargoProvider?: string | null;
+  cargoEstimateTry?: number | null;
+  phbEstimateTry?: number | null;
+  estimateLabel?: string | null;
 };
 
 export type OrderLine = {
@@ -173,6 +184,8 @@ export type ShopStatus = {
   checkpoint: string | null;
   k01: string;
   mock: boolean;
+  tariffMismatchNotice?: string | null;
+  tariffSourceNotice?: string | null;
 };
 
 export type ListingMapping = {
@@ -289,6 +302,10 @@ export type ListingDraft = {
   state: 'draft' | 'mock_live';
   title: string;
   priceTry: number;
+  weightKg?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  lengthCm?: number | null;
   mock: boolean;
   liveTyWrite: false;
   updatedAt: string;
@@ -399,7 +416,29 @@ export type ChannelCatalogRow = {
 export type TrendyolTariff = {
   cargoRuleUrl: string;
   phbRuleUrl: string;
+  desiPdfUrl?: string;
+  vatRate?: number;
+  phbGrossTry: number | null;
+  phbSameDayGrossTry?: number | null;
   cargoBands: { maxCustomerTry: number; amountTry: number | null }[];
   cargoDesi: { deci: number; amountTry: number | null }[];
-  phbGrossTry: number | null;
+  versions?: {
+    version: number;
+    effectiveFrom: string;
+    sourceUrl: string;
+    sourceDate: string;
+    desiPdfUrl: string;
+    desiEffectiveFrom: string;
+    phbRuleUrl: string;
+    vatRate: number;
+    phbNetTry: number;
+    phbSameDayNetTry: number;
+    defaultTable: 1 | 2;
+    defaultCarrier: string;
+    barem: { carrier: string; bandMaxCustomerTry: number; table: 1 | 2; netTry: number; grossTry: number }[];
+    desi: { carrier: string; deci: number; netTry: number; grossTry: number }[];
+  }[];
+  activeVersion?: number;
+  mismatchNotice?: string | null;
+  sourceCheckNotice?: string | null;
 };
